@@ -1,0 +1,5 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import './globals.css';
+export const metadata:Metadata={title:'StudyMind | Learn smarter with AI',description:'StudyMind helps students and lecturers turn learning materials into meaningful study experiences.'};
+export default function RootLayout({children}:{children:React.ReactNode}){return <html lang="en"><body><header className="container site-header"><Link className="logo" href="/">StudyMind</Link><nav className="nav" aria-label="Main navigation"><Link className="desktop-only" href="/#features">Features</Link><Link className="desktop-only" href="/#how-it-works">How it works</Link><Link href="/sign-in">Sign in</Link><Link className="btn" href="/sign-up">Get started</Link></nav></header><main>{children}</main><footer className="footer"><div className="container">© {new Date().getFullYear()} StudyMind · Learn smarter, teach better.</div></footer></body></html>}
