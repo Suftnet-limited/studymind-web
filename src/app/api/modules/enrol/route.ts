@@ -1,0 +1,5 @@
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { currentUserId } from '@/lib/session';
+export const runtime='nodejs';
+export async function POST(req:Request){const userId=await currentUserId();if(!userId)return NextResponse.json({error:'Authentication required'},{status:401});const user=await prisma.user.findUnique({where:{id:userId},select:{role:true}});if(user?.role!=='STUDENT')return NextResponse.json({error:'Student account required'},{status:403});const data=await req.formData();const code=String(data.get('code')||'').trim().toUpperCase();if(!/^[A-F0-9]{16}$/.test(code))return NextResponse.json({error:'Invalid enrolment code'},{status:400});const module=await prisma.module.findUnique({where:{enrolmentCode:code},select:{id:true}});if(!module)return NextResponse.json({error:'Module not found'},{status:404});await prisma.enrolment.upsert({where:{userId_moduleId:{userId,moduleId:module.id}},update:{},create:{userId,moduleId:module.id}});return NextResponse.redirect(new URL(`/modules/${module.id}`,req.url),303)}
