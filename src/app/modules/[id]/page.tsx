@@ -1,6 +1,4 @@
 import Link from 'next/link';
-import {Card,CardContent,CardHeader,CardTitle} from '@/components/ui/card';
-import {Badge} from '@/components/ui/badge';
 import { notFound,redirect } from 'next/navigation';
 import { currentUserId } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
