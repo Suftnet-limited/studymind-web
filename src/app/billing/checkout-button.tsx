@@ -1,0 +1,3 @@
+'use client';
+import {useState} from 'react';
+export function CheckoutButton(){const [busy,setBusy]=useState(false);const [error,setError]=useState('');async function checkout(){setBusy(true);setError('');try{const res=await fetch('/api/billing/checkout',{method:'POST'});const data=await res.json();if(!res.ok||typeof data.url!=='string')throw new Error(data.error||'Checkout unavailable');window.location.assign(data.url)}catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}}return <div><button className="btn" onClick={()=>void checkout()} disabled={busy}>{busy?'Opening Stripe…':'Purchase access pass'}</button>{error&&<p role="alert" style={{color:'#b42318'}}>{error}</p>}</div>}
