@@ -1,3 +1,8 @@
 'use client';
-import {useState} from 'react';
-export function CheckoutButton(){const [busy,setBusy]=useState(false);const [error,setError]=useState('');async function checkout(){setBusy(true);setError('');try{const res=await fetch('/api/billing/checkout',{method:'POST'});const data=await res.json();if(!res.ok||typeof data.url!=='string')throw new Error(data.error||'Checkout unavailable');window.location.assign(data.url)}catch(e){setError(e instanceof Error?e.message:'Checkout unavailable');setBusy(false)}}return <div><button className="btn" onClick={()=>void checkout()} disabled={busy}>{busy?'Opening Stripe…':'Purchase access pass'}</button>{error&&<p role="alert" style={{color:'#b42318'}}>{error}</p>}</div>}
+import {useBillingCheckout} from '@/hooks/use-billing-checkout';
+import {Button} from '@/components/ui/button';
+export function CheckoutButton(){
+ const checkout=useBillingCheckout();
+ async function start(){try{const url=await checkout.mutateAsync();window.location.assign(url)}catch{/* Mutation error is displayed below. */}}
+ return <div className="space-y-3"><Button type="button" disabled={checkout.isPending} onClick={()=>void start()}>{checkout.isPending?'Opening Stripe…':'Purchase access pass'}</Button>{checkout.error&&<p role="alert" className="text-sm text-red-600">{checkout.error.message}</p>}</div>;
+}
