@@ -1,26 +1,9 @@
 'use client';
-import { useState } from 'react';
-
-export function PrepareAiCourse({ moduleId }: { moduleId: string }) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  async function prepare() {
-    if (busy) return;
-    setBusy(true); setMessage('');
-    try {
-      const response = await fetch(`/api/modules/${moduleId}/provision`, { method: 'POST' });
-      const data: {status?:string;error?:string} = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not prepare course');
-      setMessage(data.status === 'ready' ? 'AI course is ready.' :
-        'Course indexing started. You can check its status from the AI study workspace.');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not prepare course');
-    } finally { setBusy(false); }
-  }
-  return <div>
-    <button className="btn secondary" type="button" disabled={busy} onClick={() => void prepare()}>
-      {busy ? 'Preparing…' : 'Prepare AI course'}
-    </button>
-    {message && <p role="status" className="muted">{message}</p>}
-  </div>;
+import {usePrepareCourse} from '@/hooks/use-lecturer-module';
+import {Button} from '@/components/ui/button';
+export function PrepareAiCourse({moduleId}:{moduleId:string}){
+ const mutation=usePrepareCourse(moduleId);
+ return <div className="space-y-3"><Button variant="outline" type="button" disabled={mutation.isPending} onClick={()=>mutation.mutate()}>{mutation.isPending?'Preparing…':'Prepare AI course'}</Button>
+ {mutation.isSuccess&&<p role="status" className="text-sm text-emerald-700">{mutation.data.status==='ready'?'AI course is ready.':'Course indexing started. Check the AI study workspace for its status.'}</p>}
+ {mutation.isError&&<p role="alert" className="text-sm text-red-700">{mutation.error.message}</p>}</div>;
 }
