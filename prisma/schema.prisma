@@ -1,10 +1,86 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
-enum Role { STUDENT LECTURER ADMIN }
-enum PassStatus { ACTIVE EXPIRED REVOKED }
-enum DocumentVisibility { CLASS PERSONAL }
-model User { id String @id @default(cuid()) email String @unique name String passwordHash String role Role @default(STUDENT) createdAt DateTime @default(now()) updatedAt DateTime @updatedAt modules Module[] @relation("LecturerModules") enrolments Enrolment[] passes AccessPass[] documents StudyDocument[] }
-model Module { id String @id @default(cuid()) title String description String? lecturerId String lecturer User @relation("LecturerModules",fields:[lecturerId],references:[id]) enrolmentCode String @unique createdAt DateTime @default(now()) updatedAt DateTime @updatedAt enrolments Enrolment[] documents StudyDocument[] }
-model Enrolment { id String @id @default(cuid()) userId String moduleId String user User @relation(fields:[userId],references:[id]) module Module @relation(fields:[moduleId],references:[id]) createdAt DateTime @default(now()) @@unique([userId,moduleId]) }
-model StudyDocument { id String @id @default(cuid()) moduleId String ownerId String module Module @relation(fields:[moduleId],references:[id]) owner User @relation(fields:[ownerId],references:[id]) title String storageKey String visibility DocumentVisibility createdAt DateTime @default(now()) }
-model AccessPass { id String @id @default(cuid()) userId String user User @relation(fields:[userId],references:[id]) status PassStatus @default(ACTIVE) startsAt DateTime expiresAt DateTime stripePaymentIntentId String? @unique createdAt DateTime @default(now()) }
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
+
+enum PassStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum DocumentVisibility {
+  CLASS
+  PERSONAL
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  name         String
+  passwordHash String
+  role         Role            @default(STUDENT)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  modules      Module[]        @relation("LecturerModules")
+  enrolments   Enrolment[]
+  passes       AccessPass[]
+  documents    StudyDocument[]
+}
+
+model Module {
+  id            String          @id @default(cuid())
+  title         String
+  description   String?
+  lecturerId    String
+  lecturer      User            @relation("LecturerModules", fields: [lecturerId], references: [id])
+  enrolmentCode String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  enrolments    Enrolment[]
+  documents     StudyDocument[]
+}
+
+model Enrolment {
+  id        String   @id @default(cuid())
+  userId    String
+  moduleId  String
+  user      User     @relation(fields: [userId], references: [id])
+  module    Module   @relation(fields: [moduleId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, moduleId])
+}
+
+model StudyDocument {
+  id         String             @id @default(cuid())
+  moduleId   String
+  ownerId    String
+  module     Module             @relation(fields: [moduleId], references: [id])
+  owner      User               @relation(fields: [ownerId], references: [id])
+  title      String
+  storageKey String
+  visibility DocumentVisibility
+  createdAt  DateTime           @default(now())
+}
+
+model AccessPass {
+  id                    String     @id @default(cuid())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id])
+  status                PassStatus @default(ACTIVE)
+  startsAt              DateTime
+  expiresAt             DateTime
+  stripePaymentIntentId String?    @unique
+  createdAt             DateTime   @default(now())
+}
