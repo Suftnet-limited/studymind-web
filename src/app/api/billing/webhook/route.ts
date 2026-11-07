@@ -14,7 +14,7 @@ async function reconcileRefund(charge:Stripe.Charge){
  const refunded=Math.min(latest.amount,Math.max(0,latest.amount_refunded));
  if(!refunded)return;
  if(refunded>=latest.amount){await revokeByPaymentIntent(id);return}
- const originalMs=pass.expiresAt.getTime()-pass.startsAt.getTime();
+ const intent=await stripe().paymentIntents.retrieve(id);const days=Number(intent.metadata.passDays);if(!Number.isInteger(days)||days<1||days>365)throw new Error('Missing original pass duration for refund reconciliation');const originalMs=days*86400000;
  const remainingFraction=(latest.amount-refunded)/latest.amount;
  const revisedEnd=new Date(pass.startsAt.getTime()+Math.floor(originalMs*remainingFraction));
  await prisma.accessPass.updateMany({where:{id:pass.id,status:'ACTIVE',expiresAt:{gt:revisedEnd}},data:{expiresAt:revisedEnd}});
