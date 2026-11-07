@@ -55,6 +55,7 @@ async function processEvent(event:Stripe.Event){
  }
 }
 export async function POST(req:Request){
+ let claimTime:Date|null=null;
  const secret=process.env.STRIPE_WEBHOOK_SECRET;
  if(!secret)return NextResponse.json({error:'Webhook not configured'},{status:503});
  const signature=req.headers.get('stripe-signature');
@@ -75,11 +76,13 @@ export async function POST(req:Request){
    if(existing?.processedAt)return NextResponse.json({received:true,duplicate:true});
    return NextResponse.json({error:'Webhook processing in progress; retry later'},{status:503,headers:{'Retry-After':'30'}});
   }
+  claimTime=now;
   await processEvent(event);
-  await prisma.stripeWebhookEvent.update({where:{id:event.id},data:{processedAt:new Date(),processingAt:null}});
+  const finished=await prisma.stripeWebhookEvent.updateMany({where:{id:event.id,processingAt:claimTime,processedAt:null},data:{processedAt:new Date(),processingAt:null}});
+  if(finished.count!==1)throw new Error('Webhook claim expired before completion');
   return NextResponse.json({received:true});
  }catch(e){
-  await prisma.stripeWebhookEvent.updateMany({where:{id:event.id,processedAt:null},data:{processingAt:null}}).catch(()=>{});
+  if(claimTime)await prisma.stripeWebhookEvent.updateMany({where:{id:event.id,processingAt:claimTime,processedAt:null},data:{processingAt:null}}).catch(()=>{});
   console.error('Webhook processing failed',event.id,e instanceof Error?e.message:'unknown');
   return NextResponse.json({error:'Processing failed; Stripe may retry'},{status:500});
  }
