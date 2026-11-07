@@ -1,31 +1,22 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { moduleService, type IndexDocument } from '@/services/module.service';
+import { moduleService } from '@/services/module.service';
+import { moduleKeys } from '@/services/query-keys';
 export function useModuleUpload(moduleId: string) {
   const router = useRouter();
-  const [busy,setBusy] = useState(false);
-  const [message,setMessage] = useState('');
-  async function upload(form: HTMLFormElement) {
-    setBusy(true); setMessage('Uploading document…');
-    try { await moduleService.upload(moduleId, new FormData(form)); setMessage('Document uploaded. AI indexing is in progress.'); form.reset(); router.refresh(); }
-    catch (e) { setMessage(e instanceof Error ? e.message : 'Upload failed'); }
-    finally { setBusy(false); }
-  }
-  return { upload, busy, message };
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (form: HTMLFormElement) => moduleService.upload(moduleId, new FormData(form)),
+    onSuccess: (_data, form) => { form.reset(); void queryClient.invalidateQueries({ queryKey: moduleKeys.indexing(moduleId) }); router.refresh(); },
+  });
+  return { upload: mutation.mutateAsync, busy: mutation.isPending, message: mutation.isPending ? 'Uploading document…' : mutation.isSuccess ? 'Document uploaded. AI indexing is in progress.' : mutation.error?.message || '' };
 }
 export function useModuleIndexing(moduleId: string) {
-  const [docs,setDocs] = useState<IndexDocument[]>([]);
-  const [error,setError] = useState('');
-  const [refresh,setRefresh] = useState(0);
-  useEffect(() => {
-    let active = true; const controller = new AbortController();
-    async function load() {
-      try { const data = await moduleService.indexingStatus(moduleId, controller.signal); if (active) { setDocs(data); setError(''); } }
-      catch(e) { if(active && !controller.signal.aborted) setError(e instanceof Error ? e.message : 'Status unavailable'); }
-    }
-    void load(); const timer = setInterval(() => void load(), 10000);
-    return () => { active = false; controller.abort(); clearInterval(timer); };
-  }, [moduleId,refresh]);
-  return { docs, error, refresh: () => setRefresh(v => v+1) };
+  const query = useQuery({
+    queryKey: moduleKeys.indexing(moduleId),
+    queryFn: ({ signal }) => moduleService.indexingStatus(moduleId, signal),
+    refetchInterval: 10000,
+  });
+  return { docs: query.data || [], error: query.error?.message || '', refresh: () => void query.refetch() };
 }
