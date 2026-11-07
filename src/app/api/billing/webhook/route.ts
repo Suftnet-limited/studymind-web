@@ -40,21 +40,23 @@ export async function POST(req:Request){
  try{event=stripe().webhooks.constructEvent(await req.text(),signature,secret)}
  catch{return NextResponse.json({error:'Invalid signature'},{status:400})}
  try{
-  const existing=await prisma.stripeWebhookEvent.findUnique({where:{id:event.id}});
-  if(existing?.processedAt)return NextResponse.json({received:true,duplicate:true});
-  if(!existing){
-   try{await prisma.stripeWebhookEvent.create({data:{id:event.id,type:event.type}})}
-   catch(e){
-    // A concurrent delivery may be processing this event. Retry safely rather than acknowledge.
-    const recorded=await prisma.stripeWebhookEvent.findUnique({where:{id:event.id}});
-    if(recorded?.processedAt)return NextResponse.json({received:true,duplicate:true});
-    throw e;
-   }
+  await prisma.stripeWebhookEvent.upsert({where:{id:event.id},create:{id:event.id,type:event.type},update:{}});
+  const now=new Date();
+  const stale=new Date(now.getTime()-5*60*1000);
+  const claim=await prisma.stripeWebhookEvent.updateMany({
+   where:{id:event.id,processedAt:null,OR:[{processingAt:null},{processingAt:{lt:stale}}]},
+   data:{processingAt:now}
+  });
+  if(claim.count===0){
+   const existing=await prisma.stripeWebhookEvent.findUnique({where:{id:event.id}});
+   if(existing?.processedAt)return NextResponse.json({received:true,duplicate:true});
+   return NextResponse.json({error:'Webhook processing in progress; retry later'},{status:503,headers:{'Retry-After':'30'}});
   }
   await processEvent(event);
-  await prisma.stripeWebhookEvent.update({where:{id:event.id},data:{processedAt:new Date()}});
+  await prisma.stripeWebhookEvent.update({where:{id:event.id},data:{processedAt:new Date(),processingAt:null}});
   return NextResponse.json({received:true});
  }catch(e){
+  await prisma.stripeWebhookEvent.updateMany({where:{id:event.id,processedAt:null},data:{processingAt:null}}).catch(()=>{});
   console.error('Webhook processing failed',event.id,e instanceof Error?e.message:'unknown');
   return NextResponse.json({error:'Processing failed; Stripe may retry'},{status:500});
  }
