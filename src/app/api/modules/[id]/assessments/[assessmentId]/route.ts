@@ -1,6 +1,0 @@
-import {NextResponse} from 'next/server';
-import {moduleAccess} from '@/lib/module-access';
-import {prisma} from '@/lib/prisma';
-export const runtime='nodejs';
-type Ctx={params:Promise<{id:string;assessmentId:string}>};
-export async function PATCH(req:Request,{params}:Ctx){const {id,assessmentId}=await params;const access=await moduleAccess(id);if(!access)return NextResponse.json({error:'Not found'},{status:404});if(!access.isLecturer)return NextResponse.json({error:'Lecturer access required'},{status:403});let data:unknown;try{data=await req.json()}catch{return NextResponse.json({error:'Invalid JSON'},{status:400})}const status=(data as {status?:unknown}|null)?.status;if(status!=='DRAFT'&&status!=='PUBLISHED'&&status!=='CLOSED')return NextResponse.json({error:'Invalid status'},{status:400});const existing=await prisma.assessment.findFirst({where:{id:assessmentId,moduleId:id,lecturerId:access.userId},select:{id:true,status:true,_count:{select:{submissions:true}}}});if(!existing)return NextResponse.json({error:'Not found'},{status:404});if(existing._count.submissions>0&&status==='DRAFT')return NextResponse.json({error:'Cannot revert to draft after submissions'},{status:409});const assessment=await prisma.assessment.update({where:{id:assessmentId},data:{status},select:{id:true,status:true}});return NextResponse.json({assessment})}
