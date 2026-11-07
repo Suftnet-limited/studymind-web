@@ -1,14 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { moduleService } from '@/services/module.service';
 export function useModuleEnrolment() {
-  const [busy,setBusy] = useState(false);
-  const [error,setError] = useState('');
-  async function join(courseId: string) {
-    if (busy) return;
-    setBusy(true); setError('');
-    try { const destination = await moduleService.join(courseId.trim()); window.location.assign(destination); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Unable to join module'); setBusy(false); }
-  }
-  return { join, busy, error };
+  const mutation = useMutation({ mutationFn: (courseId: string) => moduleService.join(courseId.trim()), onSuccess: destination => window.location.assign(destination) });
+  return { join: mutation.mutate, busy: mutation.isPending, error: mutation.error?.message || '' };
 }
