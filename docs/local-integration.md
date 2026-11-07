@@ -22,3 +22,15 @@
 - Do not change StudyMind Mobile until the web integration is verified.
 
 **Do not claim local or cross-platform end-to-end tests have passed without running them.**
+
+## Reference integration: Edquis / Learnify (verified)
+
+Source: `suftnetrepo/learnify` `src/app/api/studymind/session/route.ts`, `src/components/studymind/useStudyMindSession.ts`, `src/components/studymind/StudyMindSidebar.tsx`, `src/lib/studymind/index.ts`.
+
+Edquis **owns its courses, enrolments, NextAuth accounts, payment access**. After verifying those locally, its server calls `POST /api/v1/auth/session` with a private platform API key, its canonical course ID and user ID, a server-derived role (`student` / `tutor`), and one-hour expiry. Browser receives only a short-lived `st_` session token, not the API key; token is refreshed before expiry. The `@studymind/react` `StudyMindPanel` uses the token, `courseId`, `userId`, `userRole`, and a **consistent courseData outline**. The lecturer uses the `materials` tab to upload class content; students use tutor / quiz / flashcards / summary.
+
+StudyMind Web now implements a guarded session exchange at `POST /api/studymind/session` taking `{moduleId}` only; it resolves local module ownership/enrolment and active pass server-side. **It does not yet embed `@studymind/react`; the existing custom workspace and server-side AI proxy remain.**
+
+Important correction: Edquis `/api/v1` AI sessions and the mobile `/api/modules` JWT family are separate contracts. Working Edquis AI integration is **not evidence** that a web enrolment code works in StudyMind Mobile.
+
+The previous `POST /api/modules` implementation blocked module creation until `/api/v1/courses/ingest` responded. It is decoupled as in Edquis: creating/joining a module does not require AI availability. Course ingestion remains necessary for the AI panel and should use the identical course outline on every client, not a different empty outline per role.
