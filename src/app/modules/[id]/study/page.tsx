@@ -1,0 +1,5 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { moduleAccess,hasActivePass } from '@/lib/module-access';
+import { StudyWorkspace } from './study-workspace';
+export default async function StudyPage({params}:{params:Promise<{id:string}>}){const {id}=await params;const access=await moduleAccess(id);if(!access)notFound();const active=await hasActivePass(access.userId);return <div className="container dashboard"><Link href={`/modules/${id}`} style={{color:'#6554d9'}}>← Module overview</Link><div style={{marginTop:22}}><div className="eyebrow">{access.module.title}</div><h1>AI Study Tools</h1><p className="muted">Ask your tutor, practise with quizzes and flashcards, or generate a summary.</p></div>{active?<StudyWorkspace moduleId={id}/>:<div className="panel" style={{marginTop:24}}><h2>Access pass required</h2><p className="muted">An active StudyMind access pass is required to use AI study tools. Checkout will be available after the payment integration phase.</p></div>}</div>}
