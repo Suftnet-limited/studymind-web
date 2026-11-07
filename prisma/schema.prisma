@@ -36,7 +36,6 @@ model User {
   enrolments   Enrolment[]
   passes       AccessPass[]
   documents    StudyDocument[]
-  submissions  AssessmentSubmission[]
 }
 
 model Module {
@@ -50,7 +49,6 @@ model Module {
   updatedAt     DateTime        @updatedAt
   enrolments    Enrolment[]
   documents     StudyDocument[]
-  assessments   Assessment[]
 }
 
 model Enrolment {
@@ -85,44 +83,4 @@ model AccessPass {
   expiresAt             DateTime
   stripePaymentIntentId String?    @unique
   createdAt             DateTime   @default(now())
-}
-
-enum AssessmentKind {
-  ASSIGNMENT
-  EXAM
-}
-
-enum AssessmentStatus {
-  DRAFT
-  PUBLISHED
-  CLOSED
-}
-
-model Assessment {
-  id           String           @id @default(cuid())
-  moduleId     String
-  lecturerId   String
-  module       Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  kind         AssessmentKind
-  status       AssessmentStatus @default(DRAFT)
-  title        String
-  instructions String
-  dueAt        DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  submissions  AssessmentSubmission[]
-
-  @@index([moduleId, status])
-}
-
-model AssessmentSubmission {
-  id           String     @id @default(cuid())
-  assessmentId String
-  studentId    String
-  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  student      User       @relation(fields: [studentId], references: [id])
-  answer       String
-  submittedAt  DateTime   @default(now())
-
-  @@unique([assessmentId, studentId])
 }
