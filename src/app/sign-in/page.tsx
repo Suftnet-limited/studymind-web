@@ -1,2 +1,2 @@
-import Link from 'next/link';
-export default function SignIn(){return <div className="container"><section className="panel form-wrap"><div className="eyebrow">Welcome back</div><h1>Sign in to StudyMind</h1><p className="muted">Access your modules and continue learning.</p><form action="/api/auth/login" method="post"><label className="field">Email address<input name="email" type="email" autoComplete="email" required/></label><label className="field">Password<input name="password" type="password" autoComplete="current-password" required/></label><button className="btn" style={{width:'100%'}} type="submit">Sign in</button></form><p className="muted">New to StudyMind? <Link style={{color:'#6554d9'}} href="/sign-up">Create an account</Link></p></section></div>}
+import {AuthForm} from '@/components/auth-form';
+export default function Page(){return <AuthForm mode="login"/>}
