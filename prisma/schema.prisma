@@ -90,4 +90,5 @@ model StripeWebhookEvent {
   type        String
   createdAt   DateTime @default(now())
   processedAt DateTime?
+  processingAt DateTime?
 }
