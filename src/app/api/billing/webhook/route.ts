@@ -15,6 +15,8 @@ async function activate(session:Stripe.Checkout.Session){
  if(intent.status!=='succeeded'||intent.metadata.userId!==userId||Number(intent.metadata.passDays)!==days)return;
  const charge=typeof intent.latest_charge==='string'?await stripe().charges.retrieve(intent.latest_charge):intent.latest_charge;
  if(!charge||charge.amount<=0||charge.disputed||charge.refunded||charge.amount_refunded>=charge.amount)return;
+ const disputes=await stripe().disputes.list({payment_intent:paymentIntentId,limit:10});
+ if(disputes.data.some(d=>d.status!=='won'))return;
  const user=await prisma.user.findUnique({where:{id:userId},select:{id:true}});
  if(!user)return;
  const now=new Date();
