@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {proratedExpiry} from '../src/lib/billing-math.mjs';
+const day=86400000;
+test('no refund retains all purchased days',()=>assert.equal(proratedExpiry(0,28,1000,0).getTime(),28*day));
+test('half refund halves access duration',()=>assert.equal(proratedExpiry(0,28,1000,500).getTime(),14*day));
+test('cumulative partial refunds do not compound',()=>assert.equal(proratedExpiry(0,28,1000,750).getTime(),7*day));
+test('full refund yields zero purchased duration',()=>assert.equal(proratedExpiry(0,28,1000,1000).getTime(),0));
+test('refund larger than purchase is clamped',()=>assert.equal(proratedExpiry(0,28,1000,1500).getTime(),0));
+test('invalid inputs fail closed',()=>assert.throws(()=>proratedExpiry(0,28,0,0)));
