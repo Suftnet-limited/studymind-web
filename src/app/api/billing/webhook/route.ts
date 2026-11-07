@@ -20,4 +20,42 @@ async function reconcileRefund(charge:Stripe.Charge){
  await prisma.accessPass.updateMany({where:{id:pass.id,status:'ACTIVE',expiresAt:{gt:revisedEnd}},data:{expiresAt:revisedEnd}});
 }
 async function handleDispute(dispute:Stripe.Dispute){const chargeId=typeof dispute.charge==='string'?dispute.charge:dispute.charge?.id;if(!chargeId)return;const charge=await stripe().charges.retrieve(chargeId);const id=typeof charge.payment_intent==='string'?charge.payment_intent:charge.payment_intent?.id;if(!id)return;if(dispute.status==='won'){if(charge.refunded||charge.amount_refunded>0)return;const pass=await prisma.accessPass.findUnique({where:{stripePaymentIntentId:id}});if(pass?.status==='REVOKED'&&pass.expiresAt>new Date())await prisma.accessPass.update({where:{id:pass.id},data:{status:'ACTIVE'}});return}await revokeByPaymentIntent(id)}
-export async function POST(req:Request){const secret=process.env.STRIPE_WEBHOOK_SECRET;if(!secret)return NextResponse.json({error:'Webhook not configured'},{status:503});const signature=req.headers.get('stripe-signature');if(!signature)return NextResponse.json({error:'Missing signature'},{status:400});let event:Stripe.Event;try{event=stripe().webhooks.constructEvent(await req.text(),signature,secret)}catch{return NextResponse.json({error:'Invalid signature'},{status:400})}try{if(event.type==='checkout.session.completed'||event.type==='checkout.session.async_payment_succeeded')await activate(event.data.object as Stripe.Checkout.Session);if(event.type==='charge.refunded')await reconcileRefund(event.data.object as Stripe.Charge);if(event.type==='charge.dispute.created'||event.type==='charge.dispute.updated'||event.type==='charge.dispute.closed')await handleDispute(event.data.object as Stripe.Dispute);return NextResponse.json({received:true})}catch(e){console.error('Webhook processing failed',e instanceof Error?e.message:'unknown');return NextResponse.json({error:'Processing failed'},{status:500})}}
+async function processEvent(event:Stripe.Event){
+ if(event.type==='checkout.session.completed'||event.type==='checkout.session.async_payment_succeeded'){
+  const session=await stripe().checkout.sessions.retrieve((event.data.object as Stripe.Checkout.Session).id);
+  await activate(session);
+ }
+ if(event.type==='charge.refunded')await reconcileRefund(event.data.object as Stripe.Charge);
+ if(event.type==='charge.dispute.created'||event.type==='charge.dispute.updated'||event.type==='charge.dispute.closed'){
+  const latest=await stripe().disputes.retrieve((event.data.object as Stripe.Dispute).id);
+  await handleDispute(latest);
+ }
+}
+export async function POST(req:Request){
+ const secret=process.env.STRIPE_WEBHOOK_SECRET;
+ if(!secret)return NextResponse.json({error:'Webhook not configured'},{status:503});
+ const signature=req.headers.get('stripe-signature');
+ if(!signature)return NextResponse.json({error:'Missing signature'},{status:400});
+ let event:Stripe.Event;
+ try{event=stripe().webhooks.constructEvent(await req.text(),signature,secret)}
+ catch{return NextResponse.json({error:'Invalid signature'},{status:400})}
+ try{
+  const existing=await prisma.stripeWebhookEvent.findUnique({where:{id:event.id}});
+  if(existing?.processedAt)return NextResponse.json({received:true,duplicate:true});
+  if(!existing){
+   try{await prisma.stripeWebhookEvent.create({data:{id:event.id,type:event.type}})}
+   catch(e){
+    // A concurrent delivery may be processing this event. Retry safely rather than acknowledge.
+    const recorded=await prisma.stripeWebhookEvent.findUnique({where:{id:event.id}});
+    if(recorded?.processedAt)return NextResponse.json({received:true,duplicate:true});
+    throw e;
+   }
+  }
+  await processEvent(event);
+  await prisma.stripeWebhookEvent.update({where:{id:event.id},data:{processedAt:new Date()}});
+  return NextResponse.json({received:true});
+ }catch(e){
+  console.error('Webhook processing failed',event.id,e instanceof Error?e.message:'unknown');
+  return NextResponse.json({error:'Processing failed; Stripe may retry'},{status:500});
+ }
+}
