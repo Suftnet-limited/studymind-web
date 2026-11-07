@@ -17,5 +17,5 @@ test('webhook signature is verified and event processing uses an atomic claim',(
 test('partial refunds use cumulative refund amount and original pass duration',()=>{
  assert.match(source,/latest\.amount_refunded/);
  assert.match(source,/intent\.metadata\.passDays/);
- assert.match(source,/remainingFraction/);
+ assert.match(source,/proratedExpiry/);
 });
