@@ -3,7 +3,30 @@ import Stripe from 'stripe';
 import {stripe} from '@/lib/stripe';
 import {prisma} from '@/lib/prisma';
 export const runtime='nodejs';
-async function activate(session:Stripe.Checkout.Session){if(session.mode!=='payment'||session.payment_status!=='paid')return;const userId=session.client_reference_id;const paymentIntentId=typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id;if(!userId||!paymentIntentId||!session.metadata?.passDays)return;const days=Number(session.metadata.passDays);if(!Number.isInteger(days)||days<1||days>365)return;const user=await prisma.user.findUnique({where:{id:userId},select:{id:true}});if(!user)return;const now=new Date();await prisma.$transaction(async tx=>{const existing=await tx.accessPass.findUnique({where:{stripePaymentIntentId:paymentIntentId}});if(existing)return;const active=await tx.accessPass.findFirst({where:{userId,status:'ACTIVE',expiresAt:{gt:now}},orderBy:{expiresAt:'desc'},select:{expiresAt:true}});const start=active?.expiresAt&&active.expiresAt>now?active.expiresAt:now;await tx.accessPass.create({data:{userId,status:'ACTIVE',startsAt:start,expiresAt:new Date(start.getTime()+days*86400000),stripePaymentIntentId:paymentIntentId}})})}
+async function activate(session:Stripe.Checkout.Session){
+ if(session.mode!=='payment'||session.payment_status!=='paid')return;
+ const userId=session.client_reference_id;
+ const paymentIntentId=typeof session.payment_intent==='string'?session.payment_intent:session.payment_intent?.id;
+ if(!userId||!paymentIntentId||!session.metadata?.passDays)return;
+ const days=Number(session.metadata.passDays);
+ if(!Number.isInteger(days)||days<1||days>365)return;
+ const intent=await stripe().paymentIntents.retrieve(paymentIntentId,{expand:['latest_charge']});
+ if(intent.status!=='succeeded'||intent.metadata.userId!==userId||Number(intent.metadata.passDays)!==days)return;
+ const charge=typeof intent.latest_charge==='string'?await stripe().charges.retrieve(intent.latest_charge):intent.latest_charge;
+ if(!charge||charge.amount<=0||charge.disputed||charge.refunded||charge.amount_refunded>=charge.amount)return;
+ const user=await prisma.user.findUnique({where:{id:userId},select:{id:true}});
+ if(!user)return;
+ const now=new Date();
+ const fraction=Math.max(0,(charge.amount-charge.amount_refunded)/charge.amount);
+ if(fraction<=0)return;
+ await prisma.$transaction(async tx=>{
+  const existing=await tx.accessPass.findUnique({where:{stripePaymentIntentId:paymentIntentId}});
+  if(existing)return;
+  const active=await tx.accessPass.findFirst({where:{userId,status:'ACTIVE',expiresAt:{gt:now}},orderBy:{expiresAt:'desc'},select:{expiresAt:true}});
+  const start=active?.expiresAt&&active.expiresAt>now?active.expiresAt:now;
+  await tx.accessPass.create({data:{userId,status:'ACTIVE',startsAt:start,expiresAt:new Date(start.getTime()+Math.floor(days*86400000*fraction)),stripePaymentIntentId:paymentIntentId}});
+ });
+}
 async function revokeByPaymentIntent(paymentIntentId:string){await prisma.accessPass.updateMany({where:{stripePaymentIntentId:paymentIntentId,status:'ACTIVE'},data:{status:'REVOKED'}})}
 async function reconcileRefund(charge:Stripe.Charge){
  const id=typeof charge.payment_intent==='string'?charge.payment_intent:charge.payment_intent?.id;
