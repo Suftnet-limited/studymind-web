@@ -9,9 +9,14 @@ export type CanonicalUser = { id: string; email: string; full_name: string; role
 export type LearningOverview = { user: CanonicalUser; modules: { owned: number; enrolled: number } };
 type TokenResponse = { access_token: string; refresh_token: string; expires_in: number };
 
+/** Routes Web may call on the canonical AI backend. Anything else is refused before a request is made. */
+const IDENTITY_PATH = /^\/api\/auth\//;
+const LEARNING_PATH = /^\/api\/(modules(\/|$)|chat$|quiz\/[0-9a-f-]{36}\/submit$|quiz\/generate$|flashcards\/generate$|summarise$)/i;
+
 export async function aiIdentityRequest(path: string, init: RequestInit = {}) {
-  if (!path.startsWith('/api/auth/') && !path.startsWith('/api/modules')) throw new Error('Invalid StudyMind API route');
-  return fetch(base + path, { ...init, cache: 'no-store', signal: AbortSignal.timeout(12000) });
+  if (!IDENTITY_PATH.test(path) && !LEARNING_PATH.test(path)) throw new Error('Invalid StudyMind API route');
+  // AI generation can take far longer than an identity call, so callers may pass their own signal.
+  return fetch(base + path, { ...init, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(12000) });
 }
 
 export async function setAiTokens(tokens: TokenResponse) {
@@ -47,7 +52,7 @@ export async function authenticatedAiRequest(path: string): Promise<Response | n
   return aiIdentityRequest(path, { headers: { Authorization: `Bearer ${access}` } });
 }
 export async function authenticatedAiFetch(path: string, init: RequestInit = {}): Promise<Response | null> {
-  if (!path.startsWith('/api/modules')) throw new Error('Invalid learning API route');
+  if (!LEARNING_PATH.test(path)) throw new Error('Invalid learning API route');
   const jar = await cookies();
   const access = jar.get(accessCookie)?.value;
   const refresh = jar.get(refreshCookie)?.value;

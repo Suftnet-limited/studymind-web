@@ -23,13 +23,13 @@ evidence of real indexing.
 5. Real retrieval isolation (class vs personal, lecturer vs learner, same-named files, superseded versions).
 6. Ingestion duration, answer latency and token usage.
 
-## A second gap: Web has no AI question path
+## AI study tools in Web (implemented; live AI unverified)
 
-Web contains **no** reference to the AI chat API (`/api/chat`): no proxy route and no UI. The Study tools card
-tells users chat is a Mobile feature. So even with a key, "answers through the Web application" cannot be tested
-until the product owner decides to add a thin authenticated proxy (`POST /api/studymind/chat` →
-`POST /api/chat` with `{ module_id, message, scope_mode }`) and a minimal UI. Until then, answers can only be
-verified by calling the AI backend directly with a learner's token.
+Web now has the four AI tools on each module page (AI Tutor with citations, Quiz, Flashcards, Summary), adapted
+from `studymind-react` and wired to the canonical JWT endpoints through `/api/studymind/modules/[id]/ai/*`.
+Their tests use a **controlled fixture AI** (`tests/fixtures/ai-shim.mjs`), so they prove the Web proxy, access
+control, payload mapping and UI — not that OpenAI-backed answers are correct. The acceptance checks below
+(answers cite the right documents, no cross-user leakage in real retrieval) still need a real key.
 
 ## Running it once a key exists
 
@@ -58,7 +58,7 @@ psql ... -c "select d.filename, d.status, d.chunk_count, d.indexed_at from docum
 # chunks in Typesense (metadata + visibility)
 curl -s -H "X-TYPESENSE-API-KEY: $TS_KEY" \
   "$TS_URL/collections/document_chunks/documents/search?q=*&query_by=content&filter_by=document_id:=<id>&per_page=5"
-# answers (direct API; Web has no chat path)
+# answers (direct API, or through the Web proxy POST /api/studymind/modules/<module>/ai/chat)
 curl -s -X POST $AI_URL/api/chat -H "Authorization: Bearer <learner token>" -H 'Content-Type: application/json' \
   -d '{"module_id":"<module>","message":"A mass of 5 kg accelerates at 3 m/s^2. What is the force?","scope_mode":"class_only"}'
 ```

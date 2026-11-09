@@ -16,8 +16,9 @@ const AI = process.env.AI_URL;
 if (!WEB || !AI) { console.log('Skipping: set WEB_URL and AI_URL (local only) to run integration tests.'); process.exit(0); }
 const TS = process.env.TS_URL, TS_KEY = process.env.TS_KEY;
 const FIXTURES = process.env.FIXTURES;          // directory with synthetic documents (see docs/real-ai-validation.md)
+const SHIM = process.env.SHIM_URL;                // controlled AI fixture shim (tests/fixtures/ai-shim.mjs); Web must be pointed at it
 const TS_CONTAINER = process.env.TS_CONTAINER;  // optional: docker container name, used to simulate a Typesense outage
-for (const u of [WEB, AI, ...(TS ? [TS] : [])]) {
+for (const u of [WEB, AI, ...(TS ? [TS] : []), ...(SHIM ? [SHIM] : [])]) {
   const host = new URL(u).hostname;
   if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) { console.error(`Refusing non-local host: ${host}`); process.exit(2); }
 }
@@ -786,6 +787,126 @@ if (TS_CONTAINER) {
     eq((await del('s1', victim)).status, 204); if (needDb) expect(!rowExists(victim), 'row should be gone');
   });
 } else skipUnverified('Typesense outage handling', 'TS_CONTAINER not set');
+
+// ───────────────────────────── AI study tools (Tutor, Quiz, Flashcards, Summary) ─────────────────────────────
+group(SHIM ? 'AI study tools via Web proxy (CONTROLLED FIXTURE AI - not live AI)' : 'AI study tools via Web proxy against the REAL backend (no OpenAI key: AI execution unverified)');
+const fixtureMode = !!SHIM;
+const A = { lec: new Client(), st: new Client(), st2: new Client(), sl: new Client(), out: new Client() };
+for (const [tag, role] of [['lec', 'lecturer'], ['st', 'student'], ['st2', 'student'], ['sl', 'self_learner'], ['out', 'student']]) {
+  const r = await A[tag].json('/api/studymind/auth/register', 'POST', { email: email('ai-' + tag), full_name: `AI ${tag}`, password: PASSWORD, role });
+  expect(r.status === 201, `register ${tag}: ${r.status}`);
+}
+const aId = {}; for (const tag of Object.keys(A)) aId[tag] = (await A[tag].req('/api/studymind/learning-overview')).body.user.id;
+const AM = (await A.lec.json('/api/studymind/modules', 'POST', { title: 'AI Class Module', access_type: 'class' })).body.id;
+const AP = (await A.sl.json('/api/studymind/modules', 'POST', { title: 'AI Personal Module', access_type: 'personal' })).body.id;
+for (const tag of ['st', 'st2', 'sl']) eq((await A[tag].json('/api/studymind/modules/join', 'POST', { course_id: AM })).status, 200, `join ${tag}`);
+const aiPath = (mod, what) => `/api/studymind/modules/${mod}/ai/${what}`;
+const calls = async () => (await fetch(SHIM + '/__calls')).json();
+const clearCalls = () => fetch(SHIM + '/__calls', { method: 'DELETE' });
+const AI_ROUTES = [['chat', { message: 'What is Newton\'s second law?' }], ['quiz', {}], ['flashcards', {}], ['summary', {}]];
+const QID0 = '00000000-0000-4000-8000-000000000001';
+const noInternals = (label, v) => noLeak(label, v);
+
+await check('unauthenticated requests are refused (401) on every AI route', async () => {
+  for (const [what, body] of [...AI_ROUTES, [`quiz/${QID0}`, { answers: [{ question_id: QID0, answer: 'a' }] }]]) eq((await new Client().json(aiPath(AM, what), 'POST', body)).status, 401, what);
+});
+await check('malformed requests are rejected before reaching the AI (400/413) with readable messages', async () => {
+  eq((await A.st.json(aiPath('not-a-uuid', 'chat'), 'POST', { message: 'hi' })).status, 400);
+  eq((await A.st.json(aiPath(AM, `quiz/not-a-uuid`), 'POST', { answers: [{ question_id: QID0, answer: 'a' }] })).status, 400);
+  const raw = (what, body, headers = { 'Content-Type': 'application/json' }) => A.st.req(aiPath(AM, what), { method: 'POST', headers, body });
+  eq((await raw('chat', '{not json')).status, 400);
+  for (const [what, body] of [['chat', { message: '   ' }], ['chat', { message: 'x'.repeat(2001) }], ['chat', { message: 'hi', complexity: 'genius' }], ['chat', { message: 'hi', session_id: 'bad' }],
+    ['quiz', { question_count: 3 }], ['quiz', { question_count: 99 }], ['quiz', { topic: 'x'.repeat(201) }], ['flashcards', { max_cards: 1 }], ['summary', { topic: 5 }],
+    [`quiz/${QID0}`, { answers: [] }], [`quiz/${QID0}`, { answers: [{ question_id: 'x', answer: 'a' }] }]]) {
+    const r = await A.st.json(aiPath(AM, what), 'POST', body); eq(r.status, 400, `${what} ${JSON.stringify(body).slice(0, 40)}`); expect(typeof r.body.error === 'string' && r.body.error.length > 3, 'no message');
+  }
+  eq((await raw('chat', JSON.stringify({ message: 'x'.repeat(40000) }))).status, 413, 'oversized body');
+  for (const method of ['GET', 'PUT', 'DELETE']) eq((await A.st.req(aiPath(AM, 'chat'), { method })).status, 405, method);
+});
+await check('a signed-in user who cannot open the module is refused (403) on every AI route - class and personal modules', async () => {
+  if (fixtureMode) await clearCalls();
+  for (const [who, mod] of [['out', AM], ['out', AP], ['st', AP], ['lec', AP]]) {
+    for (const [what, body] of [...AI_ROUTES, [`quiz/${QID0}`, { answers: [{ question_id: QID0, answer: 'a' }] }]]) {
+      const r = await A[who].json(aiPath(mod, what), 'POST', body);
+      eq(r.status, 403, `${who} -> ${mod === AM ? 'class' : 'personal'} module ${what}`); noInternals('403 body', r.body);
+    }
+  }
+  if (fixtureMode) { const c = await calls(); eq(c.filter((x) => [aId.out, aId.lec].includes(x.user_id) || (x.user_id === aId.st && x.body.module_id === AP)).length, 0, 'the AI must never be called for a user without module access'); }
+});
+if (fixtureMode) {
+  await check('AI Tutor: answer, citations and session continuity (controlled fixture)', async () => {
+    await clearCalls();
+    const r = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: "Explain Newton's second law", complexity: 'simple', module_id: '00000000-0000-4000-8000-0000000000ff', user_id: 'victim', role: 'admin', scope_mode: 'class_only' });
+    eq(r.status, 200, JSON.stringify(r.body)); expect(/F = m a/.test(r.body.answer), 'answer'); eq(r.body.sources.length, 1, 'citations are de-duplicated by document'); eq(r.body.sources[0].filename, 'physics-notes.pdf'); expect(r.body.session_id, 'session');
+    const forwarded = (await calls()).find((c) => c.path === '/api/chat');
+    eq(forwarded.body.module_id, AM, 'module id must come from the URL, not the browser'); eq(forwarded.user_id, aId.st, 'identity comes from the signed-in session'); eq(forwarded.has_bearer, true);
+    expect(!('user_id' in forwarded.body) && !('role' in forwarded.body), 'browser-supplied identity fields must not be forwarded'); eq(forwarded.body.scope_mode, 'everything', 'browser cannot widen or narrow retrieval scope'); eq(forwarded.body.complexity, 'simple');
+    const next = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'And for 5 kg at 3 m/s^2?', session_id: r.body.session_id });
+    eq(next.status, 200); eq(next.body.session_id, r.body.session_id, 'same conversation');
+    noLeak('chat response', r.body);
+  });
+  await check('AI Tutor: empty-retrieval response is surfaced with suggestions, and failures are generic', async () => {
+    const e = await A.sl.json(aiPath(AM, 'chat'), 'POST', { message: 'TRIGGER_EMPTY question' });
+    eq(e.status, 200); eq(e.body.no_content_found, true); eq(e.body.sources.length, 0); expect(e.body.suggestions.length > 0, 'suggestions');
+    const f = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'TRIGGER_ERROR now' });
+    eq(f.status, 502); noInternals('provider error', f.body); expect(/unavailable/i.test(f.body.error), f.body.error);
+    const q = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'TRIGGER_429 please' });
+    eq(q.status, 429); expect(/allowance/i.test(q.body.error), q.body.error);
+  });
+  await check('Quiz: answers are withheld until submission; results show score, correctness and explanations', async () => {
+    await clearCalls();
+    const g = await A.st.json(aiPath(AM, 'quiz'), 'POST', { question_count: 5, topic: 'Forces' });
+    eq(g.status, 201, JSON.stringify(g.body)); eq(g.body.questions.length, 5);
+    for (const word of ['correct_answer', 'explanation', 'source_chunk', 'is_correct', 'student_answer']) expect(!JSON.stringify(g.body).includes(word), `${word} leaked before submission`);
+    const fwd = (await calls()).find((c) => c.path === '/api/quiz/generate'); eq(fwd.body.module_id, AM); eq(fwd.body.question_type, 'mcq'); eq(fwd.body.topic, 'Forces'); eq(fwd.user_id, aId.st);
+    const answers = g.body.questions.map((q, i) => ({ question_id: q.id, answer: i === 0 ? 'a' : 'b' }));   // first answer deliberately wrong
+    const s = await A.st.json(aiPath(AM, `quiz/${g.body.attempt_id}`), 'POST', { answers });
+    eq(s.status, 200, JSON.stringify(s.body)); eq(s.body.total, 5); expect(s.body.correct >= 1 && s.body.correct < 5, `correct=${s.body.correct}`);
+    const first = s.body.questions[0]; eq(first.is_correct, false); expect(first.explanation.length > 5 && first.correct_answer, 'explanation and correct answer after submission');
+    const other = await A.st2.json(aiPath(AM, `quiz/${g.body.attempt_id}`), 'POST', { answers });
+    eq(other.status, 404, "another learner must not be able to submit or read someone else's quiz");
+  });
+  await check('Flashcards: a deck of question/answer cards is returned with clean fields', async () => {
+    await clearCalls();
+    const r = await A.sl.json(aiPath(AM, 'flashcards'), 'POST', { max_cards: 6 });
+    eq(r.status, 201, JSON.stringify(r.body)); eq(r.body.cards.length, 6); for (const c of r.body.cards) expect(c.front && c.back, 'card sides');
+    expect(!JSON.stringify(r.body).includes('source_chunk'), 'internal fields must not be forwarded');
+    eq((await calls()).find((c) => c.path === '/api/flashcards/generate').body.max_cards, 6);
+  });
+  await check('Summary: structured Markdown with the source document count', async () => {
+    await clearCalls();
+    const r = await A.lec.json(aiPath(AM, 'summary'), 'POST', { topic: 'Momentum' });
+    eq(r.status, 201, JSON.stringify(r.body)); expect(/^## Summary: Momentum/.test(r.body.content), 'content'); eq(r.body.source_doc_count, 2);
+    const fwd = (await calls()).find((c) => c.path === '/api/summarise'); eq(fwd.body.scope, 'module'); eq(fwd.body.module_id, AM); eq(fwd.user_id, aId.lec);
+  });
+  await check('quiz, flashcards and summary report empty-material and provider failures without internals', async () => {
+    for (const what of ['quiz', 'flashcards', 'summary']) {
+      const empty = await A.st.json(aiPath(AM, what), 'POST', { topic: 'TRIGGER_EMPTY' }); eq(empty.status, 422, `${what} empty`); expect(/no indexed content/i.test(empty.body.error), empty.body.error);
+      const boom = await A.st.json(aiPath(AM, what), 'POST', { topic: 'TRIGGER_ERROR' }); eq(boom.status, 502, `${what} error`); noInternals(`${what} error body`, boom.body);
+    }
+  });
+  await check('every role that can open a module can use the tools: lecturer (owner), student and self-learner (enrolled)', async () => {
+    for (const tag of ['lec', 'st', 'sl']) for (const [what, body] of AI_ROUTES) { const r = await A[tag].json(aiPath(AM, what), 'POST', body); expect([200, 201].includes(r.status), `${tag} ${what}: ${r.status} ${JSON.stringify(r.body).slice(0, 100)}`); }
+    const own = await A.sl.json(aiPath(AP, 'summary'), 'POST', {}); expect([200, 201].includes(own.status), `owner of a personal module: ${own.status}`);
+  });
+} else {
+  await check('authorised users get a generic, readable failure when the AI cannot run (no OpenAI key locally); nothing internal is exposed', async () => {
+    for (const tag of ['st', 'sl', 'lec']) for (const [what, body] of AI_ROUTES) {
+      const r = await A[tag].json(aiPath(AM, what), 'POST', body);
+      expect([502, 422].includes(r.status), `${tag} ${what}: status ${r.status}`); noInternals(`${tag} ${what}`, r.body); expect(typeof r.body.error === 'string' && r.body.error.length > 10, 'message');
+    }
+  });
+  skipUnverified('AI answers, citations, quiz/flashcard/summary generation with live AI', 'needs a real OpenAI key and Typesense-indexed documents (see docs/real-ai-validation.md)');
+}
+skipUnverified('retrieval scoping of personal notes inside AI answers', 'personal-note filtering happens in the AI retriever and needs real indexed content to verify');
+await knownDefect('AI backend rejects non-members on its generation endpoints (direct calls)', 'AI app/api/chat.py chat(), features.py generate_quiz_endpoint/generate_flashcards_endpoint/summarise_endpoint accept any module_id without _get_accessible_module; Web therefore checks access itself', async () => {
+  const token = (await (await fetch(AI + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email('ai-out'), password: PASSWORD }) })).json()).access_token;
+  const direct = (path, body) => fetch(AI + path, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.status);
+  const statuses = { chat: await direct('/api/chat', { module_id: AM, message: 'hello' }), quiz: await direct('/api/quiz/generate', { module_id: AM }),
+    flashcards: await direct('/api/flashcards/generate', { module_id: AM }), summary: await direct('/api/summarise', { module_id: AM, scope: 'module' }) };
+  console.log(`        non-member direct calls returned: ${JSON.stringify(statuses)}`);
+  for (const [k, v] of Object.entries(statuses)) eq(v, 403, `${k}`);
+});
 
 // ───────────────────────────── Report ─────────────────────────────
 const failed = results.filter((r) => !r.ok);

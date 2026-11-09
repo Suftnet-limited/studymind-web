@@ -7,6 +7,7 @@ import { ApiError, studyMindModulesService } from '@/services/studymind-modules.
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
 import { CopyButton } from '@/components/learning/copy-button';
+import { StudyTools } from '@/components/learning/ai/study-tools';
 import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/learning/states';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,12 +77,7 @@ export default function CanonicalModulePage() {
         </div>}
       </header>
 
-      <Card>
-        <CardHeader><CardTitle>Study tools</CardTitle><CardDescription>Chat, quizzes, flashcards and summaries use the materials in this module.</CardDescription></CardHeader>
-        <CardContent>
-          <p className="text-sm text-zinc-600">They are available in the StudyMind Mobile app today and are not part of the Web workspace yet. Your uploaded materials are shared with Mobile automatically.</p>
-        </CardContent>
-      </Card>
+      <StudyTools moduleId={id} hasMaterials={indexed > 0} />
 
       <Card>
         <CardHeader><CardTitle>Upload course material</CardTitle><CardDescription>PDFs, slides and notes are indexed so StudyMind AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV. Maximum 50 MB.</CardDescription></CardHeader>

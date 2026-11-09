@@ -69,3 +69,19 @@ Stop the dev server before `npm run build` (they share `.next`).
 Needs: a token able to check out `studymind-ai`, a Postgres service container, Python 3.12 with the AI
 requirements (large install — cache it), and the commands above in order with a readiness wait on
 `/api/health` (reports `degraded` without Typesense; that is fine).
+
+## AI study tools: controlled fixture mode vs real backend
+
+`tests/fixtures/ai-shim.mjs` forwards everything to the real local AI backend and answers only the four AI
+generation endpoints with deterministic fixtures (marked `X-AI-Fixture: controlled`). It deliberately does not
+check module membership, exactly like the real backend, so tests prove Web's own guard.
+
+```sh
+UPSTREAM=http://127.0.0.1:8000 PORT=8001 node tests/fixtures/ai-shim.mjs
+# Web -> shim:   STUDYMIND_AI_BASE_URL=http://127.0.0.1:8001 npx next dev -p 3100
+SHIM_URL=http://127.0.0.1:8001 AI_URL=http://127.0.0.1:8000 WEB_URL=http://127.0.0.1:3100 npm run test:integration   # success paths
+E2E_WEB_URL=http://127.0.0.1:3100 npm run test:e2e                                                                  # browser tests need fixture mode
+# Web -> real backend (no SHIM_URL): checks access control and safe failure when the AI cannot run
+```
+
+Fixture results are **not** evidence that live AI works; see `real-ai-validation.md`.
