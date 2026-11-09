@@ -171,8 +171,18 @@ test('document privacy end to end: class material is shared, personal notes stay
   await expect(mine).toContainText('Personal note · only you can see it');
   await shot(studentPage, info, '17-student-sees-class-and-own-note');
 
-  // The lecturer must not see the student's personal note
+  // Same filename as the lecturer's class file: both coexist for the student, the lecturer still sees only the class one
+  await studentPage.getByLabel('Document').setInputFiles({ name: 'class-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('my own take on the class notes') });
+  await studentPage.getByRole('button', { name: 'Upload document' }).click();
+  const sameName = studentPage.getByRole('listitem').filter({ hasText: 'class-notes.txt' });
+  await expect(sameName).toHaveCount(2);
+  await expect(sameName.filter({ hasText: 'Class material · visible to the class' })).toHaveCount(1);
+  await expect(sameName.filter({ hasText: 'Personal note · only you can see it' })).toHaveCount(1);
+
+  // The lecturer must not see the student's personal notes, and the class file is unaffected
   await page.reload();
+  await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toHaveCount(1);
+  await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toContainText('Class material');
   await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toBeVisible();
   await expect(page.getByText('student-note.txt')).toHaveCount(0);
   await studentContext.close();

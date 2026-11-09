@@ -28,6 +28,24 @@ env -i PATH="$PATH" OPENAI_API_KEY=sk-test-not-real JWT_SECRET_KEY=local-integra
   venv/bin/python -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
 ```
 
+### Optional: real Typesense (verifies search-index behaviour for versioning and deletion)
+
+Run a **separate, throwaway** Typesense on a non-default loopback port. Do not reuse a developer's own
+instance on 8108 (it may hold real data), and do not rely on mocks.
+
+```sh
+docker run -d --name studymind-it-typesense -p 127.0.0.1:18108:8108 typesense/typesense:0.25.2 --data-dir /tmp --api-key local-test-key
+# start the AI backend with: TYPESENSE_HOST=127.0.0.1 TYPESENSE_PORT=18108 TYPESENSE_API_KEY=local-test-key
+export TS_URL=http://127.0.0.1:18108 TS_KEY=local-test-key
+docker rm -f studymind-it-typesense   # when finished
+```
+
+Without OpenAI the indexer cannot create embeddings, so the suite **seeds chunk fixtures** into the real
+Typesense and checks which ones the AI backend removes or keeps. That proves the backend's real Typesense
+calls are correctly scoped; it does **not** prove that documents index successfully (a separate staging task).
+Checks that need Typesense (deletes, search-index supersede) are reported `UNVERIFIED`, never passed, when
+`TS_URL` is not set.
+
 ## 2. Web (override database and Stripe so nothing real can be reached)
 
 ```sh
@@ -39,7 +57,7 @@ DATABASE_URL=postgresql://sm_test@127.0.0.1:55432/studymind_it STUDYMIND_AI_BASE
 
 ```sh
 export AI_PSQL="psql -h 127.0.0.1 -p 55432 -U sm_test -d studymind_it"   # lets tests seed Plus / partial usage
-WEB_URL=http://127.0.0.1:3100 AI_URL=http://127.0.0.1:8000 npm run test:integration
+WEB_URL=http://127.0.0.1:3100 AI_URL=http://127.0.0.1:8000 npm run test:integration   # add TS_URL/TS_KEY for Typesense checks
 E2E_WEB_URL=http://127.0.0.1:3100 E2E_AI_PSQL="$AI_PSQL" E2E_SHOTS=./shots npm run test:e2e
 ```
 

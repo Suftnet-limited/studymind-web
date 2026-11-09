@@ -3,6 +3,8 @@
 //   WEB_URL=http://127.0.0.1:3100 AI_URL=http://127.0.0.1:8000 \
 //   AI_PSQL="psql -h 127.0.0.1 -p 55432 -U sm_test -d studymind_it" npm run test:integration
 //
+//   Optional: TS_URL=http://127.0.0.1:8108 TS_KEY=<key> to verify real Typesense behaviour (seeded chunk fixtures).
+//
 // Safety: refuses to run against anything but loopback hosts. It creates throwaway accounts
 // (random emails) and never reads or writes real users.
 import { execFileSync } from 'node:child_process';
@@ -11,7 +13,8 @@ import { randomBytes } from 'node:crypto';
 const WEB = process.env.WEB_URL;
 const AI = process.env.AI_URL;
 if (!WEB || !AI) { console.log('Skipping: set WEB_URL and AI_URL (local only) to run integration tests.'); process.exit(0); }
-for (const u of [WEB, AI]) {
+const TS = process.env.TS_URL, TS_KEY = process.env.TS_KEY;
+for (const u of [WEB, AI, ...(TS ? [TS] : [])]) {
   const host = new URL(u).hostname;
   if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) { console.error(`Refusing non-local host: ${host}`); process.exit(2); }
 }
@@ -27,6 +30,8 @@ async function check(name, fn) {
 }
 const knownDefects = [];
 const notes = [];
+const unverified = [];
+const skipUnverified = (name, reason) => { unverified.push({ name, reason }); console.log(`  UNVERIFIED  ${name}\n        ${reason}`); };
 /** A check for a documented AI-backend defect: reported separately, and flags loudly when it is fixed. */
 async function knownDefect(name, ticket, fn) {
   try { await fn(); console.log(`  FIXED  ${name}\n        The AI backend now behaves correctly - convert this to a normal check().`); results.push({ section, name, ok: true }); }
@@ -525,28 +530,202 @@ await check('Web exposes no document delete or read-by-id route', async () => {
   for (const method of ['DELETE', 'PUT', 'PATCH']) eq((await lec.req(`/api/studymind/modules/${CM}/documents`, { method })).status, 405, method);
   eq((await lec.req(`/api/studymind/modules/${CM}/documents/${id}`, { method: 'DELETE' })).status, 404);
 });
-{
-  // Behaviour to confirm with the product owner: the class owner can delete a learner's personal note.
-  const probe = await aiUpload('s3', CM, 'sec-owner-delete-probe.txt', 'probe', 'personal');
-  const doc = (await aiCall('s3', `/api/modules/${CM}/documents`)).body.find((d) => d.filename === 'sec-owner-delete-probe.txt');
-  const del = await aiCall('lec', `/api/modules/${CM}/documents/${doc.document_id}`, { method: 'DELETE' });
-  if (probe.status === 201 && del.status === 204) note("the class owner can DELETE an enrolled learner's personal note (AI delete allows module owner) - confirm this is intended moderation");
-  else note(`owner-delete of a learner's personal note could not be verified locally (delete returned ${del.status}; the AI delete path needs Typesense). The code permits the module owner to delete any document in the module - confirm intent.`);
-}
-await knownDefect('same-filename uploads: a learner\'s personal file must not supersede or hide class material', 'AI app/api/modules.py _ingest_module_document: version lookup matches Document.filename only (no owner/visibility scope), so a personal upload flips the class file to is_latest=false', async () => {
+await check("same-filename uploads: a learner's personal file does not supersede or hide class material", async () => {
   eq((await lec.upload(CM, 'policy.txt', Buffer.from('official class policy'), 'class', 'text/plain')).status, 201);
-  const before = await webNames('s3'); expect(before.includes('policy.txt'), 'precondition: class policy visible');
   eq((await s1.upload(CM, 'policy.txt', Buffer.from('my own policy notes'), 'personal', 'text/plain')).status, 201, 'learner upload');
-  for (const viewer of ['s3', 'lec']) {
+  for (const viewer of ['s3', 'lec', 's1']) {
     const d = (await aiCall(viewer, `/api/modules/${CM}/documents`)).body.filter((x) => x.filename === 'policy.txt');
-    expect(d.some((x) => x.visibility === 'class'), `CLASS MATERIAL HIDDEN from ${viewer}: a learner's same-named personal upload superseded it (is_latest)`);
+    expect(d.some((x) => x.visibility === 'class' && x.is_latest), `class policy.txt hidden from ${viewer}`);
   }
 });
+
+// ───────────────────────────── Versioning, deletion and history isolation ─────────────────────────────
+group('Versioning, deletion and version-history isolation (Web -> real AI API, real DB, real Typesense when configured)');
+const needDb = !!process.env.AI_PSQL;
+const tsHeaders = { 'X-TYPESENSE-API-KEY': TS_KEY || '', 'Content-Type': 'application/json' };
+const tsFound = async (docId) => (await (await fetch(`${TS}/collections/document_chunks/documents/search?q=*&query_by=content&filter_by=${encodeURIComponent(`document_id:=${docId}`)}&per_page=1`, { headers: tsHeaders })).json()).found;
+async function tsSeed(docId, { module, filename, visibility, owner, lecturer, version }) {
+  const r = await fetch(`${TS}/collections/document_chunks/documents`, { method: 'POST', headers: tsHeaders, body: JSON.stringify({
+    id: `seed-${docId}-v${version}`, content: `seeded chunk for ${filename}`, embedding: Array.from({ length: 3072 }, () => 0.01),
+    document_id: docId, filename, chunk_index: 0, token_count: 3, module_id: module, course_code: '', semester_id: '', is_current_semester: true,
+    week_number: 0, visibility, owner_id: owner, is_latest: true, doc_version: version, lecturer_id: lecturer }) });
+  expect(r.ok, `Typesense seed failed: ${r.status} ${await r.text()}`);
+}
+const rowsOf = (modId, filename) => (psql(`select d.id, md.visibility, md.version, md.is_latest, coalesce(u.role,'?'), d.owner_id from module_documents md join documents d on d.id=md.document_id left join users u on u.id=d.owner_id where md.module_id='${modId}' and d.filename='${filename}' order by md.created_at`) || '')
+  .split('\n').filter(Boolean).map((l) => { const [id, visibility, version, latest, role, owner] = l.split('|'); return { id, visibility, version: Number(version), latest: latest === 't', role, owner }; });
+const rowExists = (docId) => psql(`select count(*) from module_documents where document_id='${docId}'`) === '1';
+
+const V = { lec: new Client(), s1: new Client(), s2: new Client(), sl: new Client() };
+const vEmail = (t) => email('v-' + t);
+for (const [tag, role] of [['lec', 'lecturer'], ['s1', 'student'], ['s2', 'student'], ['sl', 'self_learner']]) {
+  const r = await V[tag].json('/api/studymind/auth/register', 'POST', { email: vEmail(tag), full_name: `V ${tag}`, password: PASSWORD, role });
+  expect(r.status === 201, `register ${tag}: ${r.status}`);
+  tokens['v-' + tag] = (await (await fetch(AI + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: vEmail(tag), password: PASSWORD }) })).json()).access_token;
+}
+const vUser = {}; for (const tag of Object.keys(V)) vUser[tag] = (await V[tag].req('/api/studymind/learning-overview')).body.user;
+const M = (await V.lec.json('/api/studymind/modules', 'POST', { title: 'Versioning Module', access_type: 'class' })).body;
+const M2 = (await V.lec.json('/api/studymind/modules', 'POST', { title: 'Second Module', access_type: 'class' })).body;
+for (const tag of ['s1', 's2', 'sl']) eq((await V[tag].json('/api/studymind/modules/join', 'POST', { course_id: M.id })).status, 200, `join ${tag}`);
+const up = async (tag, name, text, visibility, mod = M.id) => { const r = await aiUpload('v-' + tag, mod, name, text, visibility); expect(r.status === 201, `${tag} upload ${name}: ${r.status} ${JSON.stringify(r.body)}`); return r.body.document_id; };
+const list = async (tag, mod = M.id) => (await aiCall('v-' + tag, `/api/modules/${mod}/documents`)).body;
+const versionsOf = (tag, docId, mod = M.id) => aiCall('v-' + tag, `/api/modules/${mod}/documents/${docId}/versions`);
+const seedFor = (docId, name, visibility, ownerTag, version) => TS && tsSeed(docId, { module: M.id, filename: name, visibility, owner: vUser[ownerTag].id, lecturer: vUser.lec.id, version });
+const tsNote = 'Typesense not configured (set TS_URL/TS_KEY with a real local Typesense)';
+
+// ---- The original release blocker, reproduced exactly ----
+const ids = {};
+await check('blocker scenario: lecturer class policy.txt, then student personal policy.txt - both stay latest, version 1, correctly owned', async () => {
+  if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
+  ids.classV1 = await up('lec', 'policy.txt', 'official class policy', 'class');
+  await seedFor(ids.classV1, 'policy.txt', 'class', 'lec', 1);
+  ids.s1V1 = await up('s1', 'policy.txt', 'a different policy written by a student', 'personal');
+  await seedFor(ids.s1V1, 'policy.txt', 'personal', 's1', 1);
+  const rows = rowsOf(M.id, 'policy.txt');
+  eq(rows.length, 2, 'row count');
+  const cls = rows.find((r) => r.visibility === 'class'), per = rows.find((r) => r.visibility === 'personal');
+  expect(cls && per, 'both rows must exist');
+  eq(cls.latest, true, 'class is_latest'); eq(cls.version, 1, 'class version'); eq(cls.role, 'lecturer', 'class owner role'); eq(cls.owner, vUser.lec.id);
+  eq(per.latest, true, 'personal is_latest'); eq(per.version, 1, 'personal version'); eq(per.role, 'student', 'personal owner role'); eq(per.owner, vUser.s1.id);
+});
+await check('blocker scenario: list responses (direct API and Web) - student sees both, lecturer only class, other student only class', async () => {
+  const pick = (docs) => docs.filter((d) => d.filename === 'policy.txt').map((d) => `${d.visibility}:v${d.version}:${d.is_latest}`).sort();
+  eq(JSON.stringify(pick(await list('s1'))), JSON.stringify(['class:v1:true', 'personal:v1:true']), 'student s1 (direct)');
+  eq(JSON.stringify(pick(await list('lec'))), JSON.stringify(['class:v1:true']), 'lecturer (direct)');
+  eq(JSON.stringify(pick(await list('s2'))), JSON.stringify(['class:v1:true']), 'other student (direct)');
+  const webView = async (tag) => ((await V[tag].req(`/api/studymind/modules/${M.id}/documents`)).body).filter((d) => d.filename === 'policy.txt').map((d) => `${d.visibility}:${d.is_latest}`).sort();
+  eq(JSON.stringify(await webView('s1')), JSON.stringify(['class:true', 'personal:true']), 'student s1 (Web)');
+  eq(JSON.stringify(await webView('lec')), JSON.stringify(['class:true']), 'lecturer (Web)');
+  eq(JSON.stringify(await webView('s2')), JSON.stringify(['class:true']), 'other student (Web)');
+});
+await check('blocker scenario: the class document is NOT superseded in the real search index (Typesense)', async () => {
+  if (!TS) return skipUnverified('search-index supersede check', tsNote);
+  eq(await tsFound(ids.classV1), 1, 'class chunk must still exist'); eq(await tsFound(ids.s1V1), 1, "student's own chunk exists");
+});
+await check('self-learner personal policy.txt: independent v1, class and student documents untouched', async () => {
+  if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
+  ids.slV1 = await up('sl', 'policy.txt', 'self learner policy', 'personal'); await seedFor(ids.slV1, 'policy.txt', 'personal', 'sl', 1);
+  const rows = rowsOf(M.id, 'policy.txt'); eq(rows.length, 3, 'row count');
+  for (const r of rows) { eq(r.latest, true, `${r.role} is_latest`); eq(r.version, 1, `${r.role} version`); }
+  expect(rows.some((r) => r.role === 'self_learner' && r.visibility === 'personal'), 'self-learner row');
+  eq(JSON.stringify((await list('sl')).filter((d) => d.filename === 'policy.txt').map((d) => d.visibility).sort()), JSON.stringify(['class', 'personal']));
+  if (TS) { eq(await tsFound(ids.classV1), 1); eq(await tsFound(ids.s1V1), 1); eq(await tsFound(ids.slV1), 1); }
+});
+await check('two learners uploading identically named personal files: independent, mutually invisible', async () => {
+  if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
+  ids.s2V1 = await up('s2', 'policy.txt', 'second student policy', 'personal'); await seedFor(ids.s2V1, 'policy.txt', 'personal', 's2', 1);
+  const rows = rowsOf(M.id, 'policy.txt'); eq(rows.length, 4, 'row count');
+  for (const r of rows) { eq(r.latest, true, `${r.role}/${r.owner} is_latest`); eq(r.version, 1, `${r.role}/${r.owner} version`); }
+  for (const tag of ['s1', 's2', 'sl']) {
+    const mine = (await list(tag)).filter((d) => d.filename === 'policy.txt');
+    eq(mine.length, 2, `${tag} should see class + own only`);
+    expect(mine.some((d) => d.visibility === 'personal' && d.document_id === ids[tag + 'V1']), `${tag} sees their own file`);
+  }
+  if (TS) for (const id of [ids.classV1, ids.s1V1, ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, 'no chunks removed');
+});
+
+// ---- Legitimate version updates ----
+await check('lecturer uploads class policy.txt v2: only the previous CLASS version is superseded', async () => {
+  if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
+  ids.classV2 = await up('lec', 'policy.txt', 'official class policy, revised', 'class');
+  const rows = rowsOf(M.id, 'policy.txt'); eq(rows.length, 5, 'row count');
+  const cls = rows.filter((r) => r.visibility === 'class').sort((a, b) => a.version - b.version);
+  eq(cls.length, 2); eq(cls[0].version, 1); eq(cls[0].latest, false, 'old class version superseded'); eq(cls[1].version, 2); eq(cls[1].latest, true, 'new class version latest');
+  for (const r of rows.filter((x) => x.visibility === 'personal')) { eq(r.version, 1, `${r.role} version`); eq(r.latest, true, `${r.role} still latest`); }
+  const lecList = (await list('lec')).filter((d) => d.filename === 'policy.txt'); eq(lecList.length, 1); eq(lecList[0].version, 2);
+  if (TS) { eq(await tsFound(ids.classV1), 0, 'old class chunks removed from the index'); for (const id of [ids.s1V1, ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "learners' chunks untouched"); }
+  else skipUnverified('search-index check for class version update', tsNote);
+});
+await check("student uploads personal policy.txt v2: only THEIR previous personal version is superseded", async () => {
+  if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
+  ids.s1V2 = await up('s1', 'policy.txt', 'my revised notes', 'personal');
+  const rows = rowsOf(M.id, 'policy.txt'); eq(rows.length, 6, 'row count');
+  const mine = rows.filter((r) => r.owner === vUser.s1.id).sort((a, b) => a.version - b.version);
+  eq(mine.length, 2); eq(mine[0].latest, false, 'old personal version superseded'); eq(mine[1].version, 2); eq(mine[1].latest, true);
+  for (const r of rows.filter((x) => x.owner !== vUser.s1.id)) {
+    const expectLatest = r.visibility === 'class' ? r.version === 2 : true;
+    eq(r.latest, expectLatest, `unrelated ${r.role} v${r.version} is_latest`);
+  }
+  for (const tag of ['s2', 'sl']) { const d = (await list(tag)).filter((x) => x.filename === 'policy.txt'); eq(d.length, 2, `${tag} list`); expect(d.every((x) => x.is_latest), `${tag} docs latest`); }
+  if (TS) { eq(await tsFound(ids.s1V1), 0, "student's old chunks removed"); for (const id of [ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "others' chunks untouched"); }
+  else skipUnverified('search-index check for personal version update', tsNote);
+});
+
+// ---- Version-history privacy ----
+group('Version-history privacy (direct API)');
+await check('lecturer sees the history of their own class document, with class versions only', async () => {
+  const r = await versionsOf('lec', ids.classV2); eq(r.status, 200);
+  eq(JSON.stringify(r.body.map((v) => v.version)), JSON.stringify([2, 1]));
+  const allowed = new Set([ids.classV1, ids.classV2]);
+  expect(r.body.every((v) => allowed.has(v.document_id)), 'history must contain only the lecturer class documents');
+});
+await check('student sees the history of their own personal document, and only their own versions', async () => {
+  const r = await versionsOf('s1', ids.s1V2); eq(r.status, 200);
+  eq(JSON.stringify(r.body.map((v) => v.version)), JSON.stringify([2, 1]));
+  expect(r.body.every((v) => [ids.s1V1, ids.s1V2].includes(v.document_id)), 'history leaked another uploader');
+});
+await check("identically named class and personal files never appear in each other's histories", async () => {
+  const cls = (await versionsOf('s2', ids.classV2)).body.map((v) => v.document_id);
+  expect(cls.every((id) => [ids.classV1, ids.classV2].includes(id)), 'class history includes personal files');
+  const personal = (await versionsOf('s2', ids.s2V1)).body.map((v) => v.document_id);
+  eq(JSON.stringify(personal), JSON.stringify([ids.s2V1]), 'personal history should contain only that learner\'s file');
+});
+await check("lecturer cannot read a student's personal history; students cannot read each other's (403/404, no information)", async () => {
+  for (const [who, target] of [['lec', ids.s1V2], ['lec', ids.s2V1], ['s2', ids.s1V2], ['s1', ids.s2V1], ['sl', ids.s1V1], ['s1', ids.slV1]]) {
+    const r = await versionsOf(who, target);
+    expect([403, 404].includes(r.status), `${who} -> ${target}: status ${r.status}`);
+    expect(!/policy\.txt|version|document_id/i.test(JSON.stringify(r.body)), `${who}: response discloses details: ${JSON.stringify(r.body)}`);
+  }
+});
+await check('a document ID from another module exposes nothing', async () => {
+  const otherDoc = await up('lec', 'other-module.txt', 'doc in the second module', 'class', M2.id);
+  for (const who of ['lec', 's1']) {
+    const r = await versionsOf(who, otherDoc, M.id);   // M's URL, M2's document
+    eq(r.status, 404, `${who} via wrong module`); expect(!/other-module/.test(JSON.stringify(r.body)), 'filename disclosed');
+  }
+  eq((await versionsOf('s1', otherDoc, M2.id)).status, 403, 'student not enrolled in module 2');
+  eq((await versionsOf('lec', '00000000-0000-4000-8000-000000000000')).status, 404, 'unknown document id');
+});
+
+// ---- Deletion security ----
+group('Document deletion security (direct API)');
+const del = (tag, docId, mod = M.id) => aiCall('v-' + tag, `/api/modules/${mod}/documents/${docId}`, { method: 'DELETE' });
+await check('forbidden deletions return 403 and leave rows and search chunks unchanged', async () => {
+  const cases = [['lec', ids.s2V1, "lecturer -> student's personal note"], ['s1', ids.classV2, "student -> lecturer's class document"],
+    ['s1', ids.s2V1, "learner -> another learner's note"], ['sl', ids.s1V2, "self-learner -> student's note"], ['s2', ids.slV1, "student -> self-learner's note"]];
+  for (const [who, doc, label] of cases) {
+    const r = await del(who, doc); eq(r.status, 403, label);
+    if (needDb) expect(rowExists(doc), `${label}: database row was removed`);
+    if (TS) expect((await tsFound(doc)) >= 0, 'n/a');
+  }
+  if (!needDb) skipUnverified('database unchanged after forbidden deletes', 'AI_PSQL not set');
+  if (TS) { eq(await tsFound(ids.s2V1), 1, "s2 chunks after forbidden delete"); eq(await tsFound(ids.slV1), 1, 'sl chunks after forbidden delete'); }
+  else skipUnverified('search-index unchanged after forbidden deletes', tsNote);
+});
+await check('unknown, cross-module and outsider deletions are refused without side effects', async () => {
+  eq((await del('lec', '00000000-0000-4000-8000-000000000000')).status, 404);
+  const other = (await list('lec', M2.id))[0].document_id;
+  eq((await del('lec', other, M.id)).status, 404, 'doc of another module via this module'); 
+  if (needDb) expect(rowExists(other), 'cross-module document must remain');
+  eq((await aiCall('v-s1', `/api/modules/${M2.id}/documents/${other}`, { method: 'DELETE' })).status, 403, 'student not in module 2');
+});
+const allowedDeletes = [['lec', 'class', "lecturer deletes their own class document"], ['s1', 'personal', 'student deletes their own personal note'], ['sl', 'personal', 'self-learner deletes their own personal note']];
+for (const [tag, visibility, label] of allowedDeletes) {
+  await check(`${label} (needs a real Typesense: the AI delete path calls it strictly)`, async () => {
+    if (!TS) return skipUnverified(label, `${tsNote}; without it the AI returns 500 and the row is kept, so this cannot be called a pass`);
+    const name = `deletable-${tag}.txt`; const id = await up(tag, name, 'to be deleted', visibility);
+    await seedFor(id, name, visibility, tag, 1); eq(await tsFound(id), 1, 'seeded');
+    eq((await del(tag, id)).status, 204, 'delete status');
+    if (needDb) expect(!rowExists(id), 'row should be gone');
+    eq(await tsFound(id), 0, 'chunks should be removed from the real index');
+    expect(!(await list(tag)).some((d) => d.document_id === id), 'still listed');
+  });
+}
 
 // ───────────────────────────── Report ─────────────────────────────
 const failed = results.filter((r) => !r.ok);
 console.log(`\n=== ${results.length - failed.length}/${results.length} passed, ${failed.length} failed ===`);
 for (const f of failed) console.log(` - [${f.section}] ${f.name}: ${f.err}`);
+for (const u of unverified) console.log(` ~ UNVERIFIED: ${u.name} (${u.reason})`);
 for (const k of knownDefects) console.log(` ! KNOWN BACKEND DEFECT: ${k.name} (${k.ticket})`);
 for (const n of notes) console.log(` ? NOTE: ${n}`);
 process.exit(failed.length ? 1 : 0);
