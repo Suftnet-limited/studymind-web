@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ApiError, studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
+import { roleCapabilities } from '@/lib/studymind-validation.mjs';
 import { EmptyState, ErrorBox, LoadingBlock } from '@/components/learning/states';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -49,7 +50,7 @@ function CreateModule({ canCreateClass }: { canCreateClass: boolean }) {
     onSuccess: async () => { setTitle(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
   return <Card>
-    <CardHeader><CardTitle>Create a module</CardTitle><CardDescription>Start a personal space for your own notes and materials.</CardDescription></CardHeader>
+    <CardHeader><CardTitle>Create a module</CardTitle><CardDescription>{canCreateClass ? 'Create a class module for your students, or a personal one for your own notes.' : 'Start a personal space for your own notes and materials.'}</CardDescription></CardHeader>
     <CardContent>
       <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
         <Input aria-label="Module title" className="min-w-48 flex-1" placeholder="e.g. Organic Chemistry" minLength={2} maxLength={255} required value={title} onChange={e => setTitle(e.target.value)} />
@@ -113,6 +114,7 @@ export default function MyLearningPage() {
   });
   const signedOut = overview.error instanceof ApiError && overview.error.status === 401;
   const user = overview.data?.user;
+  const caps = roleCapabilities(user?.role ?? '');
 
   return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
     <header>
@@ -134,16 +136,16 @@ export default function MyLearningPage() {
         <Button variant="outline" size="sm" disabled={logout.isPending} onClick={() => logout.mutate()}>Sign out</Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <CreateModule canCreateClass={user.role === 'lecturer'} />
-        <JoinCourse />
-      </div>
+      {(caps.canCreatePersonal || caps.canJoin) && <div className="grid gap-4 md:grid-cols-2">
+        {caps.canCreatePersonal && <CreateModule canCreateClass={caps.canCreateClass} />}
+        {caps.canJoin && <JoinCourse />}
+      </div>}
 
       <section className="space-y-4" aria-labelledby="my-modules">
         <h2 id="my-modules" className="text-xl font-semibold">My modules</h2>
         {modules.isLoading && <LoadingBlock label="Loading modules…" rows={2} />}
         {modules.isError && <ErrorBox message={message(modules.error)} onRetry={() => modules.refetch()} />}
-        {modules.data?.length === 0 && <EmptyState title="No modules yet">Create a personal module above, or join a course with a Course ID. Modules from Mobile appear here automatically.</EmptyState>}
+        {modules.data?.length === 0 && <EmptyState title="No modules yet">{caps.canJoin ? 'Join a course with a Course ID' : 'Create a module'}{caps.canCreatePersonal && caps.canJoin ? ' or create a personal module' : ''} above. Modules from Mobile appear here automatically.</EmptyState>}
         {!!modules.data?.length && <div className="grid gap-4 sm:grid-cols-2">{modules.data.map(m => <ModuleCard key={m.id} module={m} userId={user.id} />)}</div>}
       </section>
     </>}

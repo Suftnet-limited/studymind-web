@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { isUuid, validateUpload } from '@/lib/studymind-validation.mjs';
+import { apiDetail, isUuid, validateUpload } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 type Context = { params: Promise<{ id: string }> };
 const valid = isUuid;
@@ -26,15 +26,19 @@ export async function POST(request: Request, context: Context) {
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
   const payload = new FormData();
   payload.set('file', file);
+  // The AI endpoint declares `visibility` and `week_id` as QUERY parameters; form fields are ignored,
+  // which would silently store every upload as class material.
+  const query = new URLSearchParams();
   const visibility = form?.get('visibility');
-  if (visibility === 'personal' || visibility === 'class') payload.set('visibility', visibility);
+  if (visibility === 'personal' || visibility === 'class') query.set('visibility', visibility);
   const week = form?.get('week_id');
-  if (typeof week === 'string' && isUuid(week)) payload.set('week_id', week);
+  if (isUuid(week)) query.set('week_id', week as string);
+  const qs = query.toString() ? `?${query}` : '';
   try {
-    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents`, { method: 'POST', body: payload });
+    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents${qs}`, { method: 'POST', body: payload });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));
-    if (!upstream.ok) return NextResponse.json({ error: data.detail || 'Unable to upload document' }, { status: upstream.status < 500 ? upstream.status : 502 });
+    if (!upstream.ok) return NextResponse.json({ error: apiDetail(data, 'Unable to upload document') }, { status: upstream.status < 500 ? upstream.status : 502 });
     return NextResponse.json(data, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
 }

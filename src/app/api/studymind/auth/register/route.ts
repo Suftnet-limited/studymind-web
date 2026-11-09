@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { aiIdentityRequest, setAiTokens } from '@/lib/studymind-identity';
+import { apiDetail } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
@@ -20,7 +21,8 @@ export async function POST(request: Request) {
     });
     if (!upstream.ok) {
       const data = await upstream.json().catch(() => ({}));
-      return NextResponse.json({ error: typeof data.detail === 'string' ? data.detail : 'Registration failed' },
+      if (upstream.status === 429) return NextResponse.json({ error: 'Too many attempts. Please wait a moment and try again.' }, { status: 429 });
+      return NextResponse.json({ error: apiDetail(data, 'Registration failed') },
         { status: [400, 403, 409, 422].includes(upstream.status) ? upstream.status : 502 });
     }
     // The canonical AI backend creates the account. Do not create a duplicate Prisma user.

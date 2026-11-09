@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { parseJoinInput } from '@/lib/studymind-validation.mjs';
+import { apiDetail, parseJoinInput } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 
 /**
  * Joins a lecturer-created module by Course ID using the caller's canonical StudyMind AI session.
- * Requires the AI backend endpoint `POST /api/modules/join` accepting `{ course_id }`.
+ * AI contract: `POST /api/modules/join { course_id }` -> `{ module_id, enrolment_id }`; only students and
+ * self-learners may join (403 otherwise); 404 unknown ID; 409 ambiguous course code.
  */
 export async function POST(request: Request) {
   let body: unknown;
@@ -18,10 +19,9 @@ export async function POST(request: Request) {
     });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));
-    if (upstream.status === 404 || upstream.status === 405)
-      return NextResponse.json({ error: 'No course matches that Course ID, or joining is not available yet.' }, { status: 404 });
+    if (upstream.status === 405) return NextResponse.json({ error: 'Joining courses is not available yet.' }, { status: 501 });
     if (!upstream.ok)
-      return NextResponse.json({ error: typeof data.detail === 'string' ? data.detail : 'Unable to join course' }, { status: upstream.status < 500 ? upstream.status : 502 });
+      return NextResponse.json({ error: apiDetail(data, 'Unable to join course') }, { status: upstream.status < 500 ? upstream.status : 502 });
     return NextResponse.json(data, { status: 200, headers: { 'Cache-Control': 'no-store' } });
   } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
 }

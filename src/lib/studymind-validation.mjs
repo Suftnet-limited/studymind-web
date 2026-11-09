@@ -23,8 +23,17 @@ export function parseJoinInput(body) {
   return { ok: true, value: { course_id: isUuid(courseId) ? courseId.toLowerCase() : courseId } };
 }
 
+/** Mirrors the AI backend's ingestor.ALLOWED_EXTENSIONS. */
+export const ALLOWED_EXTENSIONS = ['.pdf', '.docx', '.txt', '.md', '.csv'];
+
 export function validateUpload(file) {
   if (!file || typeof file.size !== 'number' || file.size <= 0) return { ok: false, error: 'The file is empty' };
+  if (typeof file.name === 'string') {
+    const dot = file.name.lastIndexOf('.');
+    const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : '';
+    if (!ALLOWED_EXTENSIONS.includes(ext))
+      return { ok: false, error: `Unsupported file type${ext ? ` "${ext}"` : ''}. Upload a PDF, DOCX, TXT, MD or CSV file.` };
+  }
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: 'The file exceeds the 50 MB limit' };
   return { ok: true };
 }
@@ -45,3 +54,22 @@ export function documentStatus(doc) {
 }
 
 export const hasPendingDocuments = (docs) => Array.isArray(docs) && docs.some((d) => documentStatus(d) === 'processing');
+
+/** Which actions the AI backend permits per role (it enforces these too; the UI just avoids offering them). */
+export function roleCapabilities(role) {
+  return {
+    canCreatePersonal: role === 'lecturer' || role === 'self_learner' || role === 'admin',
+    canCreateClass: role === 'lecturer' || role === 'admin',
+    canJoin: role === 'student' || role === 'self_learner',
+    canUploadClass: role === 'lecturer' || role === 'admin',
+  };
+}
+
+/** FastAPI `detail` may be a string, or a list of validation errors. Always returns a readable string. */
+export function apiDetail(data, fallback) {
+  const detail = isObject(data) ? data.detail : undefined;
+  if (typeof detail === 'string' && detail.trim()) return detail.slice(0, 300);
+  if (Array.isArray(detail) && detail.length && isObject(detail[0]) && typeof detail[0].msg === 'string')
+    return detail[0].msg.slice(0, 300);
+  return fallback;
+}

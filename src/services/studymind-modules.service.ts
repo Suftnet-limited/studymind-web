@@ -4,8 +4,10 @@ export type CanonicalModule = {
 };
 export type CanonicalDocument = {
   id: string; filename?: string; original_filename?: string; visibility?: string;
-  chunk_count?: number; status?: string; indexing_status?: string; processing_status?: string;
+  chunk_count?: number; file_type?: string; status?: string; indexing_status?: string; processing_status?: string;
 };
+
+export type UploadResult = { document_id?: string; filename?: string; status?: string; message?: string };
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -28,12 +30,12 @@ export const studyMindModulesService = {
   create: async (title: string, access_type: 'personal' | 'class') =>
     responseData<CanonicalModule>(await fetch(base, jsonInit({ title, access_type })), 'Unable to create module'),
   join: async (course_id: string) =>
-    responseData<Partial<CanonicalModule>>(await fetch(`${base}/join`, jsonInit({ course_id })), 'Unable to join course'),
+    responseData<{ module_id: string; enrolment_id: string }>(await fetch(`${base}/join`, jsonInit({ course_id })), 'Unable to join course'),
   documents: async (id: string) =>
     responseData<CanonicalDocument[]>(await fetch(`${modulePath(id)}/documents`, { cache: 'no-store' }), 'Unable to load materials'),
   upload: async (id: string, file: File, visibility: 'personal' | 'class') => {
     const form = new FormData();
     form.set('file', file); form.set('visibility', visibility);
-    return responseData<unknown>(await fetch(`${modulePath(id)}/documents`, { method: 'POST', body: form }), 'Unable to upload document');
+    return responseData<UploadResult>(await fetch(`${modulePath(id)}/documents`, { method: 'POST', body: form }), 'Unable to upload document');
   },
 };

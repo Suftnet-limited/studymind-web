@@ -1,12 +1,18 @@
 'use client';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+
+const ROLE_LABELS: Record<string, string> = { self_learner: 'Independent learner', student: 'Student', lecturer: 'Lecturer' };
 
 export default function RegisterLearning() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [roles, setRoles] = useState<string[]>(['self_learner', 'student', 'lecturer']);
+  useEffect(() => {
+    fetch('/api/studymind/auth/config').then(r => r.json()).then(c => { if (Array.isArray(c.enabled_roles) && c.enabled_roles.length) setRoles(Object.keys(ROLE_LABELS).filter(r => c.enabled_roles.includes(r))); }).catch(() => {});
+  }, []);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('');
     const data = new FormData(event.currentTarget);
@@ -29,7 +35,7 @@ export default function RegisterLearning() {
       <label className="block text-sm">Full name<input name="full_name" required minLength={2} maxLength={120} className="mt-1 w-full rounded border p-2"/></label>
       <label className="block text-sm">Email<input name="email" type="email" required className="mt-1 w-full rounded border p-2"/></label>
       <label className="block text-sm">Password<input name="password" type="password" required minLength={12} maxLength={128} className="mt-1 w-full rounded border p-2"/></label>
-      <label className="block text-sm">Account type<select name="role" className="mt-1 w-full rounded border p-2"><option value="self_learner">Independent learner</option><option value="student">Student</option><option value="lecturer">Lecturer</option></select></label>
+      <label className="block text-sm">Account type<select name="role" className="mt-1 w-full rounded border p-2">{roles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}</select></label>
       {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
       <button type="submit" disabled={busy} className="rounded bg-violet-700 px-4 py-2 text-white">{busy ? 'Creating…' : 'Create account'}</button>
     </form>

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_UPLOAD_BYTES, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
+  MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS, roleCapabilities, apiDetail, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
 } from '../src/lib/studymind-validation.mjs';
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
@@ -40,6 +40,29 @@ test('uploads: enforces non-empty and 50 MB limit', () => {
   assert.equal(validateUpload({ size: 1 }).ok, true);
 });
 
+test('uploads: only formats the AI ingestor accepts (PDF, DOCX, TXT, MD, CSV)', () => {
+  assert.deepEqual([...ALLOWED_EXTENSIONS].sort(), ['.csv', '.docx', '.md', '.pdf', '.txt']);
+  for (const name of ['notes.pdf', 'Essay.DOCX', 'a.b.txt', 'README.md', 'data.csv']) assert.equal(validateUpload({ size: 10, name }).ok, true, name);
+  for (const name of ['old.doc', 'slides.pptx', 'run.exe', 'noextension', 'archive.pdf.zip', '.hidden'])
+    assert.equal(validateUpload({ size: 10, name }).ok, false, name);
+  assert.match(validateUpload({ size: 10, name: 'old.doc' }).error, /PDF, DOCX/);
+});
+
+test('roleCapabilities mirrors AI backend rules', () => {
+  assert.deepEqual(roleCapabilities('student'), { canCreatePersonal: false, canCreateClass: false, canJoin: true, canUploadClass: false });
+  assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: true, canUploadClass: false });
+  assert.deepEqual(roleCapabilities('lecturer'), { canCreatePersonal: true, canCreateClass: true, canJoin: false, canUploadClass: true });
+  assert.equal(roleCapabilities('').canJoin, false);
+  assert.equal(roleCapabilities('mystery').canCreatePersonal, false);
+});
+
+test('apiDetail always yields a readable string (FastAPI detail may be a list)', () => {
+  assert.equal(apiDetail({ detail: 'Course ID not found' }, 'x'), 'Course ID not found');
+  assert.equal(apiDetail({ detail: [{ loc: ['body', 'course_id'], msg: 'String should have at least 3 characters', type: 'x' }] }, 'x'), 'String should have at least 3 characters');
+  for (const bad of [undefined, null, {}, { detail: {} }, { detail: [] }, { detail: [1] }, { detail: '  ' }]) assert.equal(apiDetail(bad, 'fallback'), 'fallback');
+  assert.equal(apiDetail({ detail: 'x'.repeat(1000) }, 'f').length, 300);
+});
+
 test('documentStatus normalises backend status fields', () => {
   assert.equal(documentStatus({ status: 'Indexed' }), 'indexed');
   assert.equal(documentStatus({ indexing_status: 'queued' }), 'processing');
@@ -57,7 +80,7 @@ test('hasPendingDocuments drives polling', () => {
 
 test('canonical routes use shared validation and never touch the Web database or billing', () => {
   const routes = ['src/app/api/studymind/modules/route.ts', 'src/app/api/studymind/modules/join/route.ts',
-    'src/app/api/studymind/modules/[id]/route.ts', 'src/app/api/studymind/modules/[id]/documents/route.ts', 'src/app/api/studymind/auth/register/route.ts'];
+    'src/app/api/studymind/modules/[id]/route.ts', 'src/app/api/studymind/modules/[id]/documents/route.ts', 'src/app/api/studymind/auth/register/route.ts', 'src/app/api/studymind/auth/config/route.ts'];
   for (const r of routes) {
     const src = read(r);
     assert.doesNotMatch(src, /@\/lib\/prisma|prisma\./, `${r} must not use Prisma`);

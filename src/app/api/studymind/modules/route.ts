@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { parseModuleInput } from '@/lib/studymind-validation.mjs';
+import { apiDetail, parseModuleInput } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 
 export async function GET() {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));
-    if (!upstream.ok) return NextResponse.json({ error: data.detail || 'Unable to create module' }, { status: upstream.status >= 500 ? 502 : upstream.status });
+    if (!upstream.ok) return NextResponse.json({ error: apiDetail(data, 'Unable to create module') }, { status: upstream.status >= 500 ? 502 : upstream.status });
     return NextResponse.json(data, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
 }
