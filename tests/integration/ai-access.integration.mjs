@@ -111,6 +111,20 @@ async function fire(ep, user, payload) {
 }
 const seen = (r, key) => r.prompts.some((p) => p.includes(CANARY(key))) || r.response.includes(CANARY(key));
 
+// ═════════════════════════ Route registration ═════════════════════════
+group('Route registration (what the RUNNING backend serves, plus behavioural proof that each route answers)');
+await check('the running backend registers every AI route (openapi) - a nested/unregistered handler would be missing here', async () => {
+  const paths = (await (await fetch(AI + '/openapi.json')).json()).paths;
+  const need = ['/api/chat', '/api/chat/stream', '/api/chat/general', '/api/chat/transcribe', '/api/chat/extract-image', '/api/quiz/generate', '/api/quiz/{attempt_id}/submit', '/api/flashcards/generate', '/api/summarise'];
+  const missing = need.filter((p) => !(paths[p] && paths[p].post));
+  expect(missing.length === 0, `routes NOT registered: ${missing.join(', ')}`);
+});
+await check('/api/chat/general and /api/chat/transcribe actually answer: guarded by auth (401, not 404) and validate input (not 404)', async () => {
+  for (const path of ['/api/chat/general', '/api/chat/transcribe']) eq((await api(null, 'POST', path, { message: 'hi', audio_base64: 'AAAA' })).status, 401, `${path} unauthenticated`);
+  const bad = await api(stA.token, 'POST', '/api/chat/transcribe', { audio_base64: '!!not-base64!!' }); eq(bad.status, 400, 'transcribe rejects invalid audio (route is live)');
+  const invalid = await api(stA.token, 'POST', '/api/chat/general', { message: '' }); eq(invalid.status, 422, 'general chat validates input (route is live)');
+});
+
 // ═════════════════════════ Task 1: authorization matrix per endpoint ═════════════════════════
 for (const [name, ep] of Object.entries(ENDPOINTS)) {
   group(`Task 1 - ${name}`);

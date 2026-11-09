@@ -1,4 +1,32 @@
-# AI backend security findings (final verification, suftnetrepo/studymind-ai `42d7808`)
+# AI backend security findings
+
+## Current status: backend `c348e7e` — all 15 previously reported defects are fixed
+
+`npm run test:ai-access` against the **unmodified** backend `c348e7e3338f74a256ebc6c8559d08458e7d6791`:
+**86/86 checks, 0 defects (0 LEAK, 0 CONTRACT), exit code 0**, identical on two consecutive runs (index emptied before
+each). Negative control: the identical suite against the previous backend `42d7808` exits 1 with 15 defects
+(6 LEAK, 9 CONTRACT) and 2 route-registration failures, so the suite does detect what it claims to.
+
+| Previously reported defect | Evidence on `c348e7e` (status \| provider calls \| canary in prompt \| in response) |
+|---|---|
+| flashcards/summarise `week_id` without `module_id` (non-member) | 403 \| 0 \| none \| none |
+| flashcards/summarise `document_id` without `module_id` | 422 \| 0 \| none \| none |
+| flashcards/summarise random document UUID | 422 \| 0 \| none \| none |
+| flashcards/summarise conflicting `module_id` + `week_id` (both directions) | 403 \| 0 \| none \| none |
+| flashcards/summarise conflicting `module_id` + `document_id` | 422 \| 0 \| none \| none |
+| flashcards/summarise nonexistent `week_id` | 404 \| 0 \| none \| none |
+| `/api/chat/general` and `/api/chat/transcribe` unreachable | registered in the running service's OpenAPI; general chat 200, no module material; transcribe 401 unauthenticated / 400 invalid audio (not 404) |
+
+Remaining backend issues (not security leaks): `tests/test_studymind_ai_module_authorization.py` still asserts the old
+guard source string and fails; the other backend security tests are source-text assertions; and
+`tests/test_v1_usage_policy.py::TestFailuresAndBudget::test_budget_enforced_and_never_exceeded` fails in a clean test
+database (backend suite: 512 passed, 2 failed).
+
+---
+
+# History: findings on `42d7808` (fixed in `c348e7e`)
+
+## Findings on `42d7808` (superseded)
 
 Method: `tests/integration/ai-access.integration.mjs` (`npm run test:ai-access`) sends real HTTP requests straight to
 the **unmodified** backend (no Web in the path) against a disposable Postgres and a real Typesense that the suite
