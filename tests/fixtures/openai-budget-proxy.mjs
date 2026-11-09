@@ -11,7 +11,7 @@
 //
 // Limits (all refused locally with HTTP 429 BEFORE anything is forwarded; refusals cost nothing):
 //   MAX_CHAT_CALLS (30)   chat.completions calls actually forwarded     MAX_EMBED_CALLS (40)  embedding calls
-//   MAX_USD (1.00)        worst-case reservation + measured spend must stay under this
+//   MAX_USD (5.00)        worst-case reservation + measured spend must stay under this
 //   CONCURRENCY is fixed at 1: requests are queued and forwarded one at a time. Upstream timeout: UPSTREAM_TIMEOUT_MS (60000).
 //   The proxy itself never retries.
 //
@@ -26,7 +26,7 @@ export const config = () => ({
   key: process.env.PROXY_OPENAI_API_KEY || '',
   maxChat: num('MAX_CHAT_CALLS', 30),
   maxEmbed: num('MAX_EMBED_CALLS', 40),
-  maxUsd: num('MAX_USD', 1.0),
+  maxUsd: num('MAX_USD', 5.0),
   timeoutMs: num('UPSTREAM_TIMEOUT_MS', 60_000),
   // USD per 1M tokens [input, output]. Chat prices match the backend table; the embedding price is from a
   // third-party source (OpenAI's pricing page was not confirmed) - treat estimates as estimates.
