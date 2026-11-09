@@ -16,9 +16,10 @@ const AI = process.env.AI_URL;
 if (!WEB || !AI) { console.log('Skipping: set WEB_URL and AI_URL (local only) to run integration tests.'); process.exit(0); }
 const TS = process.env.TS_URL, TS_KEY = process.env.TS_KEY;
 const FIXTURES = process.env.FIXTURES;          // directory with synthetic documents (see docs/real-ai-validation.md)
+const STUB = process.env.STUB_URL;              // recording OpenAI stand-in (tests/fixtures/openai-stub.mjs); backend must be started against it
 const SHIM = process.env.SHIM_URL;                // controlled AI fixture shim (tests/fixtures/ai-shim.mjs); Web must be pointed at it
 const TS_CONTAINER = process.env.TS_CONTAINER;  // optional: docker container name, used to simulate a Typesense outage
-for (const u of [WEB, AI, ...(TS ? [TS] : []), ...(SHIM ? [SHIM] : [])]) {
+for (const u of [WEB, AI, ...(TS ? [TS] : []), ...(SHIM ? [SHIM] : []), ...(STUB ? [STUB] : [])]) {
   const host = new URL(u).hostname;
   if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) { console.error(`Refusing non-local host: ${host}`); process.exit(2); }
 }
@@ -547,11 +548,16 @@ await check("same-filename uploads: a learner's personal file does not supersede
 group('Versioning, deletion and version-history isolation (Web -> real AI API, real DB, real Typesense when configured)');
 const needDb = !!process.env.AI_PSQL;
 const tsHeaders = { 'X-TYPESENSE-API-KEY': TS_KEY || '', 'Content-Type': 'application/json' };
-const tsFound = async (docId) => (await (await fetch(`${TS}/collections/document_chunks/documents/search?q=*&query_by=content&filter_by=${encodeURIComponent(`document_id:=${docId}`)}&per_page=1`, { headers: tsHeaders })).json()).found;
+// Seeded fixture chunks use chunk_index 9999; chunks written by the real indexer use 0..n. When the backend can embed
+// (provider stand-in), a document has both, so assertions say which kind they mean.
+const tsCount = async (docId, extra = '') => (await (await fetch(`${TS}/collections/document_chunks/documents/search?q=*&query_by=content&filter_by=${encodeURIComponent(`document_id:=${docId}${extra}`)}&per_page=1`, { headers: tsHeaders })).json()).found;
+const tsFound = (docId) => tsCount(docId, ' && chunk_index:=9999');   // seeded fixture chunk
+const tsReal = (docId) => tsCount(docId, ' && chunk_index:<9999');    // chunks from the real indexer
+const tsTotal = (docId) => tsCount(docId);                            // everything for the document
 async function tsSeed(docId, { module, filename, visibility, owner, lecturer, version }) {
   const r = await fetch(`${TS}/collections/document_chunks/documents`, { method: 'POST', headers: tsHeaders, body: JSON.stringify({
     id: `seed-${docId}-v${version}`, content: `seeded chunk for ${filename}`, embedding: Array.from({ length: 3072 }, () => 0.01),
-    document_id: docId, filename, chunk_index: 0, token_count: 3, module_id: module, course_code: '', semester_id: '', is_current_semester: true,
+    document_id: docId, filename, chunk_index: 9999, token_count: 3, module_id: module, course_code: '', semester_id: '', is_current_semester: true,
     week_number: 0, visibility, owner_id: owner, is_latest: true, doc_version: version, lecturer_id: lecturer }) });
   expect(r.ok, `Typesense seed failed: ${r.status} ${await r.text()}`);
 }
@@ -604,6 +610,7 @@ await check('blocker scenario: list responses (direct API and Web) - student see
 await check('blocker scenario: the class document is NOT superseded in the real search index (Typesense)', async () => {
   if (!TS) return skipUnverified('search-index supersede check', tsNote);
   eq(await tsFound(ids.classV1), 1, 'class chunk must still exist'); eq(await tsFound(ids.s1V1), 1, "student's own chunk exists");
+  if (STUB) { expect((await tsReal(ids.classV1)) > 0, 'the real indexed chunk of the class document must still exist'); expect((await tsReal(ids.s1V1)) > 0, "the student's real chunk exists"); }
 });
 await check('self-learner personal policy.txt: independent v1, class and student documents untouched', async () => {
   if (!needDb) return skipUnverified('database verification', 'AI_PSQL not set');
@@ -636,7 +643,7 @@ await check('lecturer uploads class policy.txt v2: only the previous CLASS versi
   eq(cls.length, 2); eq(cls[0].version, 1); eq(cls[0].latest, false, 'old class version superseded'); eq(cls[1].version, 2); eq(cls[1].latest, true, 'new class version latest');
   for (const r of rows.filter((x) => x.visibility === 'personal')) { eq(r.version, 1, `${r.role} version`); eq(r.latest, true, `${r.role} still latest`); }
   const lecList = (await list('lec')).filter((d) => d.filename === 'policy.txt'); eq(lecList.length, 1); eq(lecList[0].version, 2);
-  if (TS) { eq(await tsFound(ids.classV1), 0, 'old class chunks removed from the index'); for (const id of [ids.s1V1, ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "learners' chunks untouched"); }
+  if (TS) { eq(await tsTotal(ids.classV1), 0, 'old class chunks (seeded and real) removed from the index'); for (const id of [ids.s1V1, ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "learners' chunks untouched"); }
   else skipUnverified('search-index check for class version update', tsNote);
 });
 await check("student uploads personal policy.txt v2: only THEIR previous personal version is superseded", async () => {
@@ -650,7 +657,7 @@ await check("student uploads personal policy.txt v2: only THEIR previous persona
     eq(r.latest, expectLatest, `unrelated ${r.role} v${r.version} is_latest`);
   }
   for (const tag of ['s2', 'sl']) { const d = (await list(tag)).filter((x) => x.filename === 'policy.txt'); eq(d.length, 2, `${tag} list`); expect(d.every((x) => x.is_latest), `${tag} docs latest`); }
-  if (TS) { eq(await tsFound(ids.s1V1), 0, "student's old chunks removed"); for (const id of [ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "others' chunks untouched"); }
+  if (TS) { eq(await tsTotal(ids.s1V1), 0, "student's old chunks (seeded and real) removed"); for (const id of [ids.s2V1, ids.slV1]) eq(await tsFound(id), 1, "others' chunks untouched"); }
   else skipUnverified('search-index check for personal version update', tsNote);
 });
 
@@ -720,7 +727,7 @@ for (const [tag, visibility, label] of allowedDeletes) {
     await seedFor(id, name, visibility, tag, 1); eq(await tsFound(id), 1, 'seeded');
     eq((await del(tag, id)).status, 204, 'delete status');
     if (needDb) expect(!rowExists(id), 'row should be gone');
-    eq(await tsFound(id), 0, 'chunks should be removed from the real index');
+    eq(await tsTotal(id), 0, 'all chunks (seeded and real) should be removed from the index');
     expect(!(await list(tag)).some((d) => d.document_id === id), 'still listed');
   });
 }
@@ -746,7 +753,7 @@ for (const [name, label] of badFiles) {
       const row = (await V.lec.req(`/api/studymind/modules/${M.id}/documents`)).body.find((d) => d.filename === unique);
       expect(row, 'document missing from list'); eq(row.status, 'failed'); eq(row.chunk_count, 0, 'no chunks'); noLeak('Web list row', row);
       if (needDb) eq(psql(`select count(*) from document_chunks dc join documents d on d.id=dc.document_id where d.filename='${unique}'`), '0', 'no chunk rows persisted');
-      if (TS) eq(await tsFound(w.body.document_id), 0, 'no chunks may reach the search index');
+      if (TS) eq(await tsTotal(w.body.document_id), 0, 'no chunks may reach the search index');
     }
   });
 }
@@ -800,6 +807,7 @@ const aId = {}; for (const tag of Object.keys(A)) aId[tag] = (await A[tag].req('
 const AM = (await A.lec.json('/api/studymind/modules', 'POST', { title: 'AI Class Module', access_type: 'class' })).body.id;
 const AP = (await A.sl.json('/api/studymind/modules', 'POST', { title: 'AI Personal Module', access_type: 'personal' })).body.id;
 for (const tag of ['st', 'st2', 'sl']) eq((await A[tag].json('/api/studymind/modules/join', 'POST', { course_id: AM })).status, 200, `join ${tag}`);
+const CANARY_OF = (id) => `CANARY-${id.slice(0, 8)}-${run}`;
 const aiPath = (mod, what) => `/api/studymind/modules/${mod}/ai/${what}`;
 const calls = async () => (await fetch(SHIM + '/__calls')).json();
 const clearCalls = () => fetch(SHIM + '/__calls', { method: 'DELETE' });
@@ -832,6 +840,14 @@ await check('a signed-in user who cannot open the module is refused (403) on eve
     }
   }
   if (fixtureMode) { const c = await calls(); eq(c.filter((x) => [aId.out, aId.lec].includes(x.user_id) || (x.user_id === aId.st && x.body.module_id === AP)).length, 0, 'the AI must never be called for a user without module access'); }
+});
+await check('a nonexistent module is a clean 404 on every AI route and never reaches the AI', async () => {
+  if (fixtureMode) await clearCalls();
+  const missing = '00000000-0000-4000-8000-00000000beef';
+  for (const [what, body] of [...AI_ROUTES, [`quiz/${QID0}`, { answers: [{ question_id: QID0, answer: 'a' }] }]]) {
+    const r = await A.st.json(aiPath(missing, what), 'POST', body); eq(r.status, 404, what); expect(/not be found/i.test(r.body.error), r.body.error); noInternals('404 body', r.body);
+  }
+  if (fixtureMode) eq((await calls()).filter((c) => c.body.module_id === missing).length, 0, 'the AI must not be called for a nonexistent module');
 });
 if (fixtureMode) {
   await check('AI Tutor: answer, citations and session continuity (controlled fixture)', async () => {
@@ -889,6 +905,35 @@ if (fixtureMode) {
     for (const tag of ['lec', 'st', 'sl']) for (const [what, body] of AI_ROUTES) { const r = await A[tag].json(aiPath(AM, what), 'POST', body); expect([200, 201].includes(r.status), `${tag} ${what}: ${r.status} ${JSON.stringify(r.body).slice(0, 100)}`); }
     const own = await A.sl.json(aiPath(AP, 'summary'), 'POST', {}); expect([200, 201].includes(own.status), `owner of a personal module: ${own.status}`);
   });
+} else if (STUB) {
+  // Web -> REAL backend (real indexing, retrieval, authorization) -> recording provider STAND-IN. Not live OpenAI.
+  const hits = async () => { await new Promise((r) => setTimeout(r, 150)); return (await fetch(STUB + '/__hits')).json(); };
+  const resetHits = () => fetch(STUB + '/__hits', { method: 'DELETE' });
+  const ORG = CANARY_OF(AM), OTHER = CANARY_OF(AP);
+  const upM = await A.lec.upload(AM, 'class-notes.txt', Buffer.from(`Class notes. Marker ${ORG}. Newton's second law relates force, mass and acceleration.`), 'class', 'text/plain'); eq(upM.status, 201, JSON.stringify(upM.body));
+  const upP = await A.sl.upload(AP, 'private.txt', Buffer.from(`Private notes. Marker ${OTHER}. Newton force.`), 'personal', 'text/plain'); eq(upP.status, 201);
+  await check('Web -> real backend: an enrolled student gets a grounded answer with a citation and nothing from other modules (provider stand-in)', async () => {
+    await resetHits();
+    const r = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'Explain Newton force and the marker', module_id: AP, week_id: AM, document_id: AM, user_id: 'victim', scope_mode: 'personal_only' });
+    eq(r.status, 200, JSON.stringify(r.body)); expect(r.body.answer.includes(ORG), 'class material should ground the answer'); expect(r.body.sources.some((s) => s.filename === 'class-notes.txt'), 'citation');
+    const h = (await hits()).filter((x) => x.path === 'chat.completions'); expect(h.length >= 1, 'provider should be called once authorised');
+    expect(!h.some((x) => x.text.includes(OTHER)) && !r.body.answer.includes(OTHER), "another module's material must not reach the provider or the user, even with spoofed ids in the request");
+    noLeak('chat response', r.body);
+  });
+  await check('Web -> real backend: summary and quiz/flashcards reach the AI only for authorised users; internal 422 text is hidden', async () => {
+    const s = await A.st.json(aiPath(AM, 'summary'), 'POST', {}); eq(s.status, 201, JSON.stringify(s.body)); expect(s.body.content.includes(ORG), 'summary grounded in the module');
+    for (const what of ['quiz', 'flashcards']) { const r = await A.st.json(aiPath(AM, what), 'POST', {}); expect([201, 422].includes(r.status), `${what}: ${r.status}`); if (r.status === 422) { noInternals(`${what} 422`, r.body); expect(!/LLM|JSON/.test(r.body.error), r.body.error); } }
+  });
+  await check('Web -> real backend: refused users (non-member, other private module, no session) never cause a provider call', async () => {
+    await resetHits();
+    for (const [who, mod] of [['out', AM], ['out', AP], ['st', AP]]) for (const [what, body] of AI_ROUTES) { const r = await A[who].json(aiPath(mod, what), 'POST', body); eq(r.status, 403, `${who} ${what}`); }
+    eq((await new Client().json(aiPath(AM, 'chat'), 'POST', { message: 'hi' })).status, 401);
+    eq((await hits()).length, 0, 'the AI provider must not be called for refused requests');
+  });
+  await check("Web -> real backend: another user's chat session id cannot be reused", async () => {
+    const mine = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'hello' }); eq(mine.status, 200);
+    const stolen = await A.st2.json(aiPath(AM, 'chat'), 'POST', { message: 'hello', session_id: mine.body.session_id }); eq(stolen.status, 404, 'session ownership is enforced by the AI');
+  });
 } else {
   await check('authorised users get a generic, readable failure when the AI cannot run (no OpenAI key locally); nothing internal is exposed', async () => {
     for (const tag of ['st', 'sl', 'lec']) for (const [what, body] of AI_ROUTES) {
@@ -898,11 +943,11 @@ if (fixtureMode) {
   });
   skipUnverified('AI answers, citations, quiz/flashcard/summary generation with live AI', 'needs a real OpenAI key and Typesense-indexed documents (see docs/real-ai-validation.md)');
 }
-skipUnverified('retrieval scoping of personal notes inside AI answers', 'personal-note filtering happens in the AI retriever and needs real indexed content to verify');
-await knownDefect('AI backend rejects non-members on its generation endpoints (direct calls)', 'AI app/api/chat.py chat(), features.py generate_quiz_endpoint/generate_flashcards_endpoint/summarise_endpoint accept any module_id without _get_accessible_module; Web therefore checks access itself', async () => {
+if (!STUB) skipUnverified('retrieval scoping of personal notes inside AI answers', 'needs indexed content: run with STUB_URL (see tests/integration/ai-access.integration.mjs, which verifies it with real indexing and a provider stand-in)');
+await check('AI backend rejects non-members with 403 on its generation endpoints for module_id requests (direct calls)', async () => {
   const token = (await (await fetch(AI + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email('ai-out'), password: PASSWORD }) })).json()).access_token;
   const direct = (path, body) => fetch(AI + path, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.status);
-  const statuses = { chat: await direct('/api/chat', { module_id: AM, message: 'hello' }), quiz: await direct('/api/quiz/generate', { module_id: AM }),
+  const statuses = { chat: await direct('/api/chat', { module_id: AM, message: 'hello' }), stream: await direct('/api/chat/stream', { module_id: AM, message: 'hello' }), quiz: await direct('/api/quiz/generate', { module_id: AM }),
     flashcards: await direct('/api/flashcards/generate', { module_id: AM }), summary: await direct('/api/summarise', { module_id: AM, scope: 'module' }) };
   console.log(`        non-member direct calls returned: ${JSON.stringify(statuses)}`);
   for (const [k, v] of Object.entries(statuses)) eq(v, 403, `${k}`);

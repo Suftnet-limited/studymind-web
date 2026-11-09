@@ -12,7 +12,8 @@
     "db:deploy": "prisma migrate deploy",
     "test": "node --test tests/*.test.mjs",
     "test:integration": "node tests/integration/canonical.integration.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:ai-access": "node tests/integration/ai-access.integration.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

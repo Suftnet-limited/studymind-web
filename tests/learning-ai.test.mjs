@@ -79,6 +79,9 @@ test('AI failures are mapped to safe messages; upstream bodies and 5xx details a
   assert.equal(aiFailure(429, null).status, 429); assert.equal(aiFailure(402, null).status, 429);
   assert.match(aiFailure(422, { detail: 'No documents found for this module' }).error, /No documents found/);
   assert.match(aiFailure(422, { detail: [{ msg: 'x' }] }).error, /indexed study material/);
+  for (const internal of ['LLM returned invalid JSON: Expecting value: line 1 column 1 (char 0)', 'Traceback in app/agents/ai_features.py', 'validation error for QuizGenerateRequest'])
+    assert.doesNotMatch(aiFailure(422, { detail: internal }).error, /LLM|JSON|Traceback|ai_features|QuizGenerate/, internal);
+  assert.match(aiFailure(422, { detail: 'No content found to summarise. Upload materials first.' }).error, /Upload materials first/);
   for (const status of [500, 502, 503, 504]) {
     const f = aiFailure(status, { detail: 'Incorrect API key provided: sk-live-abc123 Traceback (most recent call last)' });
     assert.equal(f.status, 502); assert.ok(!/sk-|traceback|api key/i.test(f.error), f.error);

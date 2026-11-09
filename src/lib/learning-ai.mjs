@@ -129,7 +129,9 @@ export function aiFailure(status, data) {
   if (status === 401) return { status: 401, error: 'Authentication required' };
   if (status === 403) return { status: 403, error: "You do not have access to this module's study tools." };
   if (status === 404) return { status: 404, error: 'This module could not be found.' };
-  if (status === 422) return { status: 422, error: detail || 'The request could not be processed. Check the module has indexed study material.' };
+  // Only actionable messages pass through ("No content found ... Upload materials first"); internal ones
+  // (e.g. "LLM returned invalid JSON: ...") are replaced by a generic message.
+  if (status === 422) return { status: 422, error: /\b(no|not enough) (indexed )?(content|documents?|material)/i.test(detail) ? detail : 'The AI could not produce a usable result for this request. Please try again, or check that the module has indexed study material.' };
   if (status === 429 || status === 402) return { status: 429, error: 'You have used your AI allowance for now. Check Plans for details.' };
   return { status: 502, error: 'The AI service is unavailable right now. Please try again in a moment.' };
 }

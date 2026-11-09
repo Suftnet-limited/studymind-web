@@ -85,3 +85,18 @@ E2E_WEB_URL=http://127.0.0.1:3100 npm run test:e2e                              
 ```
 
 Fixture results are **not** evidence that live AI works; see `real-ai-validation.md`.
+
+## AI authorization security suite (provider stand-in)
+
+`tests/integration/ai-access.integration.mjs` tests the AI backend's authorization directly. The backend must be
+started against `tests/fixtures/openai-stub.mjs` (a recording stand-in, not OpenAI) and the real Typesense:
+
+```sh
+PORT=18200 node tests/fixtures/openai-stub.mjs
+# backend env: OPENAI_API_KEY=sk-stub-not-real OPENAI_API_BASE=http://127.0.0.1:18200/v1 OPENAI_BASE_URL=http://127.0.0.1:18200/v1
+AI_URL=http://127.0.0.1:8000 STUB_URL=http://127.0.0.1:18200 TS_URL=http://127.0.0.1:18108 TS_KEY=local-test-key npm run test:ai-access
+```
+
+It empties the disposable Typesense collection first (constant stub embeddings make retrieval order arbitrary).
+Exit code 1 while any bypass defect remains; `ALLOW_DEFECTS=1` reports without failing. Findings:
+`ai-backend-security-findings.md`. With `STUB_URL` set, `npm run test:integration` also exercises Web -> real backend.
