@@ -1,3 +1,4 @@
+import Link from 'next/link';
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -25,7 +26,7 @@ export default function MyLearningPage() {
     <header><p className="text-sm font-semibold text-violet-700">StudyMind AI</p><h1 className="text-3xl font-bold">My learning</h1><p className="mt-2 text-zinc-600">Your modules from the same StudyMind account used on Mobile.</p></header>
     {overview.isLoading && <p role="status">Loading your learning workspace…</p>}
     {overview.isError && <form className="max-w-md space-y-4 rounded-xl border p-5" onSubmit={e => {e.preventDefault();login.mutate();}}>
-      <h2 className="font-semibold">Sign in with your existing StudyMind account</h2>
+      <h2 className="font-semibold">Sign in with your existing StudyMind account</h2><p className="text-sm">New to StudyMind? <Link href="/my-learning/register" className="text-violet-700 underline">Create an account</Link></p>
       <label className="block text-sm">Email<input className="mt-1 w-full rounded border p-2" type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)}/></label>
       <label className="block text-sm">Password<input className="mt-1 w-full rounded border p-2" type="password" autoComplete="current-password" required value={password} onChange={e=>setPassword(e.target.value)}/></label>
       {login.isError && <p role="alert" className="text-sm text-red-700">{login.error.message}</p>}

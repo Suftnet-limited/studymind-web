@@ -46,7 +46,6 @@ export async function authenticatedAiRequest(path: string): Promise<Response | n
   access = tokens.access_token;
   return aiIdentityRequest(path, { headers: { Authorization: `Bearer ${access}` } });
 }
-
 export async function authenticatedAiFetch(path: string, init: RequestInit = {}): Promise<Response | null> {
   if (!path.startsWith('/api/modules')) throw new Error('Invalid learning API route');
   const jar = await cookies();
