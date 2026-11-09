@@ -9,11 +9,14 @@
 // (random emails) and never reads or writes real users.
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { readFileSync, existsSync } from 'node:fs';
 
 const WEB = process.env.WEB_URL;
 const AI = process.env.AI_URL;
 if (!WEB || !AI) { console.log('Skipping: set WEB_URL and AI_URL (local only) to run integration tests.'); process.exit(0); }
 const TS = process.env.TS_URL, TS_KEY = process.env.TS_KEY;
+const FIXTURES = process.env.FIXTURES;          // directory with synthetic documents (see docs/real-ai-validation.md)
+const TS_CONTAINER = process.env.TS_CONTAINER;  // optional: docker container name, used to simulate a Typesense outage
 for (const u of [WEB, AI, ...(TS ? [TS] : [])]) {
   const host = new URL(u).hostname;
   if (!['127.0.0.1', 'localhost', '::1', '[::1]'].includes(host)) { console.error(`Refusing non-local host: ${host}`); process.exit(2); }
@@ -720,6 +723,69 @@ for (const [tag, visibility, label] of allowedDeletes) {
     expect(!(await list(tag)).some((d) => d.document_id === id), 'still listed');
   });
 }
+
+// ───────────────────────────── Failure handling (before and around the embedding step) ─────────────────────────────
+group('Failure handling: bad files and outages produce understandable errors without internals');
+const LEAK = /traceback|stack ?trace|openai|sk-[a-z0-9]|api[_ ]?key|incorrect api|pypdf|python-docx|llama|errno|exception|file "|\.py"|psycopg|asyncpg|sqlalchemy|typesense/i;
+const noLeak = (label, value) => { const text = typeof value === 'string' ? value : JSON.stringify(value); expect(!LEAK.test(text), `${label} exposes internals: ${text.slice(0, 200)}`); };
+const fx = (name) => (FIXTURES && existsSync(`${FIXTURES}/${name}`)) ? readFileSync(`${FIXTURES}/${name}`) : null;
+const fnote = 'FIXTURES not set (directory of synthetic documents)';
+const badFiles = [['truncated.pdf', 'truncated PDF'], ['garbage.pdf', 'random bytes with a .pdf name'], ['not-a-zip.docx', 'text pretending to be DOCX'],
+  ['truncated.docx', 'truncated DOCX'], ['whitespace.txt', 'whitespace-only text'], ['image-only.pdf', 'PDF page with no extractable text']];
+for (const [name, label] of badFiles) {
+  await check(`${label}: accepted for processing, reported as failed, no internals exposed (Web and AI list/upload responses)`, async () => {
+    const bytes = fx(name); if (!bytes) return skipUnverified(name, fnote);
+    const unique = `${run}-${name}`;
+    const w = await V.lec.upload(M.id, unique, bytes, 'personal', 'application/octet-stream');
+    expect([201, 400, 422].includes(w.status), `Web upload status ${w.status} ${JSON.stringify(w.body)}`);
+    noLeak(`Web upload response (${name})`, w.body);
+    if (w.status === 201) {
+      noLeak('Web upload status text', w.body.message ?? '');
+      eq(w.body.status, 'failed', 'a file with no usable text must be reported failed, never indexed');
+      const row = (await V.lec.req(`/api/studymind/modules/${M.id}/documents`)).body.find((d) => d.filename === unique);
+      expect(row, 'document missing from list'); eq(row.status, 'failed'); eq(row.chunk_count, 0, 'no chunks'); noLeak('Web list row', row);
+      if (needDb) eq(psql(`select count(*) from document_chunks dc join documents d on d.id=dc.document_id where d.filename='${unique}'`), '0', 'no chunk rows persisted');
+      if (TS) eq(await tsFound(w.body.document_id), 0, 'no chunks may reach the search index');
+    }
+  });
+}
+await check('empty file and unsupported formats are rejected before processing (readable, no internals)', async () => {
+  for (const [name, bytes] of [['empty.pdf', Buffer.alloc(0)], ['slides.pptx', Buffer.from('x')], ['legacy.doc', Buffer.from('x')], ['tool.exe', Buffer.from('MZ')]]) {
+    const w = await V.lec.upload(M.id, name, bytes, 'personal'); expect([400, 422].includes(w.status), `${name}: ${w.status}`);
+    expect(typeof w.body.error === 'string' && w.body.error.length > 5, `${name}: no readable message`); noLeak(name, w.body);
+  }
+});
+await check('valid Physics PDF and Biology DOCX are accepted; the AI reports an honest status (indexed only with a working OpenAI key)', async () => {
+  for (const name of ['physics-notes.pdf', 'biology-notes.docx']) {
+    const bytes = fx(name); if (!bytes) return skipUnverified(name, fnote);
+    const w = await V.lec.upload(M.id, `${run}-${name}`, bytes, 'class');
+    eq(w.status, 201, JSON.stringify(w.body)); expect(['indexed', 'failed'].includes(w.body.status), `status ${w.body.status}`); noLeak(`${name} upload response`, w.body);
+    console.log(`        ${name}: AI reported status "${w.body.status}"`);
+  }
+});
+if (TS_CONTAINER) {
+  const { execFileSync } = await import('node:child_process');
+  const docker = (...a) => execFileSync('docker', a, { stdio: 'pipe' }).toString().trim();
+  const waitTs = async () => { for (let i = 0; i < 30; i++) { try { if ((await fetch(`${TS}/health`)).ok) return; } catch {} await new Promise((r) => setTimeout(r, 1000)); } throw new Error('Typesense did not come back'); };
+  const victim = await up('s1', `ts-outage-${run}.txt`, 'document owned by a student', 'personal');
+  docker('stop', TS_CONTAINER);
+  try {
+    await check('Typesense outage: Web still lists documents and accepts uploads; errors stay generic', async () => {
+      const list = await V.s1.req(`/api/studymind/modules/${M.id}/documents`); eq(list.status, 200); noLeak('list during outage', list.body);
+      const w = await V.s1.upload(M.id, `ts-down-${run}.txt`, Buffer.from('uploaded while the search index is down'), 'personal', 'text/plain');
+      expect([201, 502, 503].includes(w.status), `status ${w.status}`); noLeak('upload during outage', w.body);
+      if (w.status === 201) expect(['failed', 'pending', 'processing', 'indexed'].includes(w.body.status), `status ${w.body.status}`);
+    });
+    await check('Typesense outage: a delete fails safely (no partial deletion, no internals in the body)', async () => {
+      const r = await fetch(AI + `/api/modules/${M.id}/documents/${victim}`, { method: 'DELETE', headers: { Authorization: `Bearer ${tokens['v-s1']}` } });
+      expect(r.status >= 500, `delete should fail while the index is down, got ${r.status}`); noLeak('delete body during outage', await r.text());
+      if (needDb) expect(rowExists(victim), 'document row must survive a failed delete (no half-deleted state)');
+    });
+  } finally { docker('start', TS_CONTAINER); await waitTs(); }
+  await check('Typesense recovery: the same delete succeeds once the index is back', async () => {
+    eq((await del('s1', victim)).status, 204); if (needDb) expect(!rowExists(victim), 'row should be gone');
+  });
+} else skipUnverified('Typesense outage handling', 'TS_CONTAINER not set');
 
 // ───────────────────────────── Report ─────────────────────────────
 const failed = results.filter((r) => !r.ok);
