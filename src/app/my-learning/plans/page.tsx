@@ -17,8 +17,12 @@ async function loadEntitlements(): Promise<EntitlementResponse> {
   return body as EntitlementResponse;
 }
 
+function useEntitlements() {
+  return useQuery({ queryKey: ['canonical', 'entitlements'], queryFn: loadEntitlements, retry: false });
+}
+
 function Allowances() {
-  const query = useQuery({ queryKey: ['canonical', 'entitlements'], queryFn: loadEntitlements, retry: false });
+  const query = useEntitlements();
   const signedOut = query.error instanceof ApiError && query.error.status === 401;
   return <Card aria-labelledby="allowances-title">
     <CardHeader>
@@ -33,6 +37,7 @@ function Allowances() {
       {query.data?.available && <>
         <p className="mb-4 text-sm text-zinc-600">Current plan: <strong>{query.data.plan === 'plus' ? 'StudyMind Plus' : 'Free'}</strong>
           {query.data.expires_at && <> · until {new Date(query.data.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</>}</p>
+        {query.data.enforcement_enabled === false && <p data-testid="enforcement-note" className="mb-4 rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-600">These allowances are shown for information. Usage limits are not being enforced yet.</p>}
         <ul className="grid gap-4 sm:grid-cols-2">
           {ALLOWANCE_KEYS.map(key => {
             const a = query.data.available ? query.data.allowances[key] : undefined;
@@ -53,6 +58,8 @@ function Allowances() {
 }
 
 export default function PlansPage() {
+  const entitlements = useEntitlements();
+  const currentPlan = entitlements.data?.available ? entitlements.data.plan : null;
   return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
     <header>
       <p className="text-sm font-semibold text-violet-700">StudyMind AI</p>
@@ -68,7 +75,10 @@ export default function PlansPage() {
     <section aria-label="Plans" className="grid gap-4 md:grid-cols-2">
       {PLANS.map(plan => <Card key={plan.id} className={plan.id === 'plus' ? 'border-violet-300 ring-1 ring-violet-200' : ''}>
         <CardHeader>
-          <CardTitle>{plan.name}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>{plan.name}</CardTitle>
+            {currentPlan === plan.id && <span className="rounded-md bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800">Your current plan</span>}
+          </div>
           <p className="pt-1"><span className="text-3xl font-extrabold">{plan.price}</span> <span className="text-sm text-zinc-500">{plan.cadence}</span></p>
           <CardDescription>{plan.note}</CardDescription>
         </CardHeader>

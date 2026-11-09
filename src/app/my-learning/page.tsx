@@ -37,6 +37,7 @@ function SignIn() {
         {login.isError && <ErrorBox message={message(login.error)} />}
         <Button className="w-full" disabled={login.isPending}>{login.isPending ? 'Signing in…' : 'Sign in'}</Button>
       </form>
+      <p className="mt-4 text-center text-xs text-zinc-500">Have an older StudyMind Web account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
     </CardContent>
   </Card>;
 }

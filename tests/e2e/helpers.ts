@@ -1,5 +1,6 @@
 import { expect, request, type APIRequestContext, type Page, type TestInfo } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 
 export const PASSWORD = 'Browser-Test-Pass-123!';
@@ -41,3 +42,19 @@ export async function signIn(page: Page, email: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 }
+
+export async function apiUpload(ctx: APIRequestContext, moduleId: string, name: string, text: string, visibility: 'class' | 'personal') {
+  const res = await ctx.post(`/api/studymind/modules/${moduleId}/documents`, {
+    multipart: { file: { name, mimeType: 'text/plain', buffer: Buffer.from(text) }, visibility },
+  });
+  expect(res.status(), await res.text()).toBe(201);
+}
+
+/** Runs SQL against the DISPOSABLE local AI database (E2E_AI_PSQL, e.g. "psql -h 127.0.0.1 -p 55432 -U sm_test -d studymind_it"). */
+export const hasAiDb = () => !!process.env.E2E_AI_PSQL;
+export function aiSql(sql: string) {
+  const [bin, ...args] = (process.env.E2E_AI_PSQL || '').split(' ');
+  if (!bin) throw new Error('E2E_AI_PSQL not set');
+  return execFileSync(bin, [...args, '-tAc', sql]).toString().trim();
+}
+export const aiUserId = (email: string) => aiSql(`select id from users where email='${email}'`);

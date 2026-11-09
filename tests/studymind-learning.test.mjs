@@ -50,7 +50,7 @@ test('uploads: only formats the AI ingestor accepts (PDF, DOCX, TXT, MD, CSV)', 
 
 test('roleCapabilities mirrors AI backend rules', () => {
   assert.deepEqual(roleCapabilities('student'), { canCreatePersonal: false, canCreateClass: false, canJoin: true, canUploadClass: false });
-  assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: false, canUploadClass: false });
+  assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: true, canUploadClass: false });
   assert.deepEqual(roleCapabilities('lecturer'), { canCreatePersonal: true, canCreateClass: true, canJoin: false, canUploadClass: true });
   assert.equal(roleCapabilities('').canJoin, false);
   assert.equal(roleCapabilities('mystery').canCreatePersonal, false);
@@ -134,4 +134,25 @@ test('plans presentation matches the agreed pricing and has no purchase flow', (
   assert.doesNotMatch(page, /checkout|stripe|<Button|<form|onSubmit/i, 'plans page must not contain a purchase flow');
   const route = read('src/app/api/studymind/entitlements/route.ts');
   assert.doesNotMatch(route, /POST|PUT|PATCH|DELETE|stripe|prisma/i, 'entitlement route must be read-only');
+});
+
+test('parseEntitlements keeps the backend enforcement flag and the real backend response shape', () => {
+  const real = { plan: 'free', expires_at: null, features: { chat: { limit: 10, used: 3, remaining: 7 } },
+    allowances: { chats: { limit: 10, remaining: 7 }, quizzes: { limit: 2, remaining: 2 }, flashcards: { limit: 2, remaining: 2 }, summaries: { limit: 1, remaining: 1 } },
+    enforcement_enabled: false };
+  const parsed = parseEntitlements(real);
+  assert.equal(parsed.enforcement_enabled, false);
+  assert.equal(parsed.plan, 'free');
+  assert.deepEqual(parsed.allowances.chats, { limit: 10, remaining: 7 });
+  assert.equal(parseEntitlements({ ...real, enforcement_enabled: true }).enforcement_enabled, true);
+  assert.equal(parseEntitlements({ ...real, enforcement_enabled: 'yes' }).enforcement_enabled, null);
+  assert.equal(Object.keys(parsed).includes('features'), false, 'internal feature map is not forwarded');
+});
+
+test('header links to the canonical journey and the global link reset cannot override Tailwind colours', () => {
+  const layout = read('src/app/layout.tsx');
+  assert.match(layout, /href="\/my-learning">Sign in/); assert.match(layout, /href="\/my-learning\/register">Get started/);
+  assert.doesNotMatch(layout, /href="\/sign-up"/);
+  assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);
+  assert.match(read('src/app/my-learning/page.tsx'), /href="\/sign-in"/, 'legacy Web accounts keep a way in');
 });

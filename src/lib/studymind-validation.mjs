@@ -60,10 +60,8 @@ export function roleCapabilities(role) {
   return {
     canCreatePersonal: role === 'lecturer' || role === 'self_learner' || role === 'admin',
     canCreateClass: role === 'lecturer' || role === 'admin',
-    // The AI join endpoint also accepts self-learners, but its module-access check only recognises enrolled
-    // `student` accounts, so a self-learner would join a class they can then not open (403). Offer Join to
-    // students only until the AI backend is fixed.
-    canJoin: role === 'student',
+    // Students and self-learners join class modules (the AI backend enforces enrolment on both). Lecturers do not.
+    canJoin: role === 'student' || role === 'self_learner',
     canUploadClass: role === 'lecturer' || role === 'admin',
   };
 }
@@ -104,5 +102,7 @@ export function parseEntitlements(data) {
   if (!Object.keys(allowances).length) return null;
   const plan = /plus|paid|premium/i.test(String(data.plan ?? '')) ? 'plus' : 'free';
   const expires = typeof data.expires_at === 'string' && !Number.isNaN(Date.parse(data.expires_at)) ? data.expires_at : null;
-  return { plan, expires_at: expires, allowances };
+  // `enforcement_enabled` tells the UI whether the AI backend is actually limiting usage yet.
+  const enforcement = typeof data.enforcement_enabled === 'boolean' ? data.enforcement_enabled : null;
+  return { plan, expires_at: expires, allowances, enforcement_enabled: enforcement };
 }

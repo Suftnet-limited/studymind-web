@@ -4,8 +4,8 @@ import { parseEntitlements } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 
 /**
- * Read-only proxy for the canonical AI entitlement API (`GET /api/auth/me/entitlements`, path to be confirmed).
- * Until the AI backend ships it, responds `{ available: false }`. This route never grants, changes or counts usage.
+ * Read-only proxy for the canonical AI entitlement API (`GET /api/auth/me/entitlements`, also served as `/api/me/entitlements`).
+ * Responds `{ available: false }` if the backend is unreachable or returns nothing usable. This route never grants, changes or counts usage.
  */
 export async function GET() {
   try {
