@@ -5,6 +5,7 @@ const links = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/my-learning', label: 'Learning workspace' },
   { href: '/modules', label: 'Web modules' },
+  { href: '/my-learning/plans', label: 'Plans' },
   { href: '/billing', label: 'AI access' },
 ];
 export default function MyLearningLayout({ children }: { children: ReactNode }) {

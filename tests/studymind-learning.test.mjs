@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS, roleCapabilities, apiDetail, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
+  MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS, roleCapabilities, apiDetail, parseEntitlements, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
 } from '../src/lib/studymind-validation.mjs';
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
@@ -50,7 +50,7 @@ test('uploads: only formats the AI ingestor accepts (PDF, DOCX, TXT, MD, CSV)', 
 
 test('roleCapabilities mirrors AI backend rules', () => {
   assert.deepEqual(roleCapabilities('student'), { canCreatePersonal: false, canCreateClass: false, canJoin: true, canUploadClass: false });
-  assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: true, canUploadClass: false });
+  assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: false, canUploadClass: false });
   assert.deepEqual(roleCapabilities('lecturer'), { canCreatePersonal: true, canCreateClass: true, canJoin: false, canUploadClass: true });
   assert.equal(roleCapabilities('').canJoin, false);
   assert.equal(roleCapabilities('mystery').canCreatePersonal, false);
@@ -108,4 +108,30 @@ test('client pages do not use Mobile purchases or expose tokens', () => {
     assert.doesNotMatch(src, /localStorage|sessionStorage|access_token/, `${p} must not handle tokens`);
     assert.doesNotMatch(src, /in-?app.?purchase|revenuecat/i);
   }
+});
+
+test('parseEntitlements normalises the allowance API and never invents data', () => {
+  const full = parseEntitlements({ plan: 'StudyMind Plus', expires_at: '2026-12-01T00:00:00Z', allowances: {
+    chats: { limit: 200, remaining: 150 }, quiz: { limit: 30, used: 5 }, flashcards: { limit: 30, remaining: 99 }, summary: { limit: 15, remaining: -2 } } });
+  assert.equal(full.plan, 'plus');
+  assert.equal(full.expires_at, '2026-12-01T00:00:00Z');
+  assert.deepEqual(full.allowances.chats, { limit: 200, remaining: 150 });
+  assert.deepEqual(full.allowances.quizzes, { limit: 30, remaining: 25 });
+  assert.deepEqual(full.allowances.flashcards, { limit: 30, remaining: 30 }, 'remaining is clamped to the limit');
+  assert.deepEqual(full.allowances.summaries, { limit: 15, remaining: 0 }, 'remaining is clamped to zero');
+  assert.equal(parseEntitlements({ plan: 'free', allowances: { chats: { limit: 10, remaining: 1 } } }).plan, 'free');
+  for (const bad of [null, undefined, 'x', [], {}, { allowances: {} }, { allowances: { chats: { limit: 'ten' } } }, { allowances: { chats: { remaining: 3 } } }])
+    assert.equal(parseEntitlements(bad), null);
+});
+
+test('plans presentation matches the agreed pricing and has no purchase flow', () => {
+  const plans = read('src/lib/plans.ts');
+  assert.match(plans, /chats: 10, quizzes: 2, flashcards: 2, summaries: 1/);
+  assert.match(plans, /£3\.99/); assert.match(plans, /for 28 days/);
+  assert.match(plans, /chats: 200, quizzes: 30, flashcards: 30, summaries: 15/);
+  const page = read('src/app/my-learning/plans/page.tsx');
+  assert.match(page, /Pricing preview/);
+  assert.doesNotMatch(page, /checkout|stripe|<Button|<form|onSubmit/i, 'plans page must not contain a purchase flow');
+  const route = read('src/app/api/studymind/entitlements/route.ts');
+  assert.doesNotMatch(route, /POST|PUT|PATCH|DELETE|stripe|prisma/i, 'entitlement route must be read-only');
 });

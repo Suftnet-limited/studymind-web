@@ -49,7 +49,7 @@ function CreateModule({ canCreateClass }: { canCreateClass: boolean }) {
     mutationFn: () => studyMindModulesService.create(title.trim(), canCreateClass ? accessType : 'personal'),
     onSuccess: async () => { setTitle(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
-  return <Card>
+  return <Card className="border-violet-200 bg-violet-50/40">
     <CardHeader><CardTitle>Create a module</CardTitle><CardDescription>{canCreateClass ? 'Create a class module for your students, or a personal one for your own notes.' : 'Start a personal space for your own notes and materials.'}</CardDescription></CardHeader>
     <CardContent>
       <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
@@ -72,33 +72,43 @@ function JoinCourse() {
     onSuccess: async () => { setCourseId(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
   return <Card>
-    <CardHeader><CardTitle>Join a course</CardTitle><CardDescription>Enter the Course ID your lecturer shared with you.</CardDescription></CardHeader>
+    <CardHeader><CardTitle>Join a course</CardTitle><CardDescription>Paste the Course ID your lecturer shared with you.</CardDescription></CardHeader>
     <CardContent>
       <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); join.mutate(); }}>
-        <Input aria-label="Course ID" className="min-w-48 flex-1" placeholder="Course ID" required maxLength={64} autoComplete="off" value={courseId} onChange={e => setCourseId(e.target.value)} />
+        <Input aria-label="Course ID" className="min-w-48 flex-1" placeholder="Course ID" required maxLength={64} autoComplete="off" spellCheck={false} value={courseId} onChange={e => { setCourseId(e.target.value); if (join.isError || join.isSuccess) join.reset(); }} />
         <Button variant="secondary" disabled={join.isPending || courseId.trim().length < 3}>{join.isPending ? 'Joining…' : 'Join course'}</Button>
       </form>
       {join.isError && <div className="mt-3"><ErrorBox message={message(join.error)} /></div>}
-      {join.isSuccess && <p role="status" className="mt-3 text-sm text-green-700">You have joined the course. It now appears in your modules.</p>}
+      {join.isSuccess && <p role="status" className="mt-3 text-sm text-green-700">You have joined the course. It now appears under Enrolled modules.</p>}
     </CardContent>
   </Card>;
 }
 
-function ModuleCard({ module, userId }: { module: CanonicalModule; userId: string }) {
-  const owned = module.owner_id === userId;
-  return <Link href={`/my-learning/modules/${module.id}`} className="group block">
+function ModuleCard({ module, owned }: { module: CanonicalModule; owned: boolean }) {
+  return <Link href={`/my-learning/modules/${module.id}`} className="group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
     <Card className="h-full transition group-hover:border-violet-300 group-hover:shadow-md">
       <CardHeader>
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-md bg-violet-50 px-2 py-1 text-violet-700">{owned ? 'Owned' : 'Enrolled'}</span>
-          <span className="rounded-md bg-zinc-100 px-2 py-1 capitalize text-zinc-600">{module.access_type}</span>
+          <span className="rounded-md bg-violet-50 px-2 py-1 text-violet-700">{module.access_type === 'class' ? 'Class' : 'Personal'}</span>
+          {module.status !== 'active' && <span className="rounded-md bg-amber-50 px-2 py-1 capitalize text-amber-700">{module.status}</span>}
         </div>
-        <CardTitle className="pt-1">{module.title}</CardTitle>
-        <CardDescription>{module.description || 'Your StudyMind learning module'}</CardDescription>
+        <CardTitle className="break-words pt-1">{module.title}</CardTitle>
+        {module.description && <CardDescription className="line-clamp-2">{module.description}</CardDescription>}
       </CardHeader>
-      <CardContent><span className="text-sm font-semibold text-violet-700">Open module →</span></CardContent>
+      <CardContent><span className="text-sm font-semibold text-violet-700 group-hover:underline">{owned ? 'Manage module' : 'Open module'} →</span></CardContent>
     </Card>
   </Link>;
+}
+
+function ModuleSection({ id, title, count, owned, modules, empty }: {
+  id: string; title: string; count: number; owned: boolean; modules: CanonicalModule[]; empty: string;
+}) {
+  return <section className="space-y-4" aria-labelledby={id}>
+    <h2 id={id} className="flex items-center gap-2 text-xl font-semibold">{title}<span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600" aria-label={`${count} modules`}>{count}</span></h2>
+    {modules.length === 0
+      ? <EmptyState title={`No ${title.toLowerCase()} yet`}>{empty}</EmptyState>
+      : <ul className="grid gap-4 sm:grid-cols-2">{modules.map(m => <li key={m.id}><ModuleCard module={m} owned={owned} /></li>)}</ul>}
+  </section>;
 }
 
 export default function MyLearningPage() {
@@ -115,12 +125,14 @@ export default function MyLearningPage() {
   const signedOut = overview.error instanceof ApiError && overview.error.status === 401;
   const user = overview.data?.user;
   const caps = roleCapabilities(user?.role ?? '');
+  const owned = (modules.data ?? []).filter(m => m.owner_id === user?.id);
+  const enrolled = (modules.data ?? []).filter(m => m.owner_id !== user?.id);
 
   return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
     <header>
       <p className="text-sm font-semibold text-violet-700">StudyMind AI</p>
       <h1 className="text-2xl font-bold sm:text-3xl">Learning workspace</h1>
-      <p className="mt-2 text-zinc-600">Your modules from the same StudyMind account you use on Mobile.</p>
+      <p className="mt-2 text-zinc-600">Your modules, shared with the StudyMind account you use on Mobile.</p>
     </header>
 
     {overview.isLoading && <LoadingBlock label="Loading your learning workspace…" />}
@@ -141,13 +153,14 @@ export default function MyLearningPage() {
         {caps.canJoin && <JoinCourse />}
       </div>}
 
-      <section className="space-y-4" aria-labelledby="my-modules">
-        <h2 id="my-modules" className="text-xl font-semibold">My modules</h2>
-        {modules.isLoading && <LoadingBlock label="Loading modules…" rows={2} />}
-        {modules.isError && <ErrorBox message={message(modules.error)} onRetry={() => modules.refetch()} />}
-        {modules.data?.length === 0 && <EmptyState title="No modules yet">{caps.canJoin ? 'Join a course with a Course ID' : 'Create a module'}{caps.canCreatePersonal && caps.canJoin ? ' or create a personal module' : ''} above. Modules from Mobile appear here automatically.</EmptyState>}
-        {!!modules.data?.length && <div className="grid gap-4 sm:grid-cols-2">{modules.data.map(m => <ModuleCard key={m.id} module={m} userId={user.id} />)}</div>}
-      </section>
+      {modules.isLoading && <LoadingBlock label="Loading modules…" rows={2} />}
+      {modules.isError && <ErrorBox message={message(modules.error)} onRetry={() => modules.refetch()} />}
+      {modules.data && <>
+        {(caps.canCreatePersonal || owned.length > 0) && <ModuleSection id="owned-modules" title="Owned modules" count={owned.length} owned modules={owned}
+          empty="Modules you create appear here. Use Create a module above to start one." />}
+        {(caps.canJoin || enrolled.length > 0) && <ModuleSection id="enrolled-modules" title="Enrolled modules" count={enrolled.length} owned={false} modules={enrolled}
+          empty="Courses you join appear here. Paste a Course ID above to join one." />}
+      </>}
     </>}
   </div>;
 }

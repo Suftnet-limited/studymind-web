@@ -60,7 +60,10 @@ export function roleCapabilities(role) {
   return {
     canCreatePersonal: role === 'lecturer' || role === 'self_learner' || role === 'admin',
     canCreateClass: role === 'lecturer' || role === 'admin',
-    canJoin: role === 'student' || role === 'self_learner',
+    // The AI join endpoint also accepts self-learners, but its module-access check only recognises enrolled
+    // `student` accounts, so a self-learner would join a class they can then not open (403). Offer Join to
+    // students only until the AI backend is fixed.
+    canJoin: role === 'student',
     canUploadClass: role === 'lecturer' || role === 'admin',
   };
 }
@@ -72,4 +75,34 @@ export function apiDetail(data, fallback) {
   if (Array.isArray(detail) && detail.length && isObject(detail[0]) && typeof detail[0].msg === 'string')
     return detail[0].msg.slice(0, 300);
   return fallback;
+}
+
+const ALIASES = {
+  chats: ['chats', 'chat', 'ai_chats', 'ai_chat'],
+  quizzes: ['quizzes', 'quiz'],
+  flashcards: ['flashcards', 'flashcard', 'flashcard_generations'],
+  summaries: ['summaries', 'summary', 'summarise', 'summarize'],
+};
+const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+/**
+ * Normalises the (not yet finalised) AI entitlement response. Returns null when nothing usable is present,
+ * so the UI shows "not available yet" instead of guessing. Never trusts the browser for enforcement.
+ * Expected: { plan, expires_at, allowances: { chats|quizzes|flashcards|summaries: { limit, remaining | used } } }
+ */
+export function parseEntitlements(data) {
+  if (!isObject(data) || !isObject(data.allowances)) return null;
+  const allowances = {};
+  for (const [key, names] of Object.entries(ALIASES)) {
+    const raw = names.map((n) => data.allowances[n]).find(isObject);
+    if (!raw) continue;
+    const limit = num(raw.limit);
+    const remaining = num(raw.remaining) ?? (limit !== null && num(raw.used) !== null ? limit - num(raw.used) : null);
+    if (limit === null || remaining === null || limit < 0) continue;
+    allowances[key] = { limit, remaining: Math.min(Math.max(remaining, 0), limit) };
+  }
+  if (!Object.keys(allowances).length) return null;
+  const plan = /plus|paid|premium/i.test(String(data.plan ?? '')) ? 'plus' : 'free';
+  const expires = typeof data.expires_at === 'string' && !Number.isNaN(Date.parse(data.expires_at)) ? data.expires_at : null;
+  return { plan, expires_at: expires, allowances };
 }

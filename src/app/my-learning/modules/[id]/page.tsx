@@ -6,6 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { ApiError, studyMindModulesService } from '@/services/studymind-modules.service';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
+import { CopyButton } from '@/components/learning/copy-button';
 import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/learning/states';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +33,12 @@ export default function CanonicalModulePage() {
   });
 
   const canUploadClass = !!overview.data && !!module.data && overview.data.user.id === module.data.owner_id && roleCapabilities(overview.data.user.role).canUploadClass;
-  const courseId = module.data?.course_code || module.data?.id;
+  const isOwner = !!overview.data && !!module.data && overview.data.user.id === module.data.owner_id;
+  // The module UUID is the Course ID for now. Only owners of class modules can share it; personal modules cannot be joined.
+  const shareableCourseId = isOwner && module.data?.access_type === 'class' ? module.data.id : null;
+  const docs = documents.data ?? [];
+  const indexed = docs.filter(d => documentStatus(d) === 'indexed').length;
+  const indexing = docs.filter(d => documentStatus(d) === 'processing').length;
   const authError = module.error instanceof ApiError && module.error.status === 401;
 
   function pick(next: File | null) {
@@ -43,9 +49,7 @@ export default function CanonicalModulePage() {
   function submit(e: FormEvent) { e.preventDefault(); if (file && !fileError) upload.mutate(); }
 
   return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
-    <nav aria-label="Breadcrumb" className="text-sm text-zinc-500">
-      <Link href="/my-learning" className="text-violet-700 hover:underline">Learning workspace</Link> <span aria-hidden>/</span> <span>{module.data?.title ?? 'Module'}</span>
-    </nav>
+    <Link href="/my-learning" className="inline-flex items-center gap-1 text-sm font-semibold text-violet-700 hover:underline"><span aria-hidden>←</span> Back to learning workspace</Link>
 
     {module.isLoading && <LoadingBlock label="Loading module…" />}
     {authError && <ErrorBox message="Your session has expired. Sign in again from the learning workspace." />}
@@ -54,15 +58,30 @@ export default function CanonicalModulePage() {
       onRetry={() => module.refetch()} />}
 
     {module.data && <>
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold sm:text-3xl">{module.data.title}</h1>
-        {module.data.description && <p className="text-zinc-600">{module.data.description}</p>}
+      <header className="space-y-3">
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded-md bg-violet-50 px-2 py-1 capitalize text-violet-700">{module.data.access_type}</span>
-          <span className="rounded-md bg-zinc-100 px-2 py-1 capitalize text-zinc-600">{module.data.status}</span>
+          <span className="rounded-md bg-violet-50 px-2 py-1 text-violet-700">{module.data.access_type === 'class' ? 'Class' : 'Personal'}</span>
+          {overview.data && <span className="rounded-md bg-zinc-100 px-2 py-1 text-zinc-600">{isOwner ? 'Owned' : 'Enrolled'}</span>}
+          {module.data.status !== 'active' && <span className="rounded-md bg-amber-50 px-2 py-1 capitalize text-amber-700">{module.data.status}</span>}
         </div>
-        {courseId && <p className="text-sm text-zinc-600">Course ID: <code className="break-all rounded bg-zinc-100 px-1.5 py-0.5 text-xs">{courseId}</code></p>}
+        <h1 className="break-words text-2xl font-bold sm:text-3xl">{module.data.title}</h1>
+        {module.data.description && <p className="text-zinc-600">{module.data.description}</p>}
+        {shareableCourseId && <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/40 p-4">
+          <p className="text-sm font-semibold">Course ID</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <code data-testid="course-id" className="break-all rounded bg-white px-2 py-1 text-xs ring-1 ring-zinc-200">{shareableCourseId}</code>
+            <CopyButton value={shareableCourseId} label="Copy Course ID" />
+          </div>
+          <p className="text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
+        </div>}
       </header>
+
+      <Card>
+        <CardHeader><CardTitle>Study tools</CardTitle><CardDescription>Chat, quizzes, flashcards and summaries use the materials in this module.</CardDescription></CardHeader>
+        <CardContent>
+          <p className="text-sm text-zinc-600">They are available in the StudyMind Mobile app today and are not part of the Web workspace yet. Your uploaded materials are shared with Mobile automatically.</p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Upload course material</CardTitle><CardDescription>PDFs, slides and notes are indexed so StudyMind AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV. Maximum 50 MB.</CardDescription></CardHeader>
@@ -87,6 +106,7 @@ export default function CanonicalModulePage() {
 
       <section className="space-y-3" aria-labelledby="materials">
         <h2 id="materials" className="text-xl font-semibold">Materials</h2>
+        {docs.length > 0 && <p className="text-sm text-zinc-600">{docs.length} {docs.length === 1 ? 'file' : 'files'} · {indexed} indexed{indexing > 0 && <> · {indexing} indexing…</>}</p>}
         {documents.isLoading && <LoadingBlock label="Loading materials…" rows={2} />}
         {documents.isError && <ErrorBox message={message(documents.error)} onRetry={() => documents.refetch()} />}
         {documents.data?.length === 0 && <EmptyState title="No materials yet">Upload a document above to start building this module.</EmptyState>}
