@@ -45,7 +45,7 @@ export default function MyLearningPage() {
       {modules.isLoading && <p>Loading modules…</p>}
       {modules.isError && <p role="alert">Unable to load modules: {modules.error.message}</p>}
       {modules.data?.length === 0 && <p>No modules yet. Create a module or join a course on Mobile.</p>}
-      <div className="grid gap-3 sm:grid-cols-2">{modules.data?.map(m=><article key={m.id} className="rounded-xl border p-5"><h3 className="font-semibold">{m.title}</h3><p className="mt-1 text-sm text-zinc-600">{m.description || 'Your StudyMind learning module'}</p><p className="mt-3 text-xs text-violet-700">{m.access_type} · {m.status}</p></article>)}</div>
+      <div className="grid gap-3 sm:grid-cols-2">{modules.data?.map(m=><article key={m.id} className="rounded-xl border p-5"><Link href={`/my-learning/modules/${m.id}`} className="text-violet-700 underline">Open module</Link><h3 className="font-semibold">{m.title}</h3><p className="mt-1 text-sm text-zinc-600">{m.description || 'Your StudyMind learning module'}</p><p className="mt-3 text-xs text-violet-700">{m.access_type} · {m.status}</p></article>)}</div>
     </section>}
   </main>;
 }
