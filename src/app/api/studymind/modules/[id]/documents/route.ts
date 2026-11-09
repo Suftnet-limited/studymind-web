@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
+import { isUuid, validateUpload } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 type Context = { params: Promise<{ id: string }> };
-const valid = (id: string) => /^[0-9a-f-]{36}$/i.test(id);
+const valid = isUuid;
 export async function GET(_request: Request, context: Context) {
   const { id } = await context.params;
   if (!valid(id)) return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
@@ -20,14 +21,15 @@ export async function POST(request: Request, context: Context) {
   if (!type.startsWith('multipart/form-data')) return NextResponse.json({ error: 'Expected file upload' }, { status: 415 });
   const form = await request.formData().catch(() => null);
   const file = form?.get('file');
-  if (!(file instanceof File) || !file.size || file.size > 50 * 1024 * 1024)
-    return NextResponse.json({ error: 'File is empty or exceeds 50 MB' }, { status: 400 });
+  if (!(file instanceof File)) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+  const check = validateUpload(file);
+  if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
   const payload = new FormData();
   payload.set('file', file);
   const visibility = form?.get('visibility');
   if (visibility === 'personal' || visibility === 'class') payload.set('visibility', visibility);
   const week = form?.get('week_id');
-  if (typeof week === 'string' && /^[0-9a-f-]{36}$/i.test(week)) payload.set('week_id', week);
+  if (typeof week === 'string' && isUuid(week)) payload.set('week_id', week);
   try {
     const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents`, { method: 'POST', body: payload });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

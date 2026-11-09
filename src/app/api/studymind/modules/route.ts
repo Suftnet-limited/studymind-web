@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
+import { parseModuleInput } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
 
 export async function GET() {
@@ -14,14 +15,11 @@ export async function GET() {
 export async function POST(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Invalid module' }, { status: 400 });
-  const input = body as Record<string, unknown>;
-  if (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 255 ||
-      typeof input.access_type !== 'string' || !['personal', 'class'].includes(input.access_type))
-    return NextResponse.json({ error: 'Invalid module details' }, { status: 400 });
+  const parsed = parseModuleInput(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
   try {
     const upstream = await authenticatedAiFetch('/api/modules', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed.value),
     });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));

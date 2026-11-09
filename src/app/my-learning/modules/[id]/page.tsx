@@ -1,48 +1,101 @@
 'use client';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { ApiError, studyMindModulesService } from '@/services/studymind-modules.service';
+import { studyMindIdentityService } from '@/services/studymind-identity.service';
+import { documentStatus, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
+import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/learning/states';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-async function data<T>(response: Response): Promise<T> {
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || 'Request failed');
-  return result as T;
-}
-type Module = { id: string; title: string; description: string | null; access_type: string; status: string; course_code: string | null };
-type Document = { id: string; filename?: string; original_filename?: string; visibility?: string; chunk_count?: number };
+const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+const POLL_MS = 5000;
+
 export default function CanonicalModulePage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+  const { id } = useParams<{ id: string }>();
   const cache = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
-  const [visibility, setVisibility] = useState<'class'|'personal'>('personal');
-  const module = useQuery({ queryKey: ['canonical', 'module', id], queryFn: async () => data<Module>(await fetch(`/api/studymind/modules/${encodeURIComponent(id)}`, { cache: 'no-store' })) });
-  const documents = useQuery({ queryKey: ['canonical', 'documents', id], queryFn: async () => data<Document[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(id)}/documents`, { cache: 'no-store' })) });
-  const upload = useMutation({ mutationFn: async () => {
-    if (!file) throw new Error('Choose a document');
-    const form = new FormData(); form.set('file', file); form.set('visibility', visibility);
-    return data<unknown>(await fetch(`/api/studymind/modules/${encodeURIComponent(id)}/documents`, { method: 'POST', body: form }));
-  }, onSuccess: async () => { setFile(null); await cache.invalidateQueries({ queryKey: ['canonical', 'documents', id] }); } });
-  function submit(e: FormEvent<HTMLFormElement>) { e.preventDefault(); upload.mutate(); }
-  return <main className="mx-auto max-w-4xl space-y-7 px-5 py-10">
-    <Link href="/my-learning" className="text-sm text-violet-700 underline">Back to My Learning</Link>
-    {module.isLoading && <p>Loading module…</p>}
-    {module.isError && <p role="alert">{module.error.message}</p>}
-    {module.data && <header><h1 className="text-3xl font-bold">{module.data.title}</h1><p className="mt-2 text-zinc-600">{module.data.description}</p><p className="mt-2 text-sm">{module.data.access_type} · {module.data.status}</p></header>}
-    {module.data && <form onSubmit={submit} className="space-y-3 rounded-xl border p-5">
-      <h2 className="font-semibold">Upload course material</h2>
-      <input type="file" required onChange={e=>setFile(e.target.files?.[0] || null)} />
-      <label className="block text-sm">Visibility <select value={visibility} onChange={e=>setVisibility(e.target.value as 'personal'|'class')} className="ml-2 rounded border p-2"><option value="personal">Personal notes</option><option value="class">Class material (owners only)</option></select></label>
-      <button disabled={!file || upload.isPending} className="rounded bg-violet-700 px-4 py-2 text-white">{upload.isPending ? 'Uploading…' : 'Upload document'}</button>
-      {upload.isError && <p role="alert" className="text-sm text-red-700">{upload.error.message}</p>}
-      {upload.isSuccess && <p role="status" className="text-sm text-green-700">Document submitted for indexing. It appears when indexing completes.</p>}
-    </form>}
-    <section className="space-y-3"><h2 className="text-xl font-semibold">Indexed materials</h2>
-      {documents.isLoading && <p>Loading documents…</p>}
-      {documents.isError && <p role="alert">{documents.error.message}</p>}
-      {documents.data?.length === 0 && <p>No indexed materials yet.</p>}
-      {documents.data?.map(d=><div key={d.id} className="rounded-xl border p-4"><p className="font-medium">{d.filename || d.original_filename || 'Study material'}</p><p className="text-xs text-zinc-500">{d.visibility || 'Course document'}</p></div>)}
-    </section>
-  </main>;
+  const [visibility, setVisibility] = useState<'class' | 'personal'>('personal');
+  const [fileError, setFileError] = useState('');
+
+  const overview = useQuery({ queryKey: ['canonical', 'overview'], queryFn: studyMindIdentityService.overview, retry: false });
+  const module = useQuery({ queryKey: ['canonical', 'module', id], queryFn: () => studyMindModulesService.get(id), retry: false });
+  const documents = useQuery({
+    queryKey: ['canonical', 'documents', id], queryFn: () => studyMindModulesService.documents(id), retry: false,
+    refetchInterval: query => (hasPendingDocuments(query.state.data) ? POLL_MS : false),
+  });
+  const upload = useMutation({
+    mutationFn: () => { if (!file) throw new Error('Choose a document'); return studyMindModulesService.upload(id, file, visibility); },
+    onSuccess: async () => { setFile(null); await cache.invalidateQueries({ queryKey: ['canonical', 'documents', id] }); },
+  });
+
+  const isOwner = !!overview.data && !!module.data && overview.data.user.id === module.data.owner_id;
+  const courseId = module.data?.course_code || module.data?.id;
+  const authError = module.error instanceof ApiError && module.error.status === 401;
+
+  function pick(next: File | null) {
+    setFile(next); upload.reset();
+    const check = next ? validateUpload(next) : { ok: true as const };
+    setFileError(check.ok ? '' : check.error);
+  }
+  function submit(e: FormEvent) { e.preventDefault(); if (file && !fileError) upload.mutate(); }
+
+  return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
+    <nav aria-label="Breadcrumb" className="text-sm text-zinc-500">
+      <Link href="/my-learning" className="text-violet-700 hover:underline">Learning workspace</Link> <span aria-hidden>/</span> <span>{module.data?.title ?? 'Module'}</span>
+    </nav>
+
+    {module.isLoading && <LoadingBlock label="Loading module…" />}
+    {authError && <ErrorBox message="Your session has expired. Sign in again from the learning workspace." />}
+    {module.isError && !authError && <ErrorBox
+      message={module.error instanceof ApiError && [403, 404].includes(module.error.status) ? 'This module was not found, or you do not have access to it.' : message(module.error)}
+      onRetry={() => module.refetch()} />}
+
+    {module.data && <>
+      <header className="space-y-2">
+        <h1 className="text-2xl font-bold sm:text-3xl">{module.data.title}</h1>
+        {module.data.description && <p className="text-zinc-600">{module.data.description}</p>}
+        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+          <span className="rounded-md bg-violet-50 px-2 py-1 capitalize text-violet-700">{module.data.access_type}</span>
+          <span className="rounded-md bg-zinc-100 px-2 py-1 capitalize text-zinc-600">{module.data.status}</span>
+        </div>
+        {courseId && <p className="text-sm text-zinc-600">Course ID: <code className="break-all rounded bg-zinc-100 px-1.5 py-0.5 text-xs">{courseId}</code></p>}
+      </header>
+
+      <Card>
+        <CardHeader><CardTitle>Upload course material</CardTitle><CardDescription>PDFs, slides and notes are indexed so StudyMind AI can answer from them. Maximum 50 MB.</CardDescription></CardHeader>
+        <CardContent>
+          <form onSubmit={submit} className="space-y-4">
+            <input aria-label="Document" type="file" required className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-2 file:font-semibold file:text-violet-700" onChange={e => pick(e.target.files?.[0] || null)} />
+            {isOwner && <label className="block text-sm font-medium">Visibility
+              <select value={visibility} onChange={e => setVisibility(e.target.value as 'personal' | 'class')} className="ml-2 h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm">
+                <option value="personal">Personal notes</option><option value="class">Class material</option>
+              </select></label>}
+            {fileError && <ErrorBox message={fileError} />}
+            {upload.isError && <ErrorBox message={message(upload.error)} />}
+            {upload.isSuccess && <p role="status" className="text-sm text-green-700">Uploaded. Indexing has started and this list updates automatically.</p>}
+            <Button disabled={!file || !!fileError || upload.isPending}>{upload.isPending ? 'Uploading…' : 'Upload document'}</Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <section className="space-y-3" aria-labelledby="materials">
+        <h2 id="materials" className="text-xl font-semibold">Materials</h2>
+        {documents.isLoading && <LoadingBlock label="Loading materials…" rows={2} />}
+        {documents.isError && <ErrorBox message={message(documents.error)} onRetry={() => documents.refetch()} />}
+        {documents.data?.length === 0 && <EmptyState title="No materials yet">Upload a document above to start building this module.</EmptyState>}
+        <ul className="space-y-3">
+          {documents.data?.map(d => <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white p-4">
+            <div className="min-w-0">
+              <p className="break-words font-medium">{d.filename || d.original_filename || 'Study material'}</p>
+              {d.visibility && <p className="text-xs capitalize text-zinc-500">{d.visibility}</p>}
+            </div>
+            <StatusBadge status={documentStatus(d)} />
+          </li>)}
+        </ul>
+      </section>
+    </>}
+  </div>;
 }

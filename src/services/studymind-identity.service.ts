@@ -1,9 +1,10 @@
 import type { LearningOverview } from '@/lib/studymind-identity';
+import { ApiError } from '@/services/studymind-modules.service';
 
 async function jsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error || 'StudyMind identity request failed');
+    throw new ApiError(body.error || 'StudyMind identity request failed', response.status);
   }
   return response.json() as Promise<T>;
 }
