@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS, roleCapabilities, apiDetail, parseEntitlements, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
+  MAX_UPLOAD_BYTES, ALLOWED_EXTENSIONS, roleCapabilities, apiDetail, parseUploadVisibility, parseEntitlements, isUuid, parseModuleInput, parseJoinInput, validateUpload, documentStatus, hasPendingDocuments,
 } from '../src/lib/studymind-validation.mjs';
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const UUID = '123e4567-e89b-12d3-a456-426614174000';
@@ -155,4 +155,20 @@ test('header links to the canonical journey and the global link reset cannot ove
   assert.doesNotMatch(layout, /href="\/sign-up"/);
   assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);
   assert.match(read('src/app/my-learning/page.tsx'), /href="\/sign-in"/, 'legacy Web accounts keep a way in');
+});
+
+test('upload visibility: defaults to personal (least privilege) and rejects unknown values', () => {
+  assert.equal(parseUploadVisibility('class'), 'class');
+  assert.equal(parseUploadVisibility('personal'), 'personal');
+  for (const missing of [undefined, null, '']) assert.equal(parseUploadVisibility(missing), 'personal');
+  for (const bad of ['public', 'CLASS', 'class ', 'institution', 0, {}, ['class']]) assert.equal(parseUploadVisibility(bad), null, String(bad));
+});
+
+test('Web document routes: no delete/read-by-id paths and uploads use the AI query parameters', () => {
+  const fs = readFileSync;
+  const route = read('src/app/api/studymind/modules/[id]/documents/route.ts');
+  assert.doesNotMatch(route, /export async function (DELETE|PUT|PATCH)/);
+  assert.match(route, /query\.set\('visibility'/); assert.doesNotMatch(route, /payload\.set\('visibility'/);
+  assert.match(route, /parseUploadVisibility/);
+  assert.equal(typeof fs, 'function');
 });

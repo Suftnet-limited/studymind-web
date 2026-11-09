@@ -114,7 +114,7 @@ export default function CanonicalModulePage() {
           {documents.data?.map(d => <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-200 bg-white p-4">
             <div className="min-w-0">
               <p className="break-words font-medium">{d.filename || d.original_filename || 'Study material'}</p>
-              {d.visibility && <p className="text-xs capitalize text-zinc-500">{d.visibility}</p>}
+              {d.visibility && <p className="text-xs text-zinc-500">{d.visibility === 'personal' ? 'Personal note · only you can see it' : 'Class material · visible to the class'}</p>}
               {documentStatus(d) === 'failed' && <p className="mt-1 text-xs text-red-700">We could not index this file. Check that it is a readable, unprotected document, then upload it again.</p>}
             </div>
             <StatusBadge status={documentStatus(d)} />

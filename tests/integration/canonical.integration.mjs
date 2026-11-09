@@ -340,11 +340,12 @@ await check('self-learner personal upload stays private and is stored as persona
     expect(!list.some((d) => d.filename === 'sl-private.txt'), 'SELF-LEARNER PRIVATE FILE LEAKED to another student');
   }
   const owner = (await lec.req(`/api/studymind/modules/${state.classMod.id}/documents`)).body;
-  if (owner.some((d) => d.filename === 'sl-private.txt'))
-    note("the class owner (lecturer) can list enrolled learners' personal files in their module (AI list filter only restricts students and self-learners) - confirm this is intended");
+  expect(!owner.some((d) => d.filename === 'sl-private.txt'), 'LEARNER PRIVATE FILE LEAKED to the class owner');
+  expect(!owner.some((d) => d.filename === 's1-private.txt'), 'STUDENT PRIVATE FILE LEAKED to the class owner');
 });
-await knownDefect('self-learner cannot publish class-visibility material into a lecturer class', 'AI app/api/modules.py: the class-upload guard only blocks role == "student"', async () => {
-  eq((await sl.upload(state.classMod.id, 'sl-class.txt', Buffer.from('x'), 'class', 'text/plain')).status, 403);
+await check('self-learner cannot publish class-visibility material into a lecturer class (readable 403)', async () => {
+  const r = await sl.upload(state.classMod.id, 'sl-class.txt', Buffer.from('x'), 'class', 'text/plain');
+  eq(r.status, 403); expect(/owner/i.test(r.body.error), `message: ${r.body.error}`);
 });
 await check('personal modules cannot be joined (student or self-learner)', async () => {
   for (const [who, id] of [[s2, state.slMod.id], [sl, state.lecPersonal.id], [s1, state.lecPersonal.id]]) {
@@ -409,6 +410,137 @@ await check('the browser cannot activate or change entitlements', async () => {
     eq(r.status, 405, method);
   }
   eq((await sl.req('/api/studymind/entitlements')).body.allowances.chats.remaining, 175, 'unchanged');
+});
+
+// ───────────────────────────── Document security regression ─────────────────────────────
+group('Document security regression (Web routes AND direct AI API)');
+const tokens = {};
+for (const tag of ['lec', 's1', 's2', 's3', 'sl']) {
+  const r = await fetch(AI + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email(tag), password: PASSWORD }) });
+  tokens[tag] = (await r.json()).access_token;
+}
+const web = { lec, s1, s2, s3, sl };
+const aiCall = async (tag, path, init = {}) => {
+  const res = await fetch(AI + path, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${tokens[tag]}` } });
+  return { status: res.status, body: await res.json().catch(() => null) };
+};
+const aiUpload = (tag, modId, name, text, visibility) => {
+  const f = new FormData(); f.set('file', new File([Buffer.from(text)], name, { type: 'text/plain' }));
+  return aiCall(tag, `/api/modules/${modId}/documents${visibility === undefined ? '' : `?visibility=${encodeURIComponent(visibility)}`}`, { method: 'POST', body: f });
+};
+const webNames = async (tag, modId = state.classMod.id) => ((await web[tag].req(`/api/studymind/modules/${modId}/documents`)).body ?? []).map((d) => d.filename);
+const aiNames = async (tag, modId = state.classMod.id) => ((await aiCall(tag, `/api/modules/${modId}/documents`)).body ?? []).map((d) => d.filename);
+const CM = state.classMod.id;
+
+await check('1. lecturer (module owner) publishes class material - allowed (Web and direct)', async () => {
+  eq((await lec.upload(CM, 'sec-class-web.txt', Buffer.from('class via web'), 'class', 'text/plain')).status, 201);
+  eq((await aiUpload('lec', CM, 'sec-class-direct.txt', 'class direct', 'class')).status, 201);
+});
+await check('2. enrolled student cannot publish class material (403 via Web and direct)', async () => {
+  const w = await s1.upload(CM, 'sec-forged-s1.txt', Buffer.from('x'), 'class', 'text/plain');
+  eq(w.status, 403); expect(/owner/i.test(w.body.error) && !/\[object/.test(w.body.error), `Web message: ${w.body.error}`);
+  eq((await aiUpload('s1', CM, 'sec-forged-s1-direct.txt', 'x', 'class')).status, 403);
+});
+await check('3. enrolled self-learner cannot publish class material (403 via Web and direct)', async () => {
+  eq((await sl.upload(CM, 'sec-forged-sl.txt', Buffer.from('x'), 'class', 'text/plain')).status, 403);
+  eq((await aiUpload('sl', CM, 'sec-forged-sl-direct.txt', 'x', 'class')).status, 403);
+});
+await check('4. student uploads personal notes - allowed (Web and direct)', async () => {
+  eq((await s1.upload(CM, 'sec-s1-note.txt', Buffer.from('s1 note'), 'personal', 'text/plain')).status, 201);
+  eq((await aiUpload('s3', CM, 'sec-s3-note-direct.txt', 's3 note', 'personal')).status, 201);
+});
+await check('5. self-learner uploads personal notes - allowed (Web and direct)', async () => {
+  eq((await sl.upload(CM, 'sec-sl-note.txt', Buffer.from('sl note'), 'personal', 'text/plain')).status, 201);
+  eq((await aiUpload('sl', CM, 'sec-sl-note-direct.txt', 'sl note', 'personal')).status, 201);
+});
+await check('lecturer personal note is allowed and stored as personal', async () => {
+  eq((await lec.upload(CM, 'sec-lec-note.txt', Buffer.from('lec note'), 'personal', 'text/plain')).status, 201);
+});
+
+const PERSONAL = { lec: ['sec-lec-note.txt', 'lecturer-private.txt'], s1: ['sec-s1-note.txt', 's1-private.txt'], s3: ['sec-s3-note-direct.txt'], sl: ['sec-sl-note.txt', 'sec-sl-note-direct.txt', 'sl-private.txt'] };
+const CLASS = ['sec-class-web.txt', 'sec-class-direct.txt', 'syllabus.pdf'];
+for (const viewer of ['lec', 's1', 's3', 'sl']) {
+  await check(`6-8. ${viewer}: sees all class material and only their own personal notes (list response, Web == direct)`, async () => {
+    const w = await webNames(viewer), d = await aiNames(viewer);
+    eq(JSON.stringify([...w].sort()), JSON.stringify([...d].sort()), 'Web and AI lists differ');
+    for (const f of CLASS) expect(w.includes(f), `${viewer} should see class file ${f}`);
+    for (const f of PERSONAL[viewer]) expect(w.includes(f), `${viewer} should see own file ${f}`);
+    for (const [owner, files] of Object.entries(PERSONAL)) if (owner !== viewer)
+      for (const f of files) expect(!w.includes(f) && !d.includes(f), `PRIVACY: ${viewer} can see ${owner}'s personal file ${f}`);
+  });
+}
+await check('rejected uploads leave nothing behind', async () => {
+  const all = [...(await webNames('lec')), ...(await webNames('s1'))].join();
+  for (const f of ['sec-forged-s1', 'sec-forged-sl', 'sec-bad-visibility']) expect(!all.includes(f), `${f} was stored despite rejection`);
+});
+await check('9. invalid visibility values are rejected by the AI API (422) and by Web (400); nothing is stored', async () => {
+  for (const v of ['public', 'CLASS', 'institution', 'class ', '']) {
+    const d = await aiUpload('lec', CM, 'sec-bad-visibility.txt', 'x', v);
+    eq(d.status, 422, `direct visibility="${v}"`);
+  }
+  for (const v of ['public', 'CLASS', 'institution']) {
+    const f = new FormData(); f.set('file', new File([Buffer.from('x')], 'sec-bad-visibility.txt')); f.set('visibility', v);
+    const w = await lec.req(`/api/studymind/modules/${CM}/documents`, { method: 'POST', body: f });
+    eq(w.status, 400, `Web visibility="${v}"`); expect(typeof w.body.error === 'string', 'no message');
+  }
+});
+await check('Web defaults a missing visibility to personal (never class) - even for the module owner', async () => {
+  const f = new FormData(); f.set('file', new File([Buffer.from('default vis')], 'sec-default-vis.txt'));
+  eq((await lec.req(`/api/studymind/modules/${CM}/documents`, { method: 'POST', body: f })).status, 201);
+  const mine = (await lec.req(`/api/studymind/modules/${CM}/documents`)).body.find((d) => d.filename === 'sec-default-vis.txt');
+  eq(mine?.visibility, 'personal');
+  expect(!(await webNames('s1')).includes('sec-default-vis.txt'), 'default-visibility file leaked to a student');
+});
+await check('10. unenrolled user: class module and its documents are forbidden (Web and direct, read and write)', async () => {
+  for (const path of [`/api/modules/${CM}`, `/api/modules/${CM}/documents`]) eq((await aiCall('s2', path)).status, 403, `direct ${path}`);
+  eq((await s2.req(`/api/studymind/modules/${CM}`)).status, 403); eq((await s2.req(`/api/studymind/modules/${CM}/documents`)).status, 403);
+  eq((await aiUpload('s2', CM, 'sec-outsider.txt', 'x', 'personal')).status, 403);
+  eq((await s2.upload(CM, 'sec-outsider.txt', Buffer.from('x'), 'personal')).status, 403);
+});
+await check("10. a user's personal module is private to its owner (Web and direct, for students and lecturers)", async () => {
+  const pm = state.slMod.id;
+  for (const who of ['s1', 's2', 'lec']) {
+    for (const path of [`/api/modules/${pm}`, `/api/modules/${pm}/documents`]) eq((await aiCall(who, path)).status, 403, `direct ${who} ${path}`);
+    eq((await web[who].req(`/api/studymind/modules/${pm}`)).status, 403, `web ${who} module`);
+    eq((await web[who].req(`/api/studymind/modules/${pm}/documents`)).status, 403, `web ${who} docs`);
+    eq((await aiUpload(who, pm, 'sec-intruder.txt', 'x', 'personal')).status, 403, `direct upload ${who}`);
+  }
+});
+await check('legacy unauthenticated /api/documents routes are not exposed', async () => {
+  const id = '123e4567-e89b-12d3-a456-426614174000';
+  for (const [method, path] of [['GET', '/api/documents'], ['GET', `/api/documents/${id}`], ['DELETE', `/api/documents/${id}`], ['POST', '/api/documents/upload']]) {
+    const res = await fetch(AI + path, { method });
+    expect([401, 403, 404, 405].includes(res.status), `${method} ${path} -> ${res.status} (must not be reachable unauthenticated)`);
+  }
+});
+await check('deleting: a student cannot delete class material or another learner\'s notes (direct API)', async () => {
+  const classDoc = (await aiCall('lec', `/api/modules/${CM}/documents`)).body.find((d) => d.filename === 'sec-class-direct.txt');
+  eq((await aiCall('s3', `/api/modules/${CM}/documents/${classDoc.document_id}`, { method: 'DELETE' })).status, 403, 'student deleting class file');
+  const s1Note = (await aiCall('s1', `/api/modules/${CM}/documents`)).body.find((d) => d.filename === 'sec-s1-note.txt');
+  eq((await aiCall('sl', `/api/modules/${CM}/documents/${s1Note.document_id}`, { method: 'DELETE' })).status, 403, 'self-learner deleting a student note');
+  expect((await aiNames('s1')).includes('sec-s1-note.txt'), 'note should still exist');
+});
+await check('Web exposes no document delete or read-by-id route', async () => {
+  const id = '123e4567-e89b-12d3-a456-426614174000';
+  for (const method of ['DELETE', 'PUT', 'PATCH']) eq((await lec.req(`/api/studymind/modules/${CM}/documents`, { method })).status, 405, method);
+  eq((await lec.req(`/api/studymind/modules/${CM}/documents/${id}`, { method: 'DELETE' })).status, 404);
+});
+{
+  // Behaviour to confirm with the product owner: the class owner can delete a learner's personal note.
+  const probe = await aiUpload('s3', CM, 'sec-owner-delete-probe.txt', 'probe', 'personal');
+  const doc = (await aiCall('s3', `/api/modules/${CM}/documents`)).body.find((d) => d.filename === 'sec-owner-delete-probe.txt');
+  const del = await aiCall('lec', `/api/modules/${CM}/documents/${doc.document_id}`, { method: 'DELETE' });
+  if (probe.status === 201 && del.status === 204) note("the class owner can DELETE an enrolled learner's personal note (AI delete allows module owner) - confirm this is intended moderation");
+  else note(`owner-delete of a learner's personal note could not be verified locally (delete returned ${del.status}; the AI delete path needs Typesense). The code permits the module owner to delete any document in the module - confirm intent.`);
+}
+await knownDefect('same-filename uploads: a learner\'s personal file must not supersede or hide class material', 'AI app/api/modules.py _ingest_module_document: version lookup matches Document.filename only (no owner/visibility scope), so a personal upload flips the class file to is_latest=false', async () => {
+  eq((await lec.upload(CM, 'policy.txt', Buffer.from('official class policy'), 'class', 'text/plain')).status, 201);
+  const before = await webNames('s3'); expect(before.includes('policy.txt'), 'precondition: class policy visible');
+  eq((await s1.upload(CM, 'policy.txt', Buffer.from('my own policy notes'), 'personal', 'text/plain')).status, 201, 'learner upload');
+  for (const viewer of ['s3', 'lec']) {
+    const d = (await aiCall(viewer, `/api/modules/${CM}/documents`)).body.filter((x) => x.filename === 'policy.txt');
+    expect(d.some((x) => x.visibility === 'class'), `CLASS MATERIAL HIDDEN from ${viewer}: a learner's same-named personal upload superseded it (is_latest)`);
+  }
 });
 
 // ───────────────────────────── Report ─────────────────────────────

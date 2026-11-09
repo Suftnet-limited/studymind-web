@@ -106,3 +106,12 @@ export function parseEntitlements(data) {
   const enforcement = typeof data.enforcement_enabled === 'boolean' ? data.enforcement_enabled : null;
   return { plan, expires_at: expires, allowances, enforcement_enabled: enforcement };
 }
+
+/**
+ * Upload visibility from the browser. Missing -> 'personal' (least privilege; the AI default is 'class').
+ * Anything other than 'personal' | 'class' -> null (reject). The AI backend decides who may publish 'class'.
+ */
+export function parseUploadVisibility(value) {
+  if (value === undefined || value === null || value === '') return 'personal';
+  return value === 'personal' || value === 'class' ? value : null;
+}

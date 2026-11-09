@@ -133,3 +133,58 @@ test('layouts: no horizontal scrolling on the main pages', async ({ page, baseUR
   await expectNoHorizontalScroll(page);
   await page.goto('/my-learning/plans'); await expectNoHorizontalScroll(page);
 });
+
+test('document privacy end to end: class material is shared, personal notes stay private to their uploader', async ({ page, browser, baseURL }, info) => {
+  const lecturer = await apiAccount(baseURL!, 'vis-lec', 'lecturer');
+  const mod = await apiCreateClass(lecturer.ctx, 'Privacy Module (E2E)');
+  const student = await apiAccount(baseURL!, 'vis-stu', 'student');
+  expect((await student.ctx.post('/api/studymind/modules/join', { data: { course_id: mod.id } })).status()).toBe(200);
+
+  // Lecturer uploads one class file and one personal note through the UI
+  await page.goto('/my-learning');
+  await signIn(page, lecturer.email);
+  await page.goto(`/my-learning/modules/${mod.id}`);
+  const upload = async (name: string, visibility: 'Class material' | 'Personal notes') => {
+    await page.getByLabel('Document').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(`content of ${name}`) });
+    await page.getByLabel('Visibility').selectOption({ label: visibility });
+    await page.getByRole('button', { name: 'Upload document' }).click();
+    await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible();
+  };
+  await upload('class-notes.txt', 'Class material');
+  await upload('lecturer-only.txt', 'Personal notes');
+  await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toContainText('Class material · visible to the class');
+  await expect(page.getByRole('listitem').filter({ hasText: 'lecturer-only.txt' })).toContainText('Personal note · only you can see it');
+  await shot(page, info, '16-lecturer-visibility-labels');
+
+  // Student (separate browser context) sees the class file but never the lecturer's personal note
+  const studentContext = await browser.newContext();
+  const studentPage = await studentContext.newPage();
+  await studentPage.goto(`${baseURL}/my-learning`);
+  await signIn(studentPage, student.email);
+  await studentPage.goto(`${baseURL}/my-learning/modules/${mod.id}`);
+  await expect(studentPage.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toBeVisible();
+  await expect(studentPage.getByText('lecturer-only.txt')).toHaveCount(0);
+  await expect(studentPage.getByLabel('Visibility')).toHaveCount(0); // students can only add personal notes
+  await studentPage.getByLabel('Document').setInputFiles({ name: 'student-note.txt', mimeType: 'text/plain', buffer: Buffer.from('my note') });
+  await studentPage.getByRole('button', { name: 'Upload document' }).click();
+  const mine = studentPage.getByRole('listitem').filter({ hasText: 'student-note.txt' });
+  await expect(mine).toContainText('Personal note · only you can see it');
+  await shot(studentPage, info, '17-student-sees-class-and-own-note');
+
+  // The lecturer must not see the student's personal note
+  await page.reload();
+  await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toBeVisible();
+  await expect(page.getByText('student-note.txt')).toHaveCount(0);
+  await studentContext.close();
+});
+
+test('document errors are understandable: no access to a module shows a clear message', async ({ page, baseURL }) => {
+  const owner = await apiAccount(baseURL!, 'err-own', 'self_learner');
+  const mod = await (await owner.ctx.post('/api/studymind/modules', { data: { title: 'Private (E2E)', access_type: 'personal' } })).json();
+  const outsider = await apiAccount(baseURL!, 'err-out', 'student');
+  await page.goto('/my-learning');
+  await signIn(page, outsider.email);
+  await page.goto(`/my-learning/modules/${mod.id}`);
+  await expect(page.getByRole('alert').filter({ hasText: /not found, or you do not have access/i })).toBeVisible();
+  await expect(page.getByLabel('Document')).toHaveCount(0); // no upload form for a module you cannot open
+});

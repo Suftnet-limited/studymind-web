@@ -13,3 +13,4 @@ export function apiDetail(data: unknown, fallback: string): string;
 export type AllowanceKey = 'chats' | 'quizzes' | 'flashcards' | 'summaries';
 export type Entitlements = { plan: 'free' | 'plus'; expires_at: string | null; enforcement_enabled: boolean | null; allowances: Partial<Record<AllowanceKey, { limit: number; remaining: number }>> };
 export function parseEntitlements(data: unknown): Entitlements | null;
+export function parseUploadVisibility(value: unknown): 'personal' | 'class' | null;
