@@ -17,8 +17,8 @@ export default function CanonicalModulePage() {
   const cache = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [visibility, setVisibility] = useState<'class'|'personal'>('personal');
-  const module = useQuery({ queryKey: ['canonical', 'module', id], queryFn: () => data<Module>(fetch(`/api/studymind/modules/${encodeURIComponent(id)}`, { cache: 'no-store' })) });
-  const documents = useQuery({ queryKey: ['canonical', 'documents', id], queryFn: () => data<Document[]>(fetch(`/api/studymind/modules/${encodeURIComponent(id)}/documents`, { cache: 'no-store' })) });
+  const module = useQuery({ queryKey: ['canonical', 'module', id], queryFn: async () => data<Module>(await fetch(`/api/studymind/modules/${encodeURIComponent(id)}`, { cache: 'no-store' })) });
+  const documents = useQuery({ queryKey: ['canonical', 'documents', id], queryFn: async () => data<Document[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(id)}/documents`, { cache: 'no-store' })) });
   const upload = useMutation({ mutationFn: async () => {
     if (!file) throw new Error('Choose a document');
     const form = new FormData(); form.set('file', file); form.set('visibility', visibility);
