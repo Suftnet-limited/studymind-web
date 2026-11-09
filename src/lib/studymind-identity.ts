@@ -1,7 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 
-const base = (process.env.STUDYMIND_AI_BASE_URL || 'https://api.aismartlearner.com').replace(new RegExp('/+;
+const base = (process.env.STUDYMIND_AI_BASE_URL || 'https://api.aismartlearner.com').replace(/\/+$/, '');
 const accessCookie = 'studymind_ai_access';
 const refreshCookie = 'studymind_ai_refresh';
 
