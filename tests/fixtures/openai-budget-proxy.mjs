@@ -15,13 +15,18 @@
 //   CONCURRENCY is fixed at 1: requests are queued and forwarded one at a time. Upstream timeout: UPSTREAM_TIMEOUT_MS (60000).
 //   The proxy itself never retries.
 //
+//   LEDGER_FILE=<path> persists the ledger (atomic write after every call/refusal) and reloads it at start, so the ceiling and
+//   call caps survive restarts. HOST (default 127.0.0.1) is the bind address; /__ledger has no auth, keep it on a private network.
 //   GET /__ledger   totals + one row per forwarded call (no headers, no bodies)      DELETE /__ledger  reset
 import http from 'node:http';
 import https from 'node:https';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const num = (k, d) => (process.env[k] !== undefined && process.env[k] !== '' ? Number(process.env[k]) : d);
 export const config = () => ({
   port: num('PORT', 18300),
+  host: process.env.HOST || '127.0.0.1',            // 127.0.0.1 for a local run; 0.0.0.0 only inside a private container network
+  ledgerFile: process.env.LEDGER_FILE || '',        // persist the ledger so a restart cannot reset the ceiling
   upstream: new URL(process.env.UPSTREAM_URL || 'https://api.openai.com'),
   key: process.env.PROXY_OPENAI_API_KEY || '',
   maxChat: num('MAX_CHAT_CALLS', 30),
@@ -42,16 +47,24 @@ export function priceOf(prices, model) {
 
 export function createProxy(cfg = config()) {
   const ledger = { calls: [], refused: 0, spentUsd: 0 };
+  if (cfg.ledgerFile && existsSync(cfg.ledgerFile)) {          // reload spend after a restart; a corrupt file fails closed
+    try {
+      const saved = JSON.parse(readFileSync(cfg.ledgerFile, 'utf8'));
+      if (!Array.isArray(saved.calls) || !Number.isFinite(saved.spentUsd) || !Number.isFinite(saved.refused)) throw new Error('bad shape');
+      Object.assign(ledger, { calls: saved.calls, refused: saved.refused, spentUsd: saved.spentUsd });
+    } catch { throw new Error(`budget proxy: ledger file ${cfg.ledgerFile} is unreadable; refusing to start with an unknown spend`); }
+  }
+  const persist = () => { if (!cfg.ledgerFile) return; const tmp = `${cfg.ledgerFile}.tmp`; writeFileSync(tmp, JSON.stringify(ledger), { mode: 0o600 }); renameSync(tmp, cfg.ledgerFile); };
   let queue = Promise.resolve();
   const counts = () => ({ chat: ledger.calls.filter((c) => c.kind === 'chat').length, embed: ledger.calls.filter((c) => c.kind === 'embedding').length });
   const reply = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-  const refuse = (res, why) => { ledger.refused++; reply(res, 429, { error: { message: `budget proxy refused: ${why}`, type: 'budget_proxy', code: 'budget_proxy_limit' } }); };
+  const refuse = (res, why) => { ledger.refused++; persist(); reply(res, 429, { error: { message: `budget proxy refused: ${why}`, type: 'budget_proxy', code: 'budget_proxy_limit' } }); };
 
   const forward = (path, method, headers, raw, res, kind, model, stream, reservedUsd) => new Promise((resolve) => {
     const u = cfg.upstream; const lib = u.protocol === 'https:' ? https : http;
     const row = { at: new Date().toISOString(), kind, model, stream, inputTokens: 0, outputTokens: 0, usd: 0, status: 0, ms: 0, reservedUsd };
     const t0 = Date.now(); let settled = false;
-    const done = () => { if (settled) return; settled = true; row.ms = Date.now() - t0; ledger.calls.push(row); resolve(); };
+    const done = () => { if (settled) return; settled = true; row.ms = Date.now() - t0; ledger.calls.push(row); persist(); resolve(); };
     const up = lib.request({ hostname: u.hostname, port: u.port || (u.protocol === 'https:' ? 443 : 80), path, method,
       headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(raw), ...(cfg.key ? { authorization: `Bearer ${cfg.key}` } : {}) }, timeout: cfg.timeoutMs }, (r) => {
       row.status = r.statusCode; const chunks = [];
@@ -79,7 +92,7 @@ export function createProxy(cfg = config()) {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://x');
     if (url.pathname === '/__ledger') {
-      if (req.method === 'DELETE') { ledger.calls.length = 0; ledger.refused = 0; ledger.spentUsd = 0; return reply(res, 200, { cleared: true }); }
+      if (req.method === 'DELETE') { ledger.calls.length = 0; ledger.refused = 0; ledger.spentUsd = 0; persist(); return reply(res, 200, { cleared: true }); }
       const c = counts(); const byModel = {};
       for (const k of ledger.calls) { const m = (byModel[k.model] ||= { calls: 0, inputTokens: 0, outputTokens: 0, usd: 0 }); m.calls++; m.inputTokens += k.inputTokens; m.outputTokens += k.outputTokens; m.usd += k.usd; }
       return reply(res, 200, { limits: { maxChat: cfg.maxChat, maxEmbed: cfg.maxEmbed, maxUsd: cfg.maxUsd, concurrency: 1 }, counts: c, refused: ledger.refused,
@@ -114,5 +127,5 @@ export function createProxy(cfg = config()) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const cfg = config(); const { server } = createProxy(cfg);
-  server.listen(cfg.port, '127.0.0.1', () => console.log(`openai-budget-proxy on 127.0.0.1:${cfg.port} -> ${cfg.upstream.origin} | chat<=${cfg.maxChat} embed<=${cfg.maxEmbed} usd<=${cfg.maxUsd} concurrency=1 | key ${cfg.key ? 'set (hidden)' : 'NOT set'}`));
+  server.listen(cfg.port, cfg.host, () => console.log(`openai-budget-proxy on ${cfg.host}:${cfg.port} -> ${cfg.upstream.origin} | chat<=${cfg.maxChat} embed<=${cfg.maxEmbed} usd<=${cfg.maxUsd} concurrency=1 | ledger ${cfg.ledgerFile || 'in memory (resets on restart)'} | key ${cfg.key ? 'set (hidden)' : 'NOT set'}`));
 }

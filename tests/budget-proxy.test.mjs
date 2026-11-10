@@ -3,6 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createProxy, config, priceOf } from './fixtures/openai-budget-proxy.mjs';
 
 const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
@@ -94,6 +97,45 @@ test('a missing max_tokens is capped, unknown routes are not forwarded, unknown 
   await t.call('chat/completions', chat()); assert.equal(t.seen.bodies[0].max_tokens, 4096);
   assert.equal((await t.call('images/generations', {})).status, 404); assert.equal(t.seen.bodies.length, 1);
   assert.deepEqual(priceOf(config().prices, 'some-future-model'), [2.5, 10]); t.close();
+});
+
+test('persisted ledger: a restart cannot reset the call caps, the dollar ceiling or the usage report', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'ledger-')), 'ledger.json');
+  const first = await setup({ maxChat: 2, ledgerFile: file });
+  for (let i = 0; i < 2; i++) assert.equal((await first.call('chat/completions', chat())).status, 200);
+  const before = await first.ledger(); first.close();
+  assert.ok(existsSync(file)); assert.equal((statSync(file).mode & 0o077), 0, 'ledger file is private to the owner');
+  const second = await setup({ maxChat: 2, ledgerFile: file });                      // "restart": a brand-new proxy on the same file
+  const reloaded = await second.ledger();
+  assert.equal(reloaded.counts.chat, 2); assert.equal(reloaded.spentUsd, before.spentUsd); assert.equal(reloaded.inputTokens, before.inputTokens);
+  assert.equal((await second.call('chat/completions', chat())).status, 429);          // cap still holds after the restart
+  assert.equal(second.seen.bodies.length, 0, 'nothing was forwarded after the restart');
+  second.close();
+});
+
+test('persisted ledger: the dollar ceiling holds across a restart', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'ledger-')), 'ledger.json');
+  const a = await setup({ maxUsd: 0.01, ledgerFile: file });
+  while ((await a.call('chat/completions', chat())).status === 200);                  // spend up to the ceiling
+  const spent = (await a.ledger()).spentUsd; assert.ok(spent <= 0.01); a.close();
+  const b = await setup({ maxUsd: 0.01, ledgerFile: file });
+  assert.equal((await b.ledger()).spentUsd, spent);
+  assert.equal((await b.call('chat/completions', chat())).status, 429); assert.equal(b.seen.bodies.length, 0); b.close();
+});
+
+test('persisted ledger: a corrupt file fails closed instead of starting with an unknown spend', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'ledger-')), 'ledger.json'); writeFileSync(file, '{not json');
+  assert.throws(() => createProxy({ ...config(), ledgerFile: file }), /unreadable; refusing to start/);
+  writeFileSync(file, JSON.stringify({ calls: 'x', refused: 0, spentUsd: 0 }));
+  assert.throws(() => createProxy({ ...config(), ledgerFile: file }), /unreadable/);
+});
+
+test('the persisted ledger never contains the key, prompts or headers', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'ledger-')), 'ledger.json');
+  const t = await setup({ ledgerFile: file });
+  await t.call('chat/completions', chat({ messages: [{ role: 'user', content: 'PRIVATE-PROMPT-TEXT' }] })); t.close();
+  const raw = readFileSync(file, 'utf8');
+  assert.ok(!raw.includes('SECRET') && !raw.includes('PRIVATE-PROMPT-TEXT') && !/authorization/i.test(raw));
 });
 
 test('without a key the proxy refuses to forward to the real OpenAI host', async () => {
