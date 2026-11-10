@@ -12,7 +12,8 @@ export class LiveBudget {
     this.generations = 0; this.uploads = 0; this.chain = Promise.resolve();
   }
 
-  static async start({ proxyUrl, limits = AGREED, fetchImpl = fetch } = {}) {
+  // resume: continue a run whose earlier stage already used the proxy (ledger kept; ceilings and caps still verified).
+  static async start({ proxyUrl, limits = AGREED, fetchImpl = fetch, resume = false } = {}) {
     const fail = (m) => { throw new BudgetError(`live test refused to start: ${m}`); };
     if (!proxyUrl) fail('no budget proxy configured');
     let l;
@@ -27,7 +28,8 @@ export class LiveBudget {
     if (!(l.limits.maxUsd <= limits.maxUsd)) fail(`proxy dollar ceiling ${l.limits.maxUsd} is above the agreed $${limits.maxUsd}`);
     if (l.limits.concurrency !== 1) fail('proxy concurrency is not 1');
     if (!(l.limits.maxChat > 0 && l.limits.maxEmbed > 0)) fail('proxy call limits are not set');
-    if (l.counts.chat + l.counts.embed > 0) fail('proxy ledger is not empty; clear it so usage reports are for this run only');
+    if (!resume && l.counts.chat + l.counts.embed > 0) fail('proxy ledger is not empty; clear it so usage reports are for this run only');
+    if (l.spentUsd >= limits.maxUsd) fail(`already spent $${l.spentUsd} of the $${limits.maxUsd} ceiling`);
     return new LiveBudget(proxyUrl, limits, fetchImpl);
   }
 

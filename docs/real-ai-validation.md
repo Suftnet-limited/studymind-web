@@ -1,8 +1,8 @@
 # Real-AI validation (OpenAI embeddings + Typesense + cited answers)
 
-**Status: BLOCKED — no OpenAI development key was available.** Everything that does not need OpenAI has been
-verified; everything that does is listed below as *not verified*. Seeded or mocked data does **not** count as
-evidence of real indexing.
+**Status: a controlled live run was completed on 2026-11-10 - see [live-openai-validation.md](live-openai-validation.md).**
+The sections below describe the earlier blocked state and the checks that did not need OpenAI; the "NOT verified"
+list is superseded for the small synthetic dataset, but large/messy documents and an OpenAI-side spend cap remain unverified.
 
 ## What is verified (no OpenAI needed)
 

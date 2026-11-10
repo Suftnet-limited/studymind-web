@@ -66,3 +66,16 @@ test('FAIL CLOSED end to end: with no key the proxy refuses to forward to api.op
   const l = await (await fetch(`${p.url}/__ledger`)).json();
   assert.equal(l.counts.chat, 0); p.close();
 });
+
+test('resume keeps a non-empty ledger but still enforces the ceiling checks', async () => {
+  const up = http.createServer((q, r) => {
+    q.resume(); q.on('end', () => { r.writeHead(200, { 'Content-Type': 'application/json' }); r.end(JSON.stringify({ model: 'text-embedding-3-large', data: [], usage: { prompt_tokens: 10 } })); });
+  });
+  const upPort = await listen(up);
+  const p = await proxy({ upstream: new URL(`http://127.0.0.1:${upPort}`), key: 'k' });
+  await fetch(`${p.url}/v1/embeddings`, { method: 'POST', body: JSON.stringify({ model: 'text-embedding-3-large', input: 'x' }) });
+  await assert.rejects(() => LiveBudget.start({ proxyUrl: p.url }), /ledger is not empty/);
+  await LiveBudget.start({ proxyUrl: p.url, resume: true });
+  await assert.rejects(() => LiveBudget.start({ proxyUrl: p.url, resume: true, limits: { ...AGREED, maxUsd: 0.000001 } }), /(above the agreed|already spent)/);
+  p.close(); up.close();
+});
