@@ -79,12 +79,17 @@ export function mapChat(raw) {
     if (!isObject(s) || typeof s.filename !== 'string' || seen.has(s.filename)) continue;
     seen.set(s.filename, { filename: text(s.filename, 255), snippet: text(s.content_snippet, 300), document_id: text(s.document_id, 64) });
   }
+  // "Grounded" means the backend retrieved study material for this answer. An ungrounded answer is general knowledge:
+  // it is labelled as such and NEVER carries citations, whatever the upstream payload contained.
+  const noContent = raw.no_content_found === true;
+  const sources = noContent ? [] : [...seen.values()].slice(0, 8);
   return {
     answer: raw.answer.slice(0, 20000),
     session_id: typeof raw.session_id === 'string' ? raw.session_id : null,
     message_id: typeof raw.message_id === 'string' ? raw.message_id : null,
-    sources: [...seen.values()].slice(0, 8),
-    no_content_found: raw.no_content_found === true,
+    sources,
+    grounded: !noContent && sources.length > 0,
+    no_content_found: noContent,
     suggestions: (Array.isArray(raw.suggestions) ? raw.suggestions : []).filter((s) => typeof s === 'string').slice(0, 4).map((s) => s.slice(0, 200)),
     scope: isObject(raw.scope) ? text(raw.scope.description, 200) : '',
   };
@@ -118,9 +123,20 @@ export function mapFlashcards(raw) {
       .map((c) => ({ id: text(c.id, 64), position: Number(c.position) || 0, front: text(c.front, 1000), back: text(c.back, 2000) })).sort((a, b) => a.position - b.position),
   };
 }
+// Everything from this heading on is generic study advice, not a summary of the documents (older backends called it "Exam Tips").
+const ADVICE_HEADING = /^#{1,4}[ \t]*(general study advice|exam tips)\b[^\n]*$/im;
+/** Splits a summary into document-grounded content and optional general study advice. */
+export function splitSummary(content) {
+  const m = ADVICE_HEADING.exec(content);
+  if (!m) return { content: content.trim(), advice: null };
+  const advice = content.slice(m.index + m[0].length).trim();
+  return { content: content.slice(0, m.index).trim(), advice: advice || null };
+}
 export function mapSummary(raw) {
   if (!isObject(raw) || typeof raw.content !== 'string' || !raw.content.trim()) return null;
-  return { id: text(raw.id, 64), content: raw.content.slice(0, 40000), source_doc_count: Number(raw.source_doc_count) || 0, created_at: typeof raw.created_at === 'string' ? raw.created_at : null };
+  const { content, advice } = splitSummary(raw.content.slice(0, 40000));
+  if (!content) return null;
+  return { id: text(raw.id, 64), content, advice, source_doc_count: Number(raw.source_doc_count) || 0, created_at: typeof raw.created_at === 'string' ? raw.created_at : null };
 }
 
 /** Maps an AI backend failure to a safe status + message. Upstream bodies and exception text are never forwarded for 5xx. */

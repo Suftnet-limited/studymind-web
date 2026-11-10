@@ -921,7 +921,8 @@ if (fixtureMode) {
     noLeak('chat response', r.body);
   });
   await check('Web -> real backend: summary and quiz/flashcards reach the AI only for authorised users; internal 422 text is hidden', async () => {
-    const s = await A.st.json(aiPath(AM, 'summary'), 'POST', {}); eq(s.status, 201, JSON.stringify(s.body)); expect(s.body.content.includes(ORG), 'summary grounded in the module');
+    const s = await A.st.json(aiPath(AM, 'summary'), 'POST', {}); eq(s.status, 201, JSON.stringify(s.body)); const whole = `${s.body.content}\n${s.body.advice ?? ''}`;   // the stand-in echoes its prompt, whose advice instructions precede the module content, so the Web split can put the echoed content in `advice`
+    expect(whole.includes(ORG), 'summary grounded in the module'); expect(!whole.includes(OTHER), "another module's material must not appear in the summary or its advice"); expect(typeof s.body.advice === 'string' || s.body.advice === null, 'advice is a separate field');
     for (const what of ['quiz', 'flashcards']) { const r = await A.st.json(aiPath(AM, what), 'POST', {}); expect([201, 422].includes(r.status), `${what}: ${r.status}`); if (r.status === 422) { noInternals(`${what} 422`, r.body); expect(!/LLM|JSON/.test(r.body.error), r.body.error); } }
   });
   await check('Web -> real backend: refused users (non-member, other private module, no session) never cause a provider call', async () => {

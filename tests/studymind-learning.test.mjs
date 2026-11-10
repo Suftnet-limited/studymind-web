@@ -151,8 +151,17 @@ test('parseEntitlements keeps the backend enforcement flag and the real backend 
 
 test('header links to the canonical journey and the global link reset cannot override Tailwind colours', () => {
   const layout = read('src/app/layout.tsx');
-  assert.match(layout, /href="\/my-learning">Sign in/); assert.match(layout, /href="\/my-learning\/register">Get started/);
-  assert.doesNotMatch(layout, /href="\/sign-up"/);
+  const header = read('src/components/header-auth.tsx');
+  assert.match(header, /href="\/my-learning">Sign in/); assert.match(header, /href="\/my-learning\/register">Get started/);
+  assert.match(header, /bg-violet-600[^"]*text-white[^"]*"[^>]*href="\/my-learning\/register"/, 'Get started keeps its contrast classes');
+  assert.doesNotMatch(layout + header, /href="\/sign-up"/);
+  // A signed-in StudyMind AI user must not be shown Sign in / Get started: the server hint comes from the session cookies
+  // and the header confirms it through the status route.
+  assert.match(layout, /<HeaderAuth initialSignedIn=\{hasAiSession\}\/>/);
+  assert.match(layout, /studymind_ai_access/); assert.match(layout, /studymind_ai_refresh/);
+  assert.match(header, /if \(signedIn\) return[^\n]*href="\/my-learning">Learning workspace/);
+  assert.match(header, /\/api\/studymind\/auth\/status/); assert.match(header, /studymind-auth-changed/);
+  assert.doesNotMatch(read('src/app/api/studymind/auth/status/route.ts'), /access_token|refresh_token|email/, 'status route must not expose tokens or emails');
   assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);
   assert.match(read('src/app/my-learning/page.tsx'), /href="\/sign-in"/, 'legacy Web accounts keep a way in');
 });

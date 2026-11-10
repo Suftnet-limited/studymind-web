@@ -117,7 +117,7 @@ async function fixture(req, res, path, body) {
     if (!['document', 'week', 'module'].includes(data.scope ?? 'document')) return bad(res, 'scope invalid');
     if (topic.includes('TRIGGER_SLOW')) await sleep(1500);
     return send(res, 201, { id: randomUUID(), module_id: data.module_id, scope: data.scope ?? 'document', source_doc_count: 2, created_at: new Date().toISOString(),
-      content: `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws` });
+      content: `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws${topic.includes('TRIGGER_ADVICE') ? '\n\n## General study advice (not from your documents)\n- Use spaced repetition.\n- Test yourself regularly.' : ''}` });
   }
   return send(res, 404, { detail: 'not a fixture route' });
 }

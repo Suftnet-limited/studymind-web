@@ -8,7 +8,7 @@ import { MarkdownRenderer } from './markdown';
 import { errorText } from './shared';
 import { cn } from '@/lib/utils';
 
-type Message = { id: number; role: 'user' | 'assistant'; content: string; sources?: Citation[]; noContent?: boolean; suggestions?: string[]; scope?: string; isError?: boolean };
+type Message = { id: number; role: 'user' | 'assistant'; content: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; scope?: string; isError?: boolean };
 const LEVELS: { value: Complexity; label: string }[] = [{ value: 'simple', label: 'Simple' }, { value: 'normal', label: 'Normal' }, { value: 'expert', label: 'Expert' }];
 let nextId = 0;
 
@@ -30,7 +30,7 @@ export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMate
     try {
       const res = await studyMindAiService.chat(moduleId, { message: text, session_id: sessionId, complexity });
       if (res.session_id) setSessionId(res.session_id);
-      setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: res.answer, sources: res.sources, noContent: res.no_content_found, suggestions: res.suggestions, scope: res.scope }]);
+      setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: res.answer, sources: res.sources, grounded: res.grounded, noContent: res.no_content_found, suggestions: res.suggestions, scope: res.scope }]);
     } catch (e) {
       setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: errorText(e, 'The AI Tutor could not answer. Please try again.'), isError: true }]);
     } finally { setSending(false); }
@@ -57,7 +57,8 @@ export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMate
         : m.isError
           ? <div key={m.id} role="alert" className="max-w-[90%] rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-800">{m.content}</div>
           : <div key={m.id} className="max-w-[92%] space-y-2">
-              <div className="rounded-2xl rounded-bl-sm border border-zinc-200 bg-white px-4 py-3"><MarkdownRenderer content={m.content} /></div>
+              {m.grounded === false && <p data-testid="ungrounded-label" className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">General knowledge — not from your study materials</p>}
+              <div className={cn('rounded-2xl rounded-bl-sm border bg-white px-4 py-3', m.grounded === false ? 'border-dashed border-amber-300' : 'border-zinc-200')}><MarkdownRenderer content={m.content} /></div>
               {m.noContent && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 <p>No matching study material was found for this question.</p>
                 {!!m.suggestions?.length && <ul className="mt-1 list-disc pl-4">{m.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>}

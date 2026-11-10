@@ -28,6 +28,10 @@ export function SummaryTab({ moduleId }: { moduleId: string }) {
   </GenerateState>;
   return <div className="space-y-3">
     <article aria-label="Summary" data-testid="summary" className="rounded-2xl border border-zinc-200 bg-white p-5"><MarkdownRenderer content={summary.content} /></article>
+    {summary.advice && <aside aria-label="General study advice" data-testid="study-advice" className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-5">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-900">General study advice — not from your documents</p>
+      <MarkdownRenderer content={summary.advice} />
+    </aside>}
     {summary.source_doc_count > 0 && <p className="text-xs text-zinc-500">Based on {summary.source_doc_count} {summary.source_doc_count === 1 ? 'document' : 'documents'}.</p>}
     {error && <ErrorBox message={error} />}
     <div className="flex flex-wrap items-center gap-2">

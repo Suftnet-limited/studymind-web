@@ -37,6 +37,9 @@ module; personal notes only under the personal module.
 
 ## Findings
 
+> Update 2026-11-10: items 1-3 below were addressed in [staging-preparation.md](staging-preparation.md) (retrieval threshold
+> measured and a keyword-bypass bug fixed, Tutor labelling, quiz balancing, summary/advice split, header and tab fixes).
+
 1. **Retrieval recall (medium, backend).** `similarity_threshold = 0.25` dropped a relevant chunk for "What is
    osmosis?" (score 0.246); neighbouring questions scored 0.29-0.33 and an unrelated one 0.068. The tutor then
    answered from general knowledge with the UI correctly saying "No matching study material was found". The browser
