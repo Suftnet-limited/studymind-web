@@ -13,7 +13,7 @@
 | Live credentials (`sk_live_`, `pk_live_`, `rk_live_`) | none in `.env.local`, the backend `.env` or `~/.studymind-uat/` |
 | £3.99 for 28 days | fixed **in the backend** (`PLUS_PRICE_GBP_PENCE = 399`, `PLUS_DURATION_DAYS = 28`) and sent as inline `price_data`, so the canonical flow does not use a Price ID. Nothing could be confirmed against Stripe because there is no real key |
 
-Fail-closed behaviour (all tested): `scripts/stripe-verify.mjs` exits 1 for a missing/placeholder key and **3 for any live key**; `scripts/local-uat.sh` refuses to start (exit 3) if a live key is in `.env.local` or `~/.studymind-uat/stripe.env`; the backend only enables checkout for `sk_test_` keys, only accepts `cs_test_` sessions and `livemode: false` objects; the legacy `src/lib/stripe.ts` now refuses a live key outside a production build.
+Fail-closed behaviour (all tested): `scripts/stripe-verify.mjs` exits 1 for a missing/placeholder key and **3 for any live key**; `scripts/local-uat.sh` refuses to start (exit 3) if a live key is in `.env.local` ; the backend only enables checkout for `sk_test_` keys, only accepts `cs_test_` sessions and `livemode: false` objects; the legacy `src/lib/stripe.ts` now refuses a live key outside a production build.
 
 ## 2. How billing works (the existing design, now wired to the UI)
 
@@ -26,8 +26,8 @@ Flags (backend, local only, default OFF everywhere else): `STUDYMIND_BILLING_ENA
 **Stand-in (works now, no Stripe account):** `STRIPE_MODE=standin scripts/local-uat.sh start`. The stand-in (`tests/fixtures/stripe-standin.mjs`) is **not Stripe**; its Checkout page is labelled as such. Add `OPENAI_STANDIN=1` to use a free fake OpenAI (answers are echoes) when you want to exercise limits without spending.
 
 **Real Stripe test mode (needs you):**
-1. Put your TEST secret key in `~/.studymind-uat/stripe.env` (`chmod 600`): `STRIPE_SECRET_KEY=sk_test_...` (optionally `STRIPE_PUBLISHABLE_KEY=pk_test_...`). Use a standard secret key; a restricted `rk_test_` key is refused by the backend.
-2. `STRIPE_MODE=test scripts/local-uat.sh start`. It runs the verifier (prefix, not a placeholder, and Stripe confirming `livemode=false`), obtains the webhook secret from `stripe listen --print-secret` (the Stripe CLI is installed and logged in on this machine), and keeps `stripe listen` forwarding `checkout.session.completed` and refund/dispute events to the local backend.
+1. Put your TEST secret key in the Web app's `.env.local` as `STRIPE_SECRET_KEY=sk_test_...` (replacing the placeholder; optionally add `STRIPE_PUBLISHABLE_KEY=pk_test_...`). Use a standard secret key; a restricted `rk_test_` key is refused by the backend.
+2. `STRIPE_MODE=test scripts/local-uat.sh start`. It runs the verifier (prefix, not a placeholder, and Stripe confirming `livemode=false`), takes the webhook secret from `stripe listen --print-secret` (the `STRIPE_WEBHOOK_SECRET` in `.env.local` is for a dashboard endpoint and is ignored; the Stripe CLI is installed and logged in on this machine), and keeps `stripe listen` forwarding `checkout.session.completed` and refund/dispute events to the local backend.
 3. Sign in at http://localhost:3100/my-learning, open **Plans**, click **Get StudyMind Plus — £3.99**, pay with `4242 4242 4242 4242` (any future expiry and CVC). Declined card: `4000 0000 0000 0002`. Cancel with the back link.
 Not verified until step 3 has been done by someone with the key: the real hosted Checkout page, Stripe's own webhook delivery and signing, and Stripe's real API response shapes.
 

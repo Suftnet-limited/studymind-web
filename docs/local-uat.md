@@ -23,7 +23,7 @@ Auth regression tests (need the fault-injecting proxy): `FAULT_PROXY=1 scripts/l
 ## Billing (Stripe TEST mode) and allowances
 Plans now has a working **Get StudyMind Plus — £3.99** button when the stack is started with a Stripe mode:
 * `STRIPE_MODE=standin scripts/local-uat.sh start` - works now; Checkout is a local stand-in (**not Stripe**, labelled on the page). Combine with real AI (default) or `OPENAI_STANDIN=1` for free fake AI.
-* `STRIPE_MODE=test scripts/local-uat.sh start` - real Stripe test mode; needs your `sk_test_` key in `~/.studymind-uat/stripe.env` (the `.env.local` Stripe values are placeholders). Live keys are refused.
+* `STRIPE_MODE=test scripts/local-uat.sh start` - real Stripe test mode; needs a real `sk_test_` key in `.env.local` as `STRIPE_SECRET_KEY` (today it holds a placeholder). Live keys are refused.
 For real AI keep the cumulative ceiling honest: `UAT_MAX_USD=4.96 STRIPE_MODE=standin scripts/local-uat.sh start` ($0.0343 was spent earlier; stand-in AI uses a separate ledger). Both turn on usage limits for this local backend: Free = 10 chats / 2 quizzes / 2 flashcards / 1 summary per month; Plus = 200 / 30 / 30 / 15 for 28 days. Details and results: [stripe-test-mode-uat.md](stripe-test-mode-uat.md). Without a Stripe mode the page keeps the original "Coming soon" wording and limits are off.
 
 ## Sample modules (class modules owned by the lecturer)

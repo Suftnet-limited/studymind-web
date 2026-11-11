@@ -11,7 +11,7 @@
 #   PG_BIN        directory with psql (default /usr/local/opt/postgresql@18/bin), PG_PORT (55432), PG_USER (sm_test)
 # Stripe (TEST mode only):  STRIPE_MODE=standin|test scripts/local-uat.sh start        (default: off = billing disabled)
 #   standin  a local stand-in server (NOT Stripe) with generated test-shaped keys: exercises the whole purchase flow offline
-#   test     real Stripe TEST mode: needs STRIPE_SECRET_KEY=sk_test_... in ~/.studymind-uat/stripe.env (mode 600); verified first
+#   test     real Stripe TEST mode: needs a real STRIPE_SECRET_KEY=sk_test_... in the Web app's .env.local; verified first
 #            (live keys are refused); the webhook secret comes from `stripe listen --print-secret`, and `stripe listen` forwards events
 #   Both enable STUDYMIND_BILLING_ENABLED and STUDYMIND_QUOTA_ENABLED for THIS local backend only.
 # OpenAI stand-in: OPENAI_STANDIN=1 points the budget proxy at the free recording stand-in (tests/fixtures/openai-stub.mjs) instead of
@@ -48,7 +48,7 @@ status)
   curl -s --max-time 5 http://127.0.0.1:$PROXY_PORT/__ledger | head -c 600; echo
   ;;
 start)
-  if grep -Eq '^[A-Za-z_]*=[\"'"'"']?(sk|pk|rk)_live_' $WEB/.env.local 2>/dev/null || grep -Eq '(sk|pk|rk)_live_' $HOME_DIR/stripe.env 2>/dev/null; then
+  if grep -Eq '^[A-Za-z_]*=[\"'"'"']?(sk|pk|rk)_live_' $WEB/.env.local 2>/dev/null ; then
     echo "REFUSING TO START: a LIVE Stripe credential was found in a local env file. Local UAT is Stripe TEST mode only." >&2; exit 3
   fi
   [ -x $BACKEND_PY ] || { echo "BACKEND_PY not found: $BACKEND_PY" >&2; exit 2; }
@@ -105,17 +105,17 @@ start)
         "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
       echo "Stripe: LOCAL STAND-IN (not Stripe) on 127.0.0.1:18400" ;;
     test)
-      [ -f $HOME_DIR/stripe.env ] || { echo "Stripe test mode needs $HOME_DIR/stripe.env containing STRIPE_SECRET_KEY=sk_test_... (mode 600)" >&2; exit 2; }
-      set -a; source $HOME_DIR/stripe.env; set +a
-      ( cd $WEB && node scripts/stripe-verify.mjs ) || { echo "Stripe verification FAILED: billing stays OFF, nothing started" >&2; exit 2; }
-      if [ -z "${STRIPE_WEBHOOK_SECRET:-}" ]; then
-        STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret 2>/dev/null | tr -d '[:space:]')
-        case $STRIPE_WEBHOOK_SECRET in whsec_*) (umask 077; printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET" >> $HOME_DIR/stripe.env);; *) echo "could not obtain a webhook secret (is the Stripe CLI logged in?)" >&2; exit 2;; esac
-      fi
+      # The TEST key lives in the Web app's .env.local (STRIPE_SECRET_KEY, optional STRIPE_PUBLISHABLE_KEY): one place, already git-ignored.
+      envval() { grep -E "^$1=" $WEB/.env.local 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' "; }
+      export STRIPE_SECRET_KEY=$(envval STRIPE_SECRET_KEY) STRIPE_PUBLISHABLE_KEY=$(envval STRIPE_PUBLISHABLE_KEY)
+      ( cd $WEB && node scripts/stripe-verify.mjs ) || { echo "Stripe verification FAILED (is a real sk_test_ key in .env.local?): billing stays OFF, nothing changed" >&2; exit 2; }
+      # The webhook secret for LOCAL forwarding always comes from the Stripe CLI (the one in .env.local is for a dashboard endpoint).
+      STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret 2>/dev/null | tr -d '[:space:]')
+      case $STRIPE_WEBHOOK_SECRET in whsec_*) ;; *) echo "could not obtain a webhook secret from the Stripe CLI (run 'stripe login')" >&2; exit 2;; esac
       ( nohup stripe listen --forward-to http://127.0.0.1:$API_PORT/api/billing/stripe/webhook --events checkout.session.completed,charge.refunded,charge.dispute.created,charge.dispute.updated,charge.dispute.closed > $HOME_DIR/log/stripe-listen.log 2>&1 & echo $! > $HOME_DIR/run/stripe.pid )
       STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY STUDYMIND_STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET
         "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
-      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET
+      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY
       echo "Stripe: REAL STRIPE TEST MODE (verified), forwarding webhooks with the Stripe CLI" ;;
     off) ;;
     *) echo "unknown STRIPE_MODE" >&2; exit 2 ;;
