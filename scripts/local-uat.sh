@@ -110,12 +110,17 @@ start)
       export STRIPE_SECRET_KEY=$(envval STRIPE_SECRET_KEY) STRIPE_PUBLISHABLE_KEY=$(envval STRIPE_PUBLISHABLE_KEY)
       ( cd $WEB && node scripts/stripe-verify.mjs ) || { echo "Stripe verification FAILED (is a real sk_test_ key in .env.local?): billing stays OFF, nothing changed" >&2; exit 2; }
       # The webhook secret for LOCAL forwarding always comes from the Stripe CLI (the one in .env.local is for a dashboard endpoint).
+      # The CLI must listen on the SAME Stripe account as the key (its own login may be a different account): STRIPE_API_KEY makes it use the key.
+      export STRIPE_API_KEY=$STRIPE_SECRET_KEY
       STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret 2>/dev/null | tr -d '[:space:]')
       case $STRIPE_WEBHOOK_SECRET in whsec_*) ;; *) echo "could not obtain a webhook secret from the Stripe CLI (run 'stripe login')" >&2; exit 2;; esac
       ( nohup stripe listen --forward-to http://127.0.0.1:$API_PORT/api/billing/stripe/webhook --events checkout.session.completed,charge.refunded,charge.dispute.created,charge.dispute.updated,charge.dispute.closed > $HOME_DIR/log/stripe-listen.log 2>&1 & echo $! > $HOME_DIR/run/stripe.pid )
+      # Accounts with Managed Payments need a product tax code on the inline price. For LOCAL TEST MODE we opt the session out
+      # (STRIPE_MANAGED_PAYMENTS=on to keep it); a real tax decision (STUDYMIND_STRIPE_TAX_CODE) is the owner's, for staging/production.
       STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY STUDYMIND_STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET
+        STUDYMIND_STRIPE_MANAGED_PAYMENTS=$([ "${STRIPE_MANAGED_PAYMENTS:-off}" = on ] && echo true || echo false) STUDYMIND_STRIPE_TAX_CODE=${STRIPE_TAX_CODE:-}
         "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
-      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY
+      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY STRIPE_API_KEY
       echo "Stripe: REAL STRIPE TEST MODE (verified), forwarding webhooks with the Stripe CLI" ;;
     off) ;;
     *) echo "unknown STRIPE_MODE" >&2; exit 2 ;;
