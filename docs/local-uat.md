@@ -16,6 +16,8 @@ Synthetic data only, isolated database `studymind_uat`, no Render, production, M
 Generated on first seed and stored only in `~/.studymind-uat/accounts.json` (mode 600). Read it locally; they are never printed by the scripts or committed.
 Student `uat.student@example.com` (self-learner, enrolled in Introduction to Biology). Lecturer `uat.lecturer@example.com` (owns all three modules).
 
+**Sign in at http://localhost:3100/my-learning** (the header's "Sign in"). The older `/sign-in` and `/sign-up` pages use a separate legacy account system; the UAT accounts do not exist there and will be rejected.
+
 ## Sample modules (class modules owned by the lecturer)
 Introduction to Biology (student enrolled), Introduction to Computer Science and Introduction to Chemistry (student NOT enrolled: used to check module boundaries).
 Course documents and a private student note are uploaded by `node scripts/uat-seed.mjs --documents` once real AI is enabled (uploads need real embeddings).

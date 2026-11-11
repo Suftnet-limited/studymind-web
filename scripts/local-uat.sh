@@ -63,6 +63,11 @@ start)
 
   psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "select 1 from pg_database where datname='$DB'" | grep -q 1 \
     || psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "create database $DB" >/dev/null
+  # the Web app's own (legacy /sign-in, billing) Prisma tables live in a separate database from the AI backend's
+  WEBDB=${DB}_web
+  psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "select 1 from pg_database where datname='$WEBDB'" | grep -q 1 \
+    || { psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "create database $WEBDB" >/dev/null; \
+         (cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB npx prisma db push --skip-generate >/dev/null 2>&1); }
   if [ "$(docker inspect -f '{{.State.Running}}' $TS_NAME 2>/dev/null)" != true ]; then
     docker rm -f $TS_NAME >/dev/null 2>&1
     docker run -d --name $TS_NAME -p 127.0.0.1:$TS_PORT:8108 -v $HOME_DIR/ts:/data typesense/typesense:0.25.2 \
@@ -83,7 +88,7 @@ start)
     $BACKEND_PY -m uvicorn app.api.main:app --host 127.0.0.1 --port $API_PORT > $HOME_DIR/log/backend.log 2>&1 & echo $! > $HOME_DIR/run/backend.pid )
   for i in $(seq 1 40); do [ "$(http http://127.0.0.1:$API_PORT/api/health)" = 200 ] && break; sleep 2; done
   stop_pid web
-  ( cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$DB STUDYMIND_AI_BASE_URL=http://127.0.0.1:$API_PORT \
+  ( cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB STUDYMIND_AI_BASE_URL=http://127.0.0.1:$API_PORT \
     SESSION_SECRET=$(openssl rand -hex 16) STRIPE_SECRET_KEY= STRIPE_WEBHOOK_SECRET= STRIPE_ACCESS_PRICE_ID= \
     nohup npx next dev -p $WEB_PORT > $HOME_DIR/log/web.log 2>&1 & echo $! > $HOME_DIR/run/web.pid )
   for i in $(seq 1 60); do [ "$(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)" = 200 ] && break; sleep 2; done
