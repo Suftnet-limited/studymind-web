@@ -24,7 +24,7 @@ function useEntitlements() {
 function Allowances() {
   const query = useEntitlements();
   const signedOut = query.error instanceof ApiError && query.error.status === 401;
-  return <Card aria-labelledby="allowances-title">
+  return <Card id="allowances" className="scroll-mt-6" aria-labelledby="allowances-title">
     <CardHeader>
       <CardTitle id="allowances-title">Your remaining allowances</CardTitle>
       <CardDescription>Usage is counted by StudyMind AI, so Web and Mobile share one balance.</CardDescription>

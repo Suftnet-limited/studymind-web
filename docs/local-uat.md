@@ -16,7 +16,9 @@ Synthetic data only, isolated database `studymind_uat`, no Render, production, M
 Generated on first seed and stored only in `~/.studymind-uat/accounts.json` (mode 600). Read it locally; they are never printed by the scripts or committed.
 Student `uat.student@example.com` (self-learner, enrolled in Introduction to Biology). Lecturer `uat.lecturer@example.com` (owns all three modules).
 
-**Sign in at http://localhost:3100/my-learning** (the header's "Sign in"). The older `/sign-in` and `/sign-up` pages use a separate legacy account system; the UAT accounts do not exist there and will be rejected.
+**Sign in at http://localhost:3100/my-learning** (the header's "Sign in"). The nav there is **My modules / Plans / AI access**, all StudyMind pages. The older `/dashboard`, `/modules`, `/billing`, `/lecturer`, `/sign-in` and `/sign-up` pages use a separate legacy account system; opening one while signed in to StudyMind redirects to the StudyMind equivalent, and the UAT accounts do not exist in the legacy system. See [uat-auth-fix-report.md](uat-auth-fix-report.md).
+
+Auth regression tests (need the fault-injecting proxy): `FAULT_PROXY=1 scripts/local-uat.sh start && npx playwright test -c tests/live/playwright.uat.config.ts auth-regression`. Restart without `FAULT_PROXY` for normal UAT.
 
 ## Sample modules (class modules owned by the lecturer)
 Introduction to Biology (student enrolled), Introduction to Computer Science and Introduction to Chemistry (student NOT enrolled: used to check module boundaries).

@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+// Every link here must work with the StudyMind sign-in alone. The older /dashboard, /modules and /billing pages need a
+// separate legacy web session, which StudyMind sign-in never creates, so they are not linked from here.
 const links = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/my-learning', label: 'Learning workspace' },
-  { href: '/modules', label: 'Web modules' },
+  { href: '/my-learning', label: 'My modules' },
   { href: '/my-learning/plans', label: 'Plans' },
-  { href: '/billing', label: 'AI access' },
+  { href: '/my-learning/plans#allowances', label: 'AI access' },
 ];
 export default function MyLearningLayout({ children }: { children: ReactNode }) {
   return <div>

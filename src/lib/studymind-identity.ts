@@ -36,53 +36,78 @@ export async function clearAiTokens() {
 // refresh token, the second refresh is rejected and (below) would sign the user out. Concurrent requests - the page, the
 // header status check, API calls - therefore share ONE refresh per refresh token. The result is kept briefly so a request
 // that still carries the old cookie (the browser has not yet received the new one) reuses it instead of retrying.
+// This map lives in one server process; a deployment with several instances needs sticky sessions or a shared store.
+//
+// A refresh has THREE outcomes and only one of them ends the session:
+//   ok          - new tokens, store them
+//   invalid     - the backend answered 400/401/403: the refresh token is expired, revoked or already used -> sign out
+//   unavailable - 5xx, 429, timeout or network error: the session may be perfectly valid, so keep the cookies and tell
+//                 the caller to retry later. Clearing here would turn a backend blip into a forced logout.
 const REFRESH_REUSE_MS = 15_000;
-const refreshes = new Map<string, { at: number; result: Promise<TokenResponse | null> }>();
-function refreshTokens(refresh: string): Promise<TokenResponse | null> {
+type RefreshOutcome = { kind: 'ok'; tokens: TokenResponse } | { kind: 'invalid' } | { kind: 'unavailable' };
+const refreshes = new Map<string, { at: number; result: Promise<RefreshOutcome> }>();
+function refreshTokens(refresh: string): Promise<RefreshOutcome> {
   const now = Date.now();
   for (const [key, entry] of refreshes) if (now - entry.at > REFRESH_REUSE_MS) refreshes.delete(key);
   const existing = refreshes.get(refresh);
   if (existing) return existing.result;
-  const result = (async () => {
-    const response = await aiIdentityRequest('/api/auth/refresh', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refresh }),
-    });
-    return response.ok ? ((await response.json()) as TokenResponse) : null;
+  const result: Promise<RefreshOutcome> = (async () => {
+    try {
+      const response = await aiIdentityRequest('/api/auth/refresh', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (response.ok) return { kind: 'ok', tokens: (await response.json()) as TokenResponse } as const;
+      return { kind: [400, 401, 403].includes(response.status) ? 'invalid' : 'unavailable' } as const;
+    } catch { return { kind: 'unavailable' } as const; }
   })();
   refreshes.set(refresh, { at: now, result });
-  result.catch(() => refreshes.delete(refresh));   // a network error must not be cached
+  void result.then((r) => { if (r.kind === 'unavailable') refreshes.delete(refresh); });   // a transient failure must not be cached
   return result;
 }
 
-export async function authenticatedAiRequest(path: string): Promise<Response | null> {
-  const jar = await cookies();
-  let access = jar.get(accessCookie)?.value;
-  const refresh = jar.get(refreshCookie)?.value;
-  if (!access && !refresh) return null;
-  if (access) {
-    const result = await aiIdentityRequest(path, { headers: { Authorization: `Bearer ${access}` } });
-    if (result.status !== 401) return result;
-  }
-  if (!refresh) return null;
-  const tokens = await refreshTokens(refresh);
-  if (!tokens) { await clearAiTokens(); return null; }
-  await setAiTokens(tokens);
-  access = tokens.access_token;
-  return aiIdentityRequest(path, { headers: { Authorization: `Bearer ${access}` } });
-}
-export async function authenticatedAiFetch(path: string, init: RequestInit = {}): Promise<Response | null> {
-  if (!LEARNING_PATH.test(path)) throw new Error('Invalid learning API route');
+const unavailable = () => new Response(JSON.stringify({ error: 'StudyMind is temporarily unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json' } });
+
+/** Calls the backend with the user's access token, recovering from an expired one. Returns null only when there is NO usable
+ *  session (no cookies, or the refresh token is genuinely invalid - cookies are then cleared). A temporary failure returns a
+ *  503 Response and leaves the cookies alone. A 403 or any other non-401 status is passed through untouched. */
+async function callWithRecovery(path: string, init: RequestInit): Promise<Response | null> {
   const jar = await cookies();
   const access = jar.get(accessCookie)?.value;
   const refresh = jar.get(refreshCookie)?.value;
   if (!access && !refresh) return null;
+  const withToken = (token: string): RequestInit => ({ ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } });
   if (access) {
-    const result = await aiIdentityRequest(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${access}` } });
+    const result = await aiIdentityRequest(path, withToken(access));
     if (result.status !== 401) return result;
   }
-  if (!refresh) return null;
-  const tokens = await refreshTokens(refresh);
-  if (!tokens) { await clearAiTokens(); return null; }
-  await setAiTokens(tokens);
-  return aiIdentityRequest(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${tokens.access_token}` } });
+  if (!refresh) { await clearAiTokens(); return null; }
+  const outcome = await refreshTokens(refresh);
+  if (outcome.kind === 'unavailable') return unavailable();
+  if (outcome.kind === 'invalid') { await clearAiTokens(); return null; }
+  await setAiTokens(outcome.tokens);
+  return aiIdentityRequest(path, withToken(outcome.tokens.access_token));
+}
+
+export function authenticatedAiRequest(path: string): Promise<Response | null> {
+  return callWithRecovery(path, {});
+}
+export async function authenticatedAiFetch(path: string, init: RequestInit = {}): Promise<Response | null> {
+  if (!LEARNING_PATH.test(path)) throw new Error('Invalid learning API route');
+  return callWithRecovery(path, init);
+}
+
+/** Sign out: revoke the refresh token on the backend (best effort, so a copied cookie cannot be replayed), forget any
+ *  cached refresh result for it, and clear the cookies whatever the backend says. */
+export async function revokeAiSession() {
+  const jar = await cookies();
+  const refresh = jar.get(refreshCookie)?.value;
+  if (refresh) {
+    refreshes.delete(refresh);
+    try {
+      await aiIdentityRequest('/api/auth/logout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: refresh }), signal: AbortSignal.timeout(4000),
+      });
+    } catch { /* the user still signs out locally */ }
+  }
+  await clearAiTokens();
 }

@@ -16,7 +16,8 @@ export function HeaderAuth({ initialSignedIn }: { initialSignedIn: boolean }) {
     const refresh = () => {
       fetch('/api/studymind/auth/status', { credentials: 'same-origin', cache: 'no-store' })
         .then((r) => r.json())
-        .then((d) => { if (!cancelled) setSignedIn(d?.authenticated === true); })
+        // authenticated: null means the backend is unavailable - keep what the user sees rather than flipping to "signed out"
+        .then((d) => { if (!cancelled && typeof d?.authenticated === 'boolean') setSignedIn(d.authenticated); })
         .catch(() => { /* keep the server hint */ });
     };
     refresh();

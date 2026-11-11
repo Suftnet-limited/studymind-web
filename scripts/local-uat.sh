@@ -27,7 +27,7 @@ stop_pid() { f=$HOME_DIR/run/$1.pid; [ -f $f ] && kill $(cat $f) 2>/dev/null; rm
 
 case ${1:-} in
 stop)
-  stop_pid web; stop_pid backend; stop_pid proxy
+  stop_pid web; stop_pid backend; stop_pid proxy; stop_pid fault
   [ -f $PGDATA/postmaster.pid ] && pg_ctl -D $PGDATA stop -m fast >/dev/null 2>&1
   pkill -f "next dev -p $WEB_PORT" 2>/dev/null
   docker stop $TS_NAME >/dev/null 2>&1
@@ -87,8 +87,13 @@ start)
     ENABLED_ROLES=student,lecturer,self_learner TYPESENSE_HOST=127.0.0.1 TYPESENSE_PORT=$TS_PORT TYPESENSE_API_KEY=$TSKEY \
     $BACKEND_PY -m uvicorn app.api.main:app --host 127.0.0.1 --port $API_PORT > $HOME_DIR/log/backend.log 2>&1 & echo $! > $HOME_DIR/run/backend.pid )
   for i in $(seq 1 40); do [ "$(http http://127.0.0.1:$API_PORT/api/health)" = 200 ] && break; sleep 2; done
+  stop_pid fault; AI_URL=http://127.0.0.1:$API_PORT
+  if [ "${FAULT_PROXY:-}" = 1 ]; then   # regression tests only: fault-injecting proxy between Web and the real backend
+    ( cd $WEB && UPSTREAM=http://127.0.0.1:$API_PORT PORT=8002 nohup node tests/fixtures/fault-proxy.mjs > $HOME_DIR/log/fault.log 2>&1 & echo $! > $HOME_DIR/run/fault.pid )
+    AI_URL=http://127.0.0.1:8002; sleep 1
+  fi
   stop_pid web
-  ( cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB STUDYMIND_AI_BASE_URL=http://127.0.0.1:$API_PORT \
+  ( cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB STUDYMIND_AI_BASE_URL=$AI_URL \
     SESSION_SECRET=$(openssl rand -hex 16) STRIPE_SECRET_KEY= STRIPE_WEBHOOK_SECRET= STRIPE_ACCESS_PRICE_ID= \
     nohup npx next dev -p $WEB_PORT > $HOME_DIR/log/web.log 2>&1 & echo $! > $HOME_DIR/run/web.pid )
   for i in $(seq 1 60); do [ "$(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)" = 200 ] && break; sleep 2; done

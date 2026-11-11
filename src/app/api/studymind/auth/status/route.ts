@@ -8,8 +8,9 @@ export async function GET() {
   const headers = { 'Cache-Control': 'private, no-store' };
   try {
     const upstream = await authenticatedAiRequest('/api/auth/learning-overview');
-    if (!upstream || !upstream.ok) return NextResponse.json({ authenticated: false }, { headers });
+    if (!upstream || upstream.status === 401 || upstream.status === 403) return NextResponse.json({ authenticated: false }, { headers });
+    if (!upstream.ok) return NextResponse.json({ authenticated: null }, { status: 503, headers });   // unknown, NOT signed out
     const { user }: LearningOverview = await upstream.json();
     return NextResponse.json({ authenticated: true, name: String(user.full_name ?? '').slice(0, 80) }, { headers });
-  } catch { return NextResponse.json({ authenticated: false }, { headers }); }
+  } catch { return NextResponse.json({ authenticated: null }, { status: 503, headers }); }
 }
