@@ -20,22 +20,22 @@ Student `uat.student@example.com` (self-learner, enrolled in Introduction to Bio
 Introduction to Biology (student enrolled), Introduction to Computer Science and Introduction to Chemistry (student NOT enrolled: used to check module boundaries).
 Course documents and a private student note are uploaded by `node scripts/uat-seed.mjs --documents` once real AI is enabled (uploads need real embeddings).
 
-## Start / stop
+## Run it (3 commands)
 ```
-scripts/local-uat.sh start      # Postgres must be running (port 55432) and Docker/Colima up
-node scripts/uat-seed.mjs       # accounts + modules (idempotent)
-scripts/local-uat.sh status
-scripts/local-uat.sh stop       # stops Web, backend, proxy, Typesense; data is kept; Postgres left running
+cd ~/dev/studymind-final && git checkout feat/web-integration-overview && git pull   # once: backend at the tested commit
+cd ~/dev/studymind-web && scripts/local-uat.sh start     # Postgres, Typesense, backend, Web, budget proxy, accounts + modules
+scripts/local-uat.sh stop                                # when finished (data is kept)
 ```
-Environment: `BACKEND_DIR` (studymind-ai checkout at the tested commit) and `BACKEND_PY` (its Python); defaults point at the scratch clone.
-Fixed settings: `OPENAI_CHAT_MODEL=gpt-4.1-mini`, `SIMILARITY_THRESHOLD=0.20`, retries 1 (LLM) / 0 (embeddings), proxy ceiling $5, concurrency 1, spend ledger persisted in `~/.studymind-uat/ledger.json`.
+`start` creates its own Postgres (`~/.studymind-uat/pgdata`, port 55432) and starts Colima if Docker is down. Other commands: `status`, `docs`.
+Fixed settings: `gpt-4.1-mini`, `SIMILARITY_THRESHOLD=0.20`, retries 1 (LLM) / 0 (embeddings), $5 ceiling, concurrency 1, ledger in `~/.studymind-uat/ledger.json`.
 
 ## Enable real AI
-1. Put the existing development key in `~/.studymind-uat/openai.key` (`chmod 600`), or export `PROXY_OPENAI_API_KEY` before `start`. It goes only to the budget proxy; the backend holds a dummy key.
-2. `scripts/local-uat.sh start`, then `DOCS_DIR=<dir> node scripts/uat-seed.mjs --documents`
-   (build the synthetic files first: `python tests/fixtures/retrieval/build_docs.py <dir> --realistic`; 6 uploads are used of the default 20-generation / 5-upload live allowance, so raise the upload cap deliberately if you run the harness too).
-3. Delete the key file after UAT.
-Without a key, every AI call fails closed (HTTP 502 "AI service unavailable"); nothing is faked.
+```
+grep '^OPENAI_API_KEY=' ~/dev/studymind-final/.env | cut -d= -f2- > ~/.studymind-uat/openai.key && chmod 600 ~/.studymind-uat/openai.key
+scripts/local-uat.sh start      # prints "real AI: enabled"
+scripts/local-uat.sh docs       # uploads the 5 course files + 1 private student note (well under $1)
+```
+The key goes only to the budget proxy; the backend holds a dummy key. Delete `~/.studymind-uat/openai.key` after UAT. Without a key every AI call fails closed (HTTP 502); nothing is faked.
 
 ## Verified without paid AI (15/15, run against this stack)
 Student and lecturer login, wrong-password rejection, anonymous rejection, student sees only the enrolled module, lecturer sees all owned modules, student blocked from another module's detail/documents/AI, student cannot create a class module, overview counts, AI fails closed with the key absent, logout invalidates the session, log back in.

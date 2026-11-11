@@ -4,8 +4,9 @@
 #   with all OpenAI traffic going through the budget proxy ($5 ceiling, concurrency 1, persisted ledger).
 #
 # Required environment (nothing secret lives in the repo):
-#   BACKEND_DIR   checkout of studymind-ai at the tested commit (default: the scratch clone)
-#   BACKEND_PY    python with the backend requirements installed (default: $BACKEND_DIR/../venv/bin/python)
+#   BACKEND_DIR   studymind-ai checkout (default: ~/dev/studymind-final, must be on feat/web-integration-overview)
+#   BACKEND_PY    python with the backend requirements (default: $BACKEND_DIR/.venv/bin/python)
+# Postgres (own data dir ~/.studymind-uat/pgdata, port 55432) and Docker (Colima) are started automatically if needed.
 # Optional:
 #   PG_BIN        directory with psql (default /usr/local/opt/postgresql@18/bin), PG_PORT (55432), PG_USER (sm_test)
 # State and secrets: ~/.studymind-uat/  (env = generated JWT/Typesense secrets, openai.key = YOUR dev key, both mode 600)
@@ -14,8 +15,9 @@
 set -u
 WEB=${0:A:h:h}
 HOME_DIR=$HOME/.studymind-uat; mkdir -p $HOME_DIR/ts $HOME_DIR/run $HOME_DIR/log; chmod 700 $HOME_DIR
-BACKEND_DIR=${BACKEND_DIR:-/private/tmp/claude-501/-Users-appdev-dev-studymind-web/0b7de0cb-907c-479d-a3b7-a1193a592862/scratchpad/ai}
-BACKEND_PY=${BACKEND_PY:-$BACKEND_DIR/../venv/bin/python}
+BACKEND_DIR=${BACKEND_DIR:-$HOME/dev/studymind-final}
+BACKEND_PY=${BACKEND_PY:-$BACKEND_DIR/.venv/bin/python}
+PGDATA=$HOME_DIR/pgdata
 export PATH=${PG_BIN:-/usr/local/opt/postgresql@18/bin}:$PATH
 PGP=${PG_PORT:-55432}; PGU=${PG_USER:-sm_test}; DB=studymind_uat
 TS_NAME=studymind-uat-typesense; TS_PORT=18109; PROXY_PORT=18301; API_PORT=8000; WEB_PORT=3100
@@ -26,9 +28,10 @@ stop_pid() { f=$HOME_DIR/run/$1.pid; [ -f $f ] && kill $(cat $f) 2>/dev/null; rm
 case ${1:-} in
 stop)
   stop_pid web; stop_pid backend; stop_pid proxy
+  [ -f $PGDATA/postmaster.pid ] && pg_ctl -D $PGDATA stop -m fast >/dev/null 2>&1
   pkill -f "next dev -p $WEB_PORT" 2>/dev/null
   docker stop $TS_NAME >/dev/null 2>&1
-  echo "stopped web, backend, proxy and $TS_NAME. Data is kept (database $DB, ~/.studymind-uat/ts, ledger). Postgres is left running."
+  echo "stopped web, backend, proxy and $TS_NAME. Data is kept (database $DB, ~/.studymind-uat/ts, ledger). Postgres stopped."
   ;;
 status)
   echo "web      $(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)  http://localhost:$WEB_PORT"
@@ -40,8 +43,16 @@ status)
 start)
   [ -x $BACKEND_PY ] || { echo "BACKEND_PY not found: $BACKEND_PY" >&2; exit 2; }
   [ -d $BACKEND_DIR/app ] || { echo "BACKEND_DIR is not a studymind-ai checkout: $BACKEND_DIR" >&2; exit 2; }
+  if ! pg_isready -h 127.0.0.1 -p $PGP >/dev/null; then
+    [ -d $PGDATA ] || initdb -D $PGDATA -U $PGU --auth=trust >/dev/null || exit 2
+    pg_ctl -D $PGDATA -o "-p $PGP -h 127.0.0.1" -l $HOME_DIR/log/postgres.log start >/dev/null || exit 2
+    sleep 2
+  fi
   pg_isready -h 127.0.0.1 -p $PGP >/dev/null || { echo "PostgreSQL is not accepting connections on $PGP" >&2; exit 2; }
-  docker info >/dev/null 2>&1 || { echo "Docker is not running (start Colima / Docker Desktop)" >&2; exit 2; }
+  docker info >/dev/null 2>&1 || { command -v colima >/dev/null && colima start >/dev/null 2>&1; }
+  docker info >/dev/null 2>&1 || { echo "Docker is not running (start Docker Desktop)" >&2; exit 2; }
+  BR=$(git -C $BACKEND_DIR branch --show-current 2>/dev/null)
+  [ "$BR" = feat/web-integration-overview ] || echo "WARNING: backend is on '$BR', tested branch is feat/web-integration-overview"
   if [ ! -f $HOME_DIR/env ]; then
     umask 077; printf 'JWT=%s\nTSKEY=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" > $HOME_DIR/env
   fi
@@ -78,7 +89,13 @@ start)
   for i in $(seq 1 60); do [ "$(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)" = 200 ] && break; sleep 2; done
   echo "real AI: $AI   (model gpt-4.1-mini, threshold 0.20, \$5 ceiling, concurrency 1)"
   [ $AI = disabled ] && echo "  -> put your development key in $HOME_DIR/openai.key (chmod 600) and re-run 'start' to enable paid AI"
+  (cd $WEB && node scripts/uat-seed.mjs | head -1)
   $0 status
   ;;
-*) echo "usage: $0 start|stop|status" >&2; exit 2 ;;
+docs)
+  # builds the synthetic course files and uploads them through the app (real embeddings: needs the key, spends from the $5 ceiling)
+  D=$HOME_DIR/docs; $BACKEND_PY $WEB/tests/fixtures/retrieval/build_docs.py $D --realistic || exit 2
+  cd $WEB && DOCS_DIR=$D node scripts/uat-seed.mjs --documents
+  ;;
+*) echo "usage: $0 start|stop|status|docs" >&2; exit 2 ;;
 esac
