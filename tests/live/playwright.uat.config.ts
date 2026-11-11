@@ -7,7 +7,7 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname)) throw new E
 
 export default defineConfig({
   testDir: '.',
-  testMatch: /(uat-ui|auth-regression)\.spec\.ts/,
+  testMatch: /(uat-ui|auth-regression|billing-journey)\.spec\.ts/,
   outputDir: process.env.E2E_OUTPUT || 'test-results',
   timeout: 120_000,
   expect: { timeout: 15_000 },

@@ -11,6 +11,6 @@ export function hasPendingDocuments(docs: unknown): boolean;
 export function roleCapabilities(role: string): { canCreatePersonal: boolean; canCreateClass: boolean; canJoin: boolean; canUploadClass: boolean };
 export function apiDetail(data: unknown, fallback: string): string;
 export type AllowanceKey = 'chats' | 'quizzes' | 'flashcards' | 'summaries';
-export type Entitlements = { plan: 'free' | 'plus'; expires_at: string | null; enforcement_enabled: boolean | null; allowances: Partial<Record<AllowanceKey, { limit: number; remaining: number }>> };
+export type Entitlements = { plan: 'free' | 'plus'; expires_at: string | null; enforcement_enabled: boolean | null; purchase_available: boolean; allowances: Partial<Record<AllowanceKey, { limit: number; remaining: number }>> };
 export function parseEntitlements(data: unknown): Entitlements | null;
 export function parseUploadVisibility(value: unknown): 'personal' | 'class' | null;

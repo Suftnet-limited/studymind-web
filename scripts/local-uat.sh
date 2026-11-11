@@ -9,6 +9,13 @@
 # Postgres (own data dir ~/.studymind-uat/pgdata, port 55432) and Docker (Colima) are started automatically if needed.
 # Optional:
 #   PG_BIN        directory with psql (default /usr/local/opt/postgresql@18/bin), PG_PORT (55432), PG_USER (sm_test)
+# Stripe (TEST mode only):  STRIPE_MODE=standin|test scripts/local-uat.sh start        (default: off = billing disabled)
+#   standin  a local stand-in server (NOT Stripe) with generated test-shaped keys: exercises the whole purchase flow offline
+#   test     real Stripe TEST mode: needs STRIPE_SECRET_KEY=sk_test_... in ~/.studymind-uat/stripe.env (mode 600); verified first
+#            (live keys are refused); the webhook secret comes from `stripe listen --print-secret`, and `stripe listen` forwards events
+#   Both enable STUDYMIND_BILLING_ENABLED and STUDYMIND_QUOTA_ENABLED for THIS local backend only.
+# OpenAI stand-in: OPENAI_STANDIN=1 points the budget proxy at the free recording stand-in (tests/fixtures/openai-stub.mjs) instead of
+#   OpenAI, so allowance/billing tests can make many AI calls at no cost. Answers are stand-in echoes, NOT real AI.
 # State and secrets: ~/.studymind-uat/  (env = generated JWT/Typesense secrets, openai.key = YOUR dev key, both mode 600)
 #   Real AI needs the key in ~/.studymind-uat/openai.key (or PROXY_OPENAI_API_KEY in the environment). It is given only to
 #   the budget proxy; the backend holds a dummy key. Without it the stack starts but every AI call fails closed (HTTP 502).
@@ -27,7 +34,7 @@ stop_pid() { f=$HOME_DIR/run/$1.pid; [ -f $f ] && kill $(cat $f) 2>/dev/null; rm
 
 case ${1:-} in
 stop)
-  stop_pid web; stop_pid backend; stop_pid proxy; stop_pid fault
+  stop_pid web; stop_pid backend; stop_pid proxy; stop_pid fault; stop_pid stripe; stop_pid standin; stop_pid openai_standin
   [ -f $PGDATA/postmaster.pid ] && pg_ctl -D $PGDATA stop -m fast >/dev/null 2>&1
   pkill -f "next dev -p $WEB_PORT" 2>/dev/null
   docker stop $TS_NAME >/dev/null 2>&1
@@ -41,6 +48,9 @@ status)
   curl -s --max-time 5 http://127.0.0.1:$PROXY_PORT/__ledger | head -c 600; echo
   ;;
 start)
+  if grep -Eq '^[A-Za-z_]*=[\"'"'"']?(sk|pk|rk)_live_' $WEB/.env.local 2>/dev/null || grep -Eq '(sk|pk|rk)_live_' $HOME_DIR/stripe.env 2>/dev/null; then
+    echo "REFUSING TO START: a LIVE Stripe credential was found in a local env file. Local UAT is Stripe TEST mode only." >&2; exit 3
+  fi
   [ -x $BACKEND_PY ] || { echo "BACKEND_PY not found: $BACKEND_PY" >&2; exit 2; }
   [ -d $BACKEND_DIR/app ] || { echo "BACKEND_DIR is not a studymind-ai checkout: $BACKEND_DIR" >&2; exit 2; }
   if ! pg_isready -h 127.0.0.1 -p $PGP >/dev/null; then
@@ -75,16 +85,48 @@ start)
   fi
   for i in $(seq 1 20); do [ "$(http http://127.0.0.1:$TS_PORT/health)" = 200 ] && break; sleep 1; done
 
-  stop_pid proxy
-  ( cd $WEB && PROXY_OPENAI_API_KEY="$KEY" MAX_CHAT_CALLS=${MAX_CHAT_CALLS:-200} MAX_EMBED_CALLS=${MAX_EMBED_CALLS:-400} MAX_USD=5 \
+  stop_pid proxy; stop_pid openai_standin
+  PROXY_EXTRA=()
+  if [ "${OPENAI_STANDIN:-}" = 1 ]; then
+    ( cd $WEB && PORT=18200 nohup node tests/fixtures/openai-stub.mjs > $HOME_DIR/log/openai-standin.log 2>&1 & echo $! > $HOME_DIR/run/openai_standin.pid )
+    PROXY_EXTRA=(UPSTREAM_URL=http://127.0.0.1:18200 MAX_CHAT_CALLS=20000 MAX_EMBED_CALLS=50000); AI=standin; sleep 1
+  fi
+  ( cd $WEB && env PROXY_OPENAI_API_KEY="$KEY" MAX_CHAT_CALLS=${MAX_CHAT_CALLS:-200} MAX_EMBED_CALLS=${MAX_EMBED_CALLS:-400} MAX_USD=5 "${PROXY_EXTRA[@]}" \
     PORT=$PROXY_PORT LEDGER_FILE=$HOME_DIR/ledger.json nohup node tests/fixtures/openai-budget-proxy.mjs \
     > $HOME_DIR/log/proxy.log 2>&1 & echo $! > $HOME_DIR/run/proxy.pid )
+  # ---- Stripe test mode (opt-in) ----
+  STRIPE_ENV=(); WEB_ORIGIN=${UAT_WEB_ORIGIN:-http://localhost:$WEB_PORT}; stop_pid stripe; stop_pid standin
+  case ${STRIPE_MODE:-off} in
+    standin)
+      [ -f $HOME_DIR/stripe-standin.env ] || { umask 077; printf 'SK=sk_test_standin_%s\nWH=whsec_%s\n' "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" > $HOME_DIR/stripe-standin.env; }
+      source $HOME_DIR/stripe-standin.env
+      ( cd $WEB && PORT=18400 WEBHOOK_URL=http://127.0.0.1:$API_PORT/api/billing/stripe/webhook WEBHOOK_SECRET=$WH SECRET_KEY=$SK nohup node tests/fixtures/stripe-standin.mjs > $HOME_DIR/log/stripe-standin.log 2>&1 & echo $! > $HOME_DIR/run/standin.pid )
+      STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$SK STUDYMIND_STRIPE_WEBHOOK_SECRET=$WH STUDYMIND_STRIPE_API_BASE=http://127.0.0.1:18400
+        "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
+      echo "Stripe: LOCAL STAND-IN (not Stripe) on 127.0.0.1:18400" ;;
+    test)
+      [ -f $HOME_DIR/stripe.env ] || { echo "Stripe test mode needs $HOME_DIR/stripe.env containing STRIPE_SECRET_KEY=sk_test_... (mode 600)" >&2; exit 2; }
+      set -a; source $HOME_DIR/stripe.env; set +a
+      ( cd $WEB && node scripts/stripe-verify.mjs ) || { echo "Stripe verification FAILED: billing stays OFF, nothing started" >&2; exit 2; }
+      if [ -z "${STRIPE_WEBHOOK_SECRET:-}" ]; then
+        STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret 2>/dev/null | tr -d '[:space:]')
+        case $STRIPE_WEBHOOK_SECRET in whsec_*) (umask 077; printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$STRIPE_WEBHOOK_SECRET" >> $HOME_DIR/stripe.env);; *) echo "could not obtain a webhook secret (is the Stripe CLI logged in?)" >&2; exit 2;; esac
+      fi
+      ( nohup stripe listen --forward-to http://127.0.0.1:$API_PORT/api/billing/stripe/webhook --events checkout.session.completed,charge.refunded,charge.dispute.created,charge.dispute.updated,charge.dispute.closed > $HOME_DIR/log/stripe-listen.log 2>&1 & echo $! > $HOME_DIR/run/stripe.pid )
+      STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY STUDYMIND_STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET
+        "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
+      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET
+      echo "Stripe: REAL STRIPE TEST MODE (verified), forwarding webhooks with the Stripe CLI" ;;
+    off) ;;
+    *) echo "unknown STRIPE_MODE" >&2; exit 2 ;;
+  esac
   stop_pid backend
   ( cd $BACKEND_DIR && nohup env -i PATH="$PATH" HOME="$HOME" APP_ENV=development OPENAI_API_KEY=dummy-backend-key-not-real \
     OPENAI_API_BASE=http://127.0.0.1:$PROXY_PORT/v1 OPENAI_BASE_URL=http://127.0.0.1:$PROXY_PORT/v1 \
     OPENAI_CHAT_MODEL=gpt-4.1-mini SIMILARITY_THRESHOLD=0.20 RETRIEVAL_VECTOR_K=100 OPENAI_LLM_MAX_RETRIES=1 OPENAI_EMBED_MAX_RETRIES=0 OPENAI_TIMEOUT_SECONDS=60 \
     JWT_SECRET_KEY=$JWT POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=$PGP POSTGRES_DB=$DB POSTGRES_USER=$PGU POSTGRES_PASSWORD=x \
     ENABLED_ROLES=student,lecturer,self_learner TYPESENSE_HOST=127.0.0.1 TYPESENSE_PORT=$TS_PORT TYPESENSE_API_KEY=$TSKEY \
+    "${STRIPE_ENV[@]}" \
     $BACKEND_PY -m uvicorn app.api.main:app --host 127.0.0.1 --port $API_PORT > $HOME_DIR/log/backend.log 2>&1 & echo $! > $HOME_DIR/run/backend.pid )
   for i in $(seq 1 40); do [ "$(http http://127.0.0.1:$API_PORT/api/health)" = 200 ] && break; sleep 2; done
   stop_pid fault; AI_URL=http://127.0.0.1:$API_PORT
@@ -97,7 +139,7 @@ start)
     SESSION_SECRET=$(openssl rand -hex 16) STRIPE_SECRET_KEY= STRIPE_WEBHOOK_SECRET= STRIPE_ACCESS_PRICE_ID= \
     nohup npx next dev -p $WEB_PORT > $HOME_DIR/log/web.log 2>&1 & echo $! > $HOME_DIR/run/web.pid )
   for i in $(seq 1 60); do [ "$(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)" = 200 ] && break; sleep 2; done
-  echo "real AI: $AI   (model gpt-4.1-mini, threshold 0.20, \$5 ceiling, concurrency 1)"
+  if [ $AI = standin ]; then echo "AI: OPENAI STAND-IN (free, NOT real AI)"; else echo "real AI: $AI   (model gpt-4.1-mini, threshold 0.20, \$5 ceiling, concurrency 1)"; fi
   [ $AI = disabled ] && echo "  -> put your development key in $HOME_DIR/openai.key (chmod 600) and re-run 'start' to enable paid AI"
   (cd $WEB && node scripts/uat-seed.mjs | head -1)
   $0 status

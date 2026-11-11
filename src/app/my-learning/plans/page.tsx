@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Check, Info } from 'lucide-react';
 import { ApiError } from '@/services/studymind-modules.service';
 import { ALLOWANCE_KEYS, ALLOWANCE_LABELS, allowanceUnit, PLANS } from '@/lib/plans';
@@ -17,8 +18,20 @@ async function loadEntitlements(): Promise<EntitlementResponse> {
   return body as EntitlementResponse;
 }
 
-function useEntitlements() {
-  return useQuery({ queryKey: ['canonical', 'entitlements'], queryFn: loadEntitlements, retry: false });
+function useEntitlements(pollMs: number | false = false) {
+  return useQuery({ queryKey: ['canonical', 'entitlements'], queryFn: loadEntitlements, retry: false, refetchInterval: pollMs });
+}
+
+const CONFIRM_TIMEOUT_MS = 60_000;
+type Returned = 'success' | 'cancelled' | null;
+
+/** Starts a Checkout through Web's own route. A failure is shown as a message; nothing here ever signs the user out. */
+async function startCheckout(): Promise<string> {
+  const response = await fetch('/api/studymind/checkout', { method: 'POST', credentials: 'same-origin', cache: 'no-store' });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(body.error || 'We could not start checkout. You have not been charged.', response.status);
+  if (typeof body.url !== 'string') throw new ApiError('We could not start checkout. You have not been charged.', 502);
+  return body.url;
 }
 
 function Allowances() {
@@ -58,8 +71,36 @@ function Allowances() {
 }
 
 export default function PlansPage() {
-  const entitlements = useEntitlements();
-  const currentPlan = entitlements.data?.available ? entitlements.data.plan : null;
+  const [returned, setReturned] = useState<Returned>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const entitlements = useEntitlements(confirming ? 2000 : false);
+  const data = entitlements.data?.available ? entitlements.data : null;
+  const currentPlan = data ? data.plan : null;
+  const purchaseAvailable = data?.purchase_available === true;
+  const signedOut = entitlements.error instanceof ApiError && entitlements.error.status === 401;
+
+  // Coming back from Stripe: ?checkout=success|cancelled. Payment is only ever confirmed by the webhook, so we watch the
+  // backend's entitlement (poll every 2 s for up to a minute) rather than trusting the redirect.
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get('checkout');
+    if (value === 'success' || value === 'cancelled') {
+      setReturned(value);
+      if (value === 'success') setConfirming(true);
+      window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    }
+  }, []);
+  useEffect(() => {
+    if (!confirming) return;
+    if (currentPlan === 'plus') { setConfirming(false); return; }
+    const timer = setTimeout(() => { setConfirming(false); setTimedOut(true); }, CONFIRM_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [confirming, currentPlan]);
+
+  const checkout = useMutation({ mutationFn: startCheckout, onSuccess: (url) => { window.location.assign(url); } });
+  const checkoutError = checkout.error instanceof ApiError ? checkout.error : null;
+  const expires = data?.expires_at ? new Date(data.expires_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+
   return <div className="mx-auto max-w-4xl space-y-7 px-5 py-8 sm:py-10">
     <header>
       <p className="text-sm font-semibold text-violet-700">StudyMind AI</p>
@@ -67,10 +108,20 @@ export default function PlansPage() {
       <p className="mt-2 text-zinc-600">A simple look at what each plan includes.</p>
     </header>
 
-    <div role="note" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-      <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
-      <p><strong>Pricing preview.</strong> This page is for information only. Purchasing StudyMind Plus is not open yet, and nothing here will charge you.</p>
-    </div>
+    {returned === 'cancelled' && <p role="status" data-testid="checkout-cancelled" className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-800">Checkout cancelled. You have not been charged and your plan has not changed.</p>}
+    {returned === 'success' && currentPlan === 'plus' && <p role="status" data-testid="checkout-confirmed" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Payment confirmed. StudyMind Plus is active{expires ? ` until ${expires}` : ''}.</p>}
+    {returned === 'success' && currentPlan !== 'plus' && confirming && <p role="status" data-testid="checkout-confirming" className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">Confirming your payment… this usually takes a few seconds. Please keep this page open.</p>}
+    {returned === 'success' && currentPlan !== 'plus' && timedOut && <p role="status" data-testid="checkout-timeout" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">We have not received confirmation of your payment yet. It can take a minute: refresh this page shortly. You will not be charged twice, and access is only added once the payment is confirmed.</p>}
+
+    {purchaseAvailable
+      ? <div role="note" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <p><strong>Test payments only.</strong> StudyMind is not live. Checkout uses Stripe&apos;s test mode: pay with the test card 4242 4242 4242 4242 (any future expiry, any CVC). No real money is taken.</p>
+        </div>
+      : <div role="note" className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
+          <p><strong>Pricing preview.</strong> This page is for information only. Purchasing StudyMind Plus is not open yet, and nothing here will charge you.</p>
+        </div>}
 
     <section aria-label="Plans" className="grid gap-4 md:grid-cols-2">
       {PLANS.map(plan => <Card key={plan.id} className={plan.id === 'plus' ? 'border-violet-300 ring-1 ring-violet-200' : ''}>
@@ -84,9 +135,20 @@ export default function PlansPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-sm">
-            {ALLOWANCE_KEYS.map(key => <li key={key} className="flex items-center gap-2"><Check className="size-4 shrink-0 text-violet-600" aria-hidden /><span><strong>{plan.allowances[key]}</strong> {allowanceUnit(key, plan.allowances[key])}{plan.id === 'free' ? ' per month' : ''}</span></li>)}
+            {ALLOWANCE_KEYS.map(key => <li key={key} className="flex items-center gap-2"><Check className="size-4 shrink-0 text-violet-600" aria-hidden /><span><strong>{plan.allowances[key]}</strong> {allowanceUnit(key, plan.allowances[key])}</span></li>)}
           </ul>
-          {plan.id === 'plus' && <p className="mt-5 rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800">Coming soon — purchases are not available yet.</p>}
+          {plan.id === 'plus' && !purchaseAvailable && <p className="mt-5 rounded-lg bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-800">Coming soon — purchases are not available yet.</p>}
+          {plan.id === 'plus' && purchaseAvailable && currentPlan === 'plus' && <p data-testid="plus-active" className="mt-5 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900">StudyMind Plus is active{expires ? ` until ${expires}` : ''}.</p>}
+          {plan.id === 'plus' && purchaseAvailable && currentPlan === 'free' && <div className="mt-5">
+            <button type="button" data-testid="buy-plus" onClick={() => checkout.mutate()} disabled={checkout.isPending || checkout.isSuccess}
+              className="w-full rounded-lg bg-violet-600 px-4 py-2.5 font-semibold text-white hover:bg-violet-700 disabled:opacity-60">
+              {checkout.isPending || checkout.isSuccess ? 'Opening secure checkout…' : 'Get StudyMind Plus — £3.99'}
+            </button>
+            {checkoutError && <p role="alert" data-testid="checkout-error" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+              {checkoutError.status === 401 ? <>Your session needs refreshing. <Link href="/my-learning" className="font-semibold underline">Sign in again</Link> to continue.</> : checkoutError.message}
+            </p>}
+          </div>}
+          {plan.id === 'plus' && purchaseAvailable && signedOut && <p className="mt-5 text-sm"><Link href="/my-learning" className="font-semibold text-violet-700 underline">Sign in</Link> to get StudyMind Plus.</p>}
         </CardContent>
       </Card>)}
     </section>

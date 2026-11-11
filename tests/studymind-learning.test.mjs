@@ -124,16 +124,32 @@ test('parseEntitlements normalises the allowance API and never invents data', ()
     assert.equal(parseEntitlements(bad), null);
 });
 
-test('plans presentation matches the agreed pricing and has no purchase flow', () => {
+test('plans presentation matches the agreed pricing; the only purchase path is the server-side Checkout route', () => {
   const plans = read('src/lib/plans.ts');
   assert.match(plans, /chats: 10, quizzes: 2, flashcards: 2, summaries: 1/);
   assert.match(plans, /£3\.99/); assert.match(plans, /for 28 days/);
   assert.match(plans, /chats: 200, quizzes: 30, flashcards: 30, summaries: 15/);
   const page = read('src/app/my-learning/plans/page.tsx');
-  assert.match(page, /Pricing preview/);
-  assert.doesNotMatch(page, /checkout|stripe|<Button|<form|onSubmit/i, 'plans page must not contain a purchase flow');
+  assert.match(page, /Pricing preview/, 'the preview wording stays whenever the backend reports checkout as unavailable');
+  assert.match(page, /Coming soon — purchases are not available yet\./);
+  assert.match(page, /Get StudyMind Plus — £3\.99/);
+  assert.doesNotMatch(page, /from 'stripe'|STRIPE_|prisma|stripe\.com|sk_(test|live)|pk_(test|live)/i, 'the browser page never touches Stripe or secrets');
+  const writes = [...page.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]).filter((c) => /POST/.test(c));
+  assert.equal(writes.length, 1, 'exactly one write from the page');
+  assert.match(writes[0], /\/api\/studymind\/checkout/, 'and it is the Checkout route');
+  assert.match(page, /purchase_available|purchaseAvailable/, 'the button is shown only when the backend says checkout is available');
   const route = read('src/app/api/studymind/entitlements/route.ts');
   assert.doesNotMatch(route, /POST|PUT|PATCH|DELETE|stripe|prisma/i, 'entitlement route must be read-only');
+  const checkout = read('src/app/api/studymind/checkout/route.ts');
+  assert.doesNotMatch(checkout, /request\.(json|formData|text|arrayBuffer)\(|from 'stripe'|prisma/, 'the checkout route reads nothing from the browser body and never grants access');
+  assert.match(checkout, /sec-fetch-site/); assert.match(checkout, /checkout\\\.stripe\\\.com/);
+});
+
+test('parseEntitlements reports checkout availability only when the backend says so', () => {
+  const real = { plan: 'free', expires_at: null, allowances: { chats: { limit: 10, remaining: 7 } } };
+  assert.equal(parseEntitlements(real).purchase_available, false);
+  assert.equal(parseEntitlements({ ...real, purchase_available: true }).purchase_available, true);
+  assert.equal(parseEntitlements({ ...real, purchase_available: 'true' }).purchase_available, false);
 });
 
 test('parseEntitlements keeps the backend enforcement flag and the real backend response shape', () => {

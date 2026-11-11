@@ -11,7 +11,7 @@ type TokenResponse = { access_token: string; refresh_token: string; expires_in: 
 
 /** Routes Web may call on the canonical AI backend. Anything else is refused before a request is made. */
 const IDENTITY_PATH = /^\/api\/auth\//;
-const LEARNING_PATH = /^\/api\/(modules(\/|$)|chat$|quiz\/[0-9a-f-]{36}\/submit$|quiz\/generate$|flashcards\/generate$|summarise$)/i;
+const LEARNING_PATH = /^\/api\/(billing\/checkout$|modules(\/|$)|chat$|quiz\/[0-9a-f-]{36}\/submit$|quiz\/generate$|flashcards\/generate$|summarise$)/i;
 
 export async function aiIdentityRequest(path: string, init: RequestInit = {}) {
   if (!IDENTITY_PATH.test(path) && !LEARNING_PATH.test(path)) throw new Error('Invalid StudyMind API route');

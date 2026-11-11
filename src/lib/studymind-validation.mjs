@@ -104,7 +104,8 @@ export function parseEntitlements(data) {
   const expires = typeof data.expires_at === 'string' && !Number.isNaN(Date.parse(data.expires_at)) ? data.expires_at : null;
   // `enforcement_enabled` tells the UI whether the AI backend is actually limiting usage yet.
   const enforcement = typeof data.enforcement_enabled === 'boolean' ? data.enforcement_enabled : null;
-  return { plan, expires_at: expires, allowances, enforcement_enabled: enforcement };
+  // `purchase_available` is the backend's own answer to "can a purchase be started right now" (billing configured, test mode).
+  return { plan, expires_at: expires, allowances, enforcement_enabled: enforcement, purchase_available: data.purchase_available === true };
 }
 
 /**
