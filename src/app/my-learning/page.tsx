@@ -6,6 +6,9 @@ import { studyMindIdentityService } from '@/services/studymind-identity.service'
 import { ApiError, studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { roleCapabilities } from '@/lib/studymind-validation.mjs';
 import { EmptyState, ErrorBox, LoadingBlock } from '@/components/learning/states';
+import { Mail, Lock } from 'lucide-react';
+import { AuthShell } from '@/components/auth/auth-shell';
+import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,25 +24,21 @@ function SignIn() {
     onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
-  return <Card className="mx-auto w-full max-w-md">
-    <CardHeader>
-      <CardTitle>Sign in to your learning workspace</CardTitle>
-      <CardDescription>Use the StudyMind account you already use on Mobile. New here? <Link href="/my-learning/register" className="font-semibold text-violet-700 underline">Create an account</Link></CardDescription>
-    </CardHeader>
-    <CardContent>
-      <form onSubmit={submit} className="space-y-4">
-        <label className="block text-sm font-medium">Email
-          <Input className="mt-1" type="email" autoComplete="email" required value={email} onChange={e => setEmail(e.target.value)} />
-        </label>
-        <label className="block text-sm font-medium">Password
-          <Input className="mt-1" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
-        </label>
-        {login.isError && <ErrorBox message={message(login.error)} />}
-        <Button className="w-full" disabled={login.isPending}>{login.isPending ? 'Signing in…' : 'Sign in'}</Button>
-      </form>
-      <p className="mt-4 text-center text-xs text-zinc-500">Have an older StudyMind Web account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
-    </CardContent>
-  </Card>;
+  return <AuthShell>
+    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h1>
+    <p className="mt-1.5 text-sm text-slate-500">Sign in to your StudyMind account. It is the same account you use on Mobile.</p>
+    <form onSubmit={submit} className="mt-7" noValidate={false}>
+      {login.isError && <AuthError message={message(login.error)} />}
+      <div className="space-y-3">
+        <AuthField label="Email" type="email" icon={<Mail className="size-4" />} placeholder="name@example.com" autoComplete="email" required autoFocus value={email} onChange={e => setEmail(e.target.value)} />
+        <AuthField label="Password" type="password" icon={<Lock className="size-4" />} placeholder="Enter your password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
+      </div>
+      <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
+    </form>
+    <div className="mt-6 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-100" /><span className="text-xs text-slate-400">or</span><div className="h-px flex-1 bg-zinc-100" /></div>
+    <p className="mt-5 text-center text-sm text-slate-500">New to StudyMind?{' '}<Link href="/my-learning/register" className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
+    <p className="mt-6 text-center text-xs text-slate-400">Have an older StudyMind Web account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
+  </AuthShell>;
 }
 
 function CreateModule({ canCreateClass }: { canCreateClass: boolean }) {

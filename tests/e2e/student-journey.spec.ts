@@ -5,7 +5,7 @@ import { apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, PASSWO
 async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
   const email = uniqueEmail(role);
   await page.goto('/my-learning');
-  await expect(page.getByRole('heading', { name: 'Sign in to your learning workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await shot(page, info, `${role}-01-signed-out`);
   await page.getByRole('link', { name: 'Create an account' }).click();
   await expect(page.getByRole('heading', { name: 'Create a StudyMind account' })).toBeVisible();
@@ -91,7 +91,7 @@ test('self-learner journey: register, create a personal module, join a class, op
   // Back, sign out, sign back in
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page.getByRole('heading', { name: 'Sign in to your learning workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await signIn(page, email);
   await expect(page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
   await expect(page.getByRole('region', { name: /Enrolled modules/ }).getByRole('link', { name: /History 110/ })).toBeVisible();
