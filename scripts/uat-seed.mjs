@@ -55,7 +55,7 @@ if (process.argv.includes('--documents')) {
   const DOCS = process.env.DOCS_DIR; if (!DOCS) throw new Error('DOCS_DIR required with --documents');
   const PLAN = [[lec, 'BIO', 'cell-biology-and-energy.docx', 'class'], [lec, 'BIO', 'genetics-and-evolution.docx', 'class'],
     [lec, 'CS', 'algorithms-and-data-structures.docx', 'class'], [lec, 'CS', 'networks-and-databases.docx', 'class'],
-    [lec, 'CHEM', 'atomic-structure-and-bonding.docx', 'class'], [stu, 'BIO', 'student-a-private-notes.docx', 'personal']];
+    [lec, 'CHEM', 'atomic-structure-and-bonding.docx', 'class'], [stu, 'BIO', 'student-a-private-notes.docx', 'personal'], [lec, 'BIO', 'lecturer-private-draft.docx', 'personal']];
   for (const [who, key, name, visibility] of PLAN) {
     const list = async () => { const b = (await who.req(`/api/studymind/modules/${ids[key]}/documents`)).body; return Array.isArray(b) ? b : b?.documents ?? []; };
     if ((await list()).some((d) => d.filename === name)) { console.log(`skip (exists) ${name}`); continue; }

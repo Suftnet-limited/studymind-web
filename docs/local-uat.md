@@ -37,8 +37,17 @@ scripts/local-uat.sh docs       # uploads the 5 course files + 1 private student
 ```
 The key goes only to the budget proxy; the backend holds a dummy key. Delete `~/.studymind-uat/openai.key` after UAT. Without a key every AI call fails closed (HTTP 502); nothing is faked.
 
-## Verified without paid AI (15/15, run against this stack)
-Student and lecturer login, wrong-password rejection, anonymous rejection, student sees only the enrolled module, lecturer sees all owned modules, student blocked from another module's detail/documents/AI, student cannot create a class module, overview counts, AI fails closed with the key absent, logout invalidates the session, log back in.
+## Verified (run against this stack, real gpt-4.1-mini + text-embedding-3-large via the budget proxy)
+* No paid AI, 15/15: logins, wrong-password and anonymous rejection, module visibility per role, cross-module access blocked, session end and re-login.
+* Real AI via API, 25/25 (`node scripts/uat-journeys.mjs`): Tutor grounded with citations, follow-up in the same session, off-topic answer not grounded and uncited,
+  other-module topic not answered from foreign material, student retrieves own private note, student cannot reach the lecturer's private draft, not-enrolled module refused (403),
+  quiz generate/hide answers/submit/score, flashcards, summary, lecturer retrieves own private draft but not the student's note, document lists respect privacy, student cannot upload class material.
+* Real AI in the browser, 2/2 (`npx playwright test -c tests/live/playwright.uat.config.ts --project=desktop`): student Tutor (cited + "General knowledge" label), quiz to score and explanations, flashcards flip, summary, sign out, session ended, sign in again; lecturer sees all three modules and own materials but not the student's note.
+* Measured cost of all of the above including seeding: about $0.034 of the $5 ceiling (22 chat, 29 embedding calls, 1 refusal from the no-key start).
 
-## Not yet verified (need the key)
-Document upload and indexing, AI Tutor, quizzes, flashcards, summaries, citations, private-note privacy at retrieval level, lecturer document management with real files.
+## Known limitations / things to know before UAT
+* The Web app has no document delete or edit; lecturers can upload and list only.
+* The lecturer upload form defaults Visibility to "Personal notes" (private to the uploader). Choose "Class" for material students should see.
+* A grounded Tutor answer can list a second, less relevant document as a source (seen on a cell-biology question that also cited genetics). Quiz difficulty is not tuned.
+* Mobile layout was not re-checked on this stack (covered earlier by the stand-in browser suite).
+* The 2/5 quiz score in the API run is expected (it always picks option 1).
