@@ -1,0 +1,10 @@
+/* Landing-page design tokens (from the approved asset pack). Scoped to .sm-landing so nothing app-wide is overridden. */
+.sm-landing {
+  --sm-ink: #111034;
+  --sm-purple: #6d28d9;
+  --sm-purple-deep: #4c1d95;
+  --sm-lavender: #f4eeff;
+  --sm-border: #e8e2f4;
+  --sm-muted: #62617a;
+  --sm-radius: 18px;
+}
