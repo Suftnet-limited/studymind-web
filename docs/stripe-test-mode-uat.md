@@ -35,6 +35,10 @@ Not verified until step 3 has been done by someone with the key: the real hosted
 
 Free user buys Plus; signed webhook; entitlement for 28 days; Plus allowances (200/30/30/15); survives reload, sign-out and sign-in; cancelled and declined payments grant nothing; redirect before the webhook grants nothing; bad, stale and missing signatures rejected (400); 8 simultaneous deliveries and replays give exactly one entitlement; one user's payment cannot activate another; the browser cannot write entitlements, forged bodies are ignored, cross-site and anonymous checkout refused; expiry returns to Free and allows renewal; full refund revokes, partial refund suspends, replayed/earlier events cannot restore; Stripe API 429/403/500 and billing-endpoint 403/429/503 show a message and never sign the user out; Free limits 10 chats / 1 summary then 429; Plus limits 200 chats / 15 summaries then 429; failed generations are refunded.
 
+**Real OpenAI + stand-in Stripe, one fresh Free user (about $0.026):** quiz 201, 201, **429**; flashcards 201, 201, **429**; summary 201, **429**; chat 10 x 200 then **429**; still signed in after every limit; bought Plus through the stand-in -> allowances 200/30/30/15, a real chat then worked and counted down to 199.
+
+**Cost ledger note.** Fake (stand-in) AI calls used to share the real spend ledger and pushed its call counts over the real caps, so the budget proxy (correctly) refused all real AI. Fixed: stand-in mode now uses its own ledger (`ledger-standin.json`). The mixed file was archived as `~/.studymind-uat/ledger.mixed-with-standin-calls.json`, the real ledger restarted at zero, and the real ceiling for this UAT is `UAT_MAX_USD=4.96` ($5 minus the $0.0343 genuinely spent earlier). Pass `UAT_MAX_USD=4.96` (or lower) when starting for real AI.
+
 ## 5. Remaining risks and limitations
 
 * Real Stripe has not been exercised (no key). Treat the purchase journey as **unproven against Stripe** until step 3 above is done.
