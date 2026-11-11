@@ -70,6 +70,10 @@ start)
   KEY=${PROXY_OPENAI_API_KEY:-}
   [ -z "$KEY" ] && [ -f $HOME_DIR/openai.key ] && KEY=$(tr -d '[:space:]' < $HOME_DIR/openai.key)
   AI=disabled; [ -n "$KEY" ] && AI=enabled
+  # STRIPE_MODE and UAT_MAX_USD may be typed before the command OR set in the Web app's .env.local (the command line wins).
+  fromenv() { grep -E "^$1=" $WEB/.env.local 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' "; }
+  [ -z "${STRIPE_MODE:-}" ] && STRIPE_MODE=$(fromenv STRIPE_MODE)
+  [ -z "${UAT_MAX_USD:-}" ] && UAT_MAX_USD=$(fromenv UAT_MAX_USD)
 
   psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "select 1 from pg_database where datname='$DB'" | grep -q 1 \
     || psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "create database $DB" >/dev/null
