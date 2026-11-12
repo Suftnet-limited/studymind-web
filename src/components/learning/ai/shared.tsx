@@ -1,5 +1,6 @@
 'use client';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import type { Outline } from '@/lib/learning-ai.mjs';
 import { Input } from '@/components/ui/input';
 import { ErrorBox } from '@/components/learning/states';
 import { btnPrimary } from './layout';
@@ -13,6 +14,33 @@ export function TopicField({ id, value, onChange, disabled, label = 'Focus on a 
   return <div className="space-y-1.5">
     <label htmlFor={id} className="block text-sm font-semibold text-zinc-700">{label}</label>
     <Input id={id} value={value} maxLength={200} disabled={disabled} placeholder="e.g. a chapter or concept" onChange={e => onChange(e.target.value)} className="h-11 rounded-xl" />
+  </div>;
+}
+
+const CUSTOM = '__custom__';
+/**
+ * Topic focus for Quiz, Flashcards and Summary. When the module has weeks (chapters) or indexed documents they are offered in a list,
+ * together with "All material" and "Type my own topic"; otherwise (or after choosing that) it is a free-text field. The value is the topic text.
+ */
+export function TopicPicker({ id, value, onChange, disabled, outline, label = 'Focus on a topic (optional)' }: {
+  id: string; value: string; onChange: (v: string) => void; disabled?: boolean; outline: Outline | null; label?: string;
+}) {
+  const weeks = outline?.weeks ?? []; const documents = outline?.documents ?? [];
+  const [custom, setCustom] = useState(false);
+  const known = (v: string) => weeks.some(o => o.value === v) || documents.some(o => o.value === v);
+  const selected = custom || (value !== '' && !known(value)) ? CUSTOM : value;
+  if (weeks.length === 0 && documents.length === 0) return <TopicField id={id} value={value} onChange={onChange} disabled={disabled} label={label} />;
+  const select = 'h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:opacity-60';
+  return <div className="space-y-2">
+    <label htmlFor={id} className="block text-sm font-semibold text-zinc-700">{label}</label>
+    <select id={id} value={selected} disabled={disabled} className={select}
+      onChange={e => { const v = e.target.value; if (v === CUSTOM) { setCustom(true); onChange(''); } else { setCustom(false); onChange(v); } }}>
+      <option value="">All material</option>
+      {weeks.length > 0 && <optgroup label="Weeks">{weeks.map(o => <option key={`w-${o.value}`} value={o.value}>{o.label}</option>)}</optgroup>}
+      {documents.length > 0 && <optgroup label="Documents">{documents.map(o => <option key={`d-${o.value}`} value={o.value}>{o.label}</option>)}</optgroup>}
+      <option value={CUSTOM}>Type my own topic…</option>
+    </select>
+    {selected === CUSTOM && <Input autoFocus aria-label="Your own topic" value={value} maxLength={200} disabled={disabled} placeholder="e.g. a chapter or concept" onChange={e => onChange(e.target.value)} className="h-11 rounded-xl" />}
   </div>;
 }
 

@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { HISTORY_KINDS, aiFailure, mapFlashcardDetail, mapHistoryList, mapQuizDetail, mapSessionDetail, mapSessionList, mapSummaryDetail, sessionIds } from '@/lib/learning-ai.mjs';
+import { HISTORY_KINDS, aiFailure, mapFlashcardDetail, mapHistoryList, mapOutline, mapQuizDetail, mapSessionDetail, mapSessionList, mapSummaryDetail, sessionIds } from '@/lib/learning-ai.mjs';
 import type { HistoryKind } from '@/lib/learning-ai.mjs';
 import { isUuid } from '@/lib/studymind-validation.mjs';
 import { isCrossSite } from '@/lib/request-origin.mjs';
@@ -208,5 +208,20 @@ export async function historyDelete(request: Request, context: HistoryContext) {
     if (!res || res.status === 401) return fail(401, 'Authentication required');
     if (!res.ok && res.status !== 404) return fail(502, aiFailure(500, null).error);
     return new NextResponse(null, { status: 204, headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+// ── Topic suggestions ─────────────────────────────────────────────────────
+/** The module's weeks and indexed documents, as titles only, to suggest topics. Requires access to the module; the backend scopes both lists to the caller. */
+export async function moduleOutline(context: { params: Promise<{ id: string }> }) {
+  const { id } = await context.params;
+  if (!isUuid(id)) return fail(400, 'Invalid module ID');
+  try {
+    const denied = await requireModuleAccess(id); if (denied) return denied;
+    const [weeks, docs] = await Promise.all([authenticatedAiFetch(`/api/modules/${id}/weeks`), authenticatedAiFetch(`/api/modules/${id}/documents`)]);
+    if (!weeks || !docs || weeks.status === 401 || docs.status === 401) return fail(401, 'Authentication required');
+    // Suggestions are a convenience: if one list cannot be read the other is still offered, and the free-text topic always works.
+    const w = weeks.ok ? await weeks.json().catch(() => null) : null; const d = docs.ok ? await docs.json().catch(() => null) : null;
+    return NextResponse.json(mapOutline(w, d), { headers: NO_STORE });
   } catch { return fail(502, aiFailure(502, null).error); }
 }

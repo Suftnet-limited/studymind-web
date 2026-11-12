@@ -1,5 +1,7 @@
 'use client';
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { studyMindAiService } from '@/services/studymind-ai.service';
+import type { Outline } from '@/lib/learning-ai.mjs';
 import { cn } from '@/lib/utils';
 import { ChatTab } from './chat-tab';
 import { QuizTab } from './quiz-tab';
@@ -18,6 +20,10 @@ type TabId = (typeof TABS)[number]['id'];
  */
 export function StudyTools({ moduleId, hasMaterials, documents, userName }: { moduleId: string; hasMaterials: boolean; documents: ReactNode; userName: string }) {
   const [tab, setPicked] = useState<TabId>('chat');
+  // Topic suggestions (the module's weeks and indexed documents), shared by Quiz, Flashcards and Summary. Reloaded when one of those tabs opens, so new uploads show up.
+  const [outline, setOutline] = useState<Outline | null>(null);
+  const loadOutline = useCallback(async () => { try { setOutline(await studyMindAiService.outline(moduleId)); } catch { /* suggestions are optional: the free-text topic still works */ } }, [moduleId]);
+  useEffect(() => { if (tab === 'quiz' || tab === 'flashcards' || tab === 'summary') void loadOutline(); }, [tab, loadOutline]);
   const move = (e: KeyboardEvent, i: number) => {
     const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
     if (next === null) return;
@@ -35,8 +41,8 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName }: { mo
     <div id="ai-panel-documents" role="tabpanel" aria-labelledby="ai-tab-documents" hidden={tab !== 'documents'}>{documents}</div>
     <div id="ai-panel-chat" role="tabpanel" aria-labelledby="ai-tab-chat" hidden={tab !== 'chat'}><ChatTab moduleId={moduleId} hasMaterials={hasMaterials} userName={userName}
       onOpenTool={(t) => { setPicked(t); document.getElementById(`ai-tab-${t}`)?.focus(); }} /></div>
-    <div id="ai-panel-quiz" role="tabpanel" aria-labelledby="ai-tab-quiz" hidden={tab !== 'quiz'}><QuizTab moduleId={moduleId} /></div>
-    <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} /></div>
-    <div id="ai-panel-summary" role="tabpanel" aria-labelledby="ai-tab-summary" hidden={tab !== 'summary'}><SummaryTab moduleId={moduleId} /></div>
+    <div id="ai-panel-quiz" role="tabpanel" aria-labelledby="ai-tab-quiz" hidden={tab !== 'quiz'}><QuizTab moduleId={moduleId} outline={outline} /></div>
+    <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} outline={outline} /></div>
+    <div id="ai-panel-summary" role="tabpanel" aria-labelledby="ai-tab-summary" hidden={tab !== 'summary'}><SummaryTab moduleId={moduleId} outline={outline} /></div>
   </section>;
 }

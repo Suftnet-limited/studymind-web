@@ -1,18 +1,19 @@
 'use client';
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
+import type { Outline } from '@/lib/learning-ai.mjs';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { SummaryResult } from '@/lib/learning-ai.mjs';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/learning/copy-button';
 import { ErrorBox } from '@/components/learning/states';
 import { MarkdownRenderer } from './markdown';
-import { GenerateState, TopicField, errorText } from './shared';
+import { GenerateState, TopicPicker, errorText } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { ToolLayout, ToolPanel } from './layout';
 
 /** Summary: an AI summary of the module's material. Earlier summaries are kept in the Recent list so any of them can be reviewed again. */
-export function SummaryTab({ moduleId }: { moduleId: string }) {
+export function SummaryTab({ moduleId, outline }: { moduleId: string; outline: Outline | null }) {
   const [topic, setTopic] = useState('');
   const [summary, setSummary] = useState<SummaryResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -47,7 +48,7 @@ export function SummaryTab({ moduleId }: { moduleId: string }) {
   if (!summary) return <ToolLayout rail={rail} main={<ToolPanel icon={<FileText className="size-5" />} title="Summary" subtitle="A clear overview of this module's material.">
     <GenerateState icon={<FileText className="size-8" />} text="Generate an AI summary of this module's material."
       buttonLabel="Generate summary" loadingLabel="Generating summary…" loading={loading} error={error} onGenerate={generate}>
-      <TopicField id="summary-topic" value={topic} onChange={setTopic} disabled={loading} label="Summarise a topic (optional)" />
+      <TopicPicker outline={outline} id="summary-topic" value={topic} onChange={setTopic} disabled={loading} label="Summarise a topic (optional)" />
     </GenerateState>
   </ToolPanel>} />;
   return <ToolLayout rail={rail} main={<ToolPanel icon={<FileText className="size-5" />} title="Summary" subtitle={summary.source_doc_count > 0 ? `Based on ${summary.source_doc_count} ${summary.source_doc_count === 1 ? 'document' : 'documents'}` : 'A clear overview of this module\'s material.'}><div className="space-y-3">

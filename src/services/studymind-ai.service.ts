@@ -1,5 +1,5 @@
 import { ApiError } from '@/services/studymind-modules.service';
-import type { HistoryDetail, HistoryKind, HistoryRow, ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
+import type { Outline, HistoryDetail, HistoryKind, HistoryRow, ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
 
 async function data<T>(response: Response, fallback: string): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -23,6 +23,8 @@ export const studyMindAiService = {
     const response = await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', credentials: 'same-origin' });
     if (!response.ok) { const body = await response.json().catch(() => ({})); throw new ApiError(typeof body.error === 'string' ? body.error : 'Unable to delete this chat', response.status); }
   },
+  outline: async (moduleId: string) =>
+    data<Outline>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/outline`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to load topic suggestions'),
   listHistory: async (moduleId: string, kind: HistoryKind) =>
     data<HistoryRow[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/history/${kind}`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to load your saved items'),
   openHistory: async (moduleId: string, kind: HistoryKind, itemId: string) =>

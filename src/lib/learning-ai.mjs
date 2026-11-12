@@ -217,3 +217,17 @@ export function mapQuizDetail(raw) {
 }
 export const mapFlashcardDetail = (raw) => { const d = mapFlashcards(raw); return d ? { kind: 'flashcards', created_at: iso(raw.created_at), deck: d } : null; };
 export const mapSummaryDetail = (raw) => { const s = mapSummary(raw); return s ? { kind: 'summary', created_at: s.created_at, summary: s } : null; };
+
+
+// ── Topic suggestions: the module's weeks (chapters) and its indexed documents, offered next to the free-text topic ──
+const cleanTitle = (v) => text(typeof v === 'string' ? v : '', 200).replace(/\s+/g, ' ').trim();
+const stripExtension = (name) => name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
+/** Titles only: no ids, owners or file details. Each value is what is sent as the topic. */
+export function mapOutline(weeksRaw, docsRaw) {
+  const seen = new Set(); const take = (label, value) => { const key = value.toLowerCase(); if (!value || seen.has(key)) return null; seen.add(key); return { label, value }; };
+  const weeks = (Array.isArray(weeksRaw) ? weeksRaw : []).filter(isObject).sort((a, b) => (Number(a.week_number) || 0) - (Number(b.week_number) || 0)).slice(0, 60)
+    .map((w) => { const title = cleanTitle(w.title); return title ? take(Number.isInteger(w.week_number) ? `Week ${w.week_number}: ${title}` : title, title) : null; }).filter(Boolean);
+  const documents = (Array.isArray(docsRaw) ? docsRaw : []).filter((d) => isObject(d) && d.is_latest !== false && (String(d.status ?? '').toLowerCase() === 'indexed' || Number(d.chunk_count) > 0))
+    .slice(0, 100).map((d) => { const title = stripExtension(cleanTitle(d.filename ?? d.original_filename)); return title ? take(title, title) : null; }).filter(Boolean);
+  return { weeks, documents };
+}

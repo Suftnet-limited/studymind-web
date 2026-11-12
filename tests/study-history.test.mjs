@@ -37,3 +37,16 @@ test('flashcard and summary details expose only whitelisted fields; malformed in
   assert.equal(s.summary.advice, 'tip'); assert.ok(!JSON.stringify(s).includes(id(7)));
   assert.equal(mapQuizDetail({ id: 'x' }), null); assert.equal(mapFlashcardDetail(null), null); assert.equal(mapSummaryDetail({ id: 'x', content: '  ' }), null);
 });
+
+import { mapOutline } from '../src/lib/learning-ai.mjs';
+test('topic suggestions: weeks in order, indexed latest documents only, titles only, deduplicated and capped', () => {
+  const o = mapOutline(
+    [{ id: id(1), module_id: id(9), week_number: 2, title: ' Energy  and work ', created_at: 'x' }, { week_number: 1, title: 'Forces' }, { week_number: 3, title: '' }, null, { week_number: 4, title: 'forces' }],
+    [{ id: id(2), filename: 'Cell-Biology.pdf', status: 'indexed', is_latest: true, user_id: id(7) }, { filename: 'old.pdf', status: 'indexed', is_latest: false }, { filename: 'pending.pdf', status: 'processing', chunk_count: 0 },
+      { filename: 'chunks.txt', status: 'unknown', chunk_count: 3 }, { filename: 'Forces.docx', status: 'indexed' }]);
+  assert.deepEqual(o.weeks, [{ label: 'Week 1: Forces', value: 'Forces' }, { label: 'Week 2: Energy and work', value: 'Energy and work' }]);
+  assert.deepEqual(o.documents.map((d) => d.value), ['Cell-Biology', 'chunks']);          // 'Forces.docx' duplicates the week title; old/pending excluded
+  assert.ok(!JSON.stringify(o).includes(id(9)) && !JSON.stringify(o).includes(id(7)));
+  assert.deepEqual(mapOutline(null, 'x'), { weeks: [], documents: [] });
+  assert.equal(mapOutline(Array.from({ length: 90 }, (_, i) => ({ week_number: i + 1, title: `W${i}` })), []).weeks.length, 60);
+});

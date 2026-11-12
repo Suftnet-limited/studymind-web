@@ -46,3 +46,6 @@ export function mapHistoryList(kind: HistoryKind, raw: unknown): HistoryRow[];
 export function mapQuizDetail(raw: unknown): Extract<HistoryDetail, { kind: 'quiz' }> | null;
 export function mapFlashcardDetail(raw: unknown): Extract<HistoryDetail, { kind: 'flashcards' }> | null;
 export function mapSummaryDetail(raw: unknown): Extract<HistoryDetail, { kind: 'summary' }> | null;
+export type TopicOption = { label: string; value: string };
+export type Outline = { weeks: TopicOption[]; documents: TopicOption[] };
+export function mapOutline(weeks: unknown, documents: unknown): Outline;

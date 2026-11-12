@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Lock, XCircle } from 'lucide-react';
+import type { Outline } from '@/lib/learning-ai.mjs';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { QuizGenerated, QuizResult } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicField, errorText, when } from './shared';
+import { GenerateState, TopicPicker, errorText, when } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
@@ -15,7 +16,7 @@ const LETTERS = 'ABCDEFGHIJ';
  * Quiz: generated from the module's material and answered one question at a time. The correct answers and explanations
  * are NOT sent to the browser until the quiz is submitted; the results view reveals them.
  */
-export function QuizTab({ moduleId }: { moduleId: string }) {
+export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outline | null }) {
   const [topic, setTopic] = useState('');
   const [note, setNote] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
@@ -65,7 +66,7 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
   if (!quiz || !quiz.questions.length) return <ToolLayout rail={rail} main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle="Test your understanding with questions built from this module's material.">
     <GenerateState icon={<ClipboardList className="size-8" />} text="Generate a multiple-choice quiz. You will see your score and an explanation for every question once you submit."
       buttonLabel="Generate quiz" loadingLabel="Generating quiz…" loading={loading} error={error} onGenerate={generate}>
-      <TopicField id="quiz-topic" value={topic} onChange={setTopic} disabled={loading} />
+      <TopicPicker outline={outline} id="quiz-topic" value={topic} onChange={setTopic} disabled={loading} />
       {quiz && !quiz.questions.length && <div className="mt-3"><ErrorBox message="No questions could be generated from the current material." /></div>}
     </GenerateState>
   </ToolPanel>} />;

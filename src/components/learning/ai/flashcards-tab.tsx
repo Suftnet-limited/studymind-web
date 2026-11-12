@@ -1,16 +1,17 @@
 'use client';
 import { useState, type KeyboardEvent } from 'react';
 import { ArrowLeft, ArrowRight, Layers, RotateCcw } from 'lucide-react';
+import type { Outline } from '@/lib/learning-ai.mjs';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { FlashcardDeck } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicField, errorText, when } from './shared';
+import { GenerateState, TopicPicker, errorText, when } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
 /** Flashcards: generated from the module's material. Flip each card, move through the set, and see which cards you have reviewed. */
-export function FlashcardsTab({ moduleId }: { moduleId: string }) {
+export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline: Outline | null }) {
   const [topic, setTopic] = useState('');
   const [note, setNote] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
   if (!deck || !card) return <ToolLayout rail={rail} main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle="Memorise the key ideas in this module.">
     <GenerateState icon={<Layers className="size-8" />} text="Generate a set of flashcards from this module's material. Flip each card to check yourself."
       buttonLabel="Generate flashcards" loadingLabel="Generating flashcards…" loading={loading} error={error} onGenerate={generate}>
-      <TopicField id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
+      <TopicPicker outline={outline} id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
       {deck && !deck.cards.length && <div className="mt-3"><ErrorBox message="No flashcards could be generated from the current material." /></div>}
     </GenerateState>
   </ToolPanel>} />;
@@ -90,7 +91,7 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
       <NumberGrid label="Jump to a card" noun="Card" states={states} onSelect={goTo} />
       <GridLegend items={[{ label: 'Reviewed', dot: 'bg-emerald-400' }, { label: 'Current', dot: 'bg-violet-500' }]} />
       <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
-        <TopicField id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
+        <TopicPicker outline={outline} id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
         <button type="button" className={cn(btnOutline, 'w-full')} onClick={generate} disabled={loading}>{loading ? 'Generating…' : 'Generate a new set'}</button>
       </div>
     </SideCard>} />;
