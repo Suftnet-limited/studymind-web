@@ -1,11 +1,11 @@
 'use client';
 import { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Layers, Lock, Target, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Lock, XCircle } from 'lucide-react';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { QuizGenerated, QuizResult } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
 import { GenerateState, TopicField, errorText } from './shared';
-import { NumberGrid, ProgressBar, SettingRow, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
+import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
 const LETTERS = 'ABCDEFGHIJ';
@@ -54,20 +54,14 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
   const total = questions.length;
   const answered = questions.filter(q => answers[q.id]).length;
   const allAnswered = answered === total;
-  const settings = <SideCard title="Quiz settings" icon={<Layers className="size-4" />}>
-    <ul>
-      <SettingRow icon={<Layers className="size-4" />}>{total} {total === 1 ? 'question' : 'questions'}</SettingRow>
-      <SettingRow icon={<Target className="size-4" />}>Topic: {usedTopic || 'All material'}</SettingRow>
-      <SettingRow icon={<Lock className="size-4" />}>Answers are shown after you submit</SettingRow>
-    </ul>
-  </SideCard>;
+  const meta = `${total} ${total === 1 ? 'question' : 'questions'} · ${usedTopic ? `Topic: ${usedTopic}` : 'All material'}`;
 
   // ── Results ──
   if (result) {
     const review = new Map(result.questions.map(q => [q.id, q]));
     const states: CellState[] = questions.map(q => (review.get(q.id)?.is_correct ? 'correct' : 'wrong'));
     return <ToolLayout
-      main={<ToolPanel icon={<CheckCircle2 className="size-5" />} title="Quiz results" subtitle="Review each question and its explanation.">
+      main={<ToolPanel icon={<CheckCircle2 className="size-5" />} title="Quiz results" subtitle={meta}>
         <div role="status" data-testid="quiz-score" className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-5">
           <p className="text-2xl font-extrabold text-violet-800">Score: {Math.round(result.score)}%</p>
           <p className="mt-1 text-sm text-violet-900">{result.correct} of {result.total} correct</p>
@@ -97,17 +91,11 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
         </ol>
         {error && <div className="mt-4"><ErrorBox message={error} /></div>}
       </ToolPanel>}
-      side={<>
-        <SideCard title="Your score" right={<span className="text-sm font-semibold text-zinc-500">{result.correct} / {result.total}</span>}>
-          <ProgressBar value={result.correct} max={result.total} label="Correct answers" />
-          <p className="mt-2 text-right text-sm font-semibold text-zinc-600">{Math.round(result.score)}%</p>
-        </SideCard>
-        <SideCard title="Questions">
-          <NumberGrid label="Jump to a question" noun="Question" states={states} onSelect={i => document.getElementById(`quiz-q-${questions[i].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
-          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500"><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-emerald-400" />Correct</span><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-red-400" />Incorrect</span></p>
-        </SideCard>
-        <button type="button" onClick={reset} className={cn(btnPrimary, 'w-full')}>Generate a new quiz</button>
-      </>} />;
+      side={<SideCard title="Questions" right={<span className="text-sm font-semibold text-zinc-500">{result.correct} of {result.total} correct</span>}>
+        <NumberGrid label="Jump to a question" noun="Question" states={states} onSelect={i => document.getElementById(`quiz-q-${questions[i].id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+        <GridLegend items={[{ label: 'Correct', dot: 'bg-emerald-400' }, { label: 'Incorrect', dot: 'bg-red-400' }]} />
+        <button type="button" onClick={reset} className={cn(btnPrimary, 'mt-5 w-full')}>Generate a new quiz</button>
+      </SideCard>} />;
   }
 
   // ── Taking the quiz ──
@@ -115,8 +103,7 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
   const states: CellState[] = questions.map((x, i) => (i === current ? 'current' : answers[x.id] ? 'done' : 'idle'));
   const last = current === total - 1;
   return <ToolLayout
-    main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle="Choose the best answer. Your score and explanations appear after you submit."
-      right={<span className="rounded-full bg-violet-50 px-3.5 py-1.5 text-sm font-semibold text-violet-700">{answered} of {total} answered</span>}>
+    main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle={meta}>
       <div className="flex items-center gap-4">
         <p className="shrink-0 text-sm font-bold text-[#111034]">Question {current + 1} of {total}</p>
         <ProgressBar value={current + 1} max={total} label="Position in the quiz" className="flex-1" />
@@ -145,15 +132,9 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
           : <button type="button" className={btnPrimary} onClick={() => setCurrent(c => Math.min(total - 1, c + 1))}>Next <ArrowRight className="size-4" aria-hidden /></button>}
       </div>
     </ToolPanel>}
-    side={<>
-      <SideCard title="Quiz progress" right={<span className="text-sm font-semibold text-zinc-500">{answered} / {total}</span>}>
-        <ProgressBar value={answered} max={total} label="Questions answered" />
-        <p className="mt-2 text-right text-sm font-semibold text-zinc-600">{total ? Math.round((answered / total) * 100) : 0}%</p>
-      </SideCard>
-      <SideCard title="Questions">
-        <NumberGrid label="Jump to a question" noun="Question" states={states} onSelect={setCurrent} />
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500"><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-emerald-400" />Answered</span><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-violet-500" />Current</span></p>
-      </SideCard>
-      {settings}
-    </>} />;
+    side={<SideCard title="Questions" right={<span className="text-sm font-semibold text-zinc-500">{answered} of {total} answered</span>}>
+      <NumberGrid label="Jump to a question" noun="Question" states={states} onSelect={setCurrent} />
+      <GridLegend items={[{ label: 'Answered', dot: 'bg-emerald-400' }, { label: 'Current', dot: 'bg-violet-500' }]} />
+      <p className="mt-4 flex items-start gap-2 border-t border-zinc-100 pt-4 text-xs leading-5 text-zinc-500"><Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />Your score and explanations appear after you submit.</p>
+    </SideCard>} />;
 }

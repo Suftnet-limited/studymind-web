@@ -88,7 +88,7 @@ test('Quiz: one question at a time, navigator, answer gating, submit, score, cor
   await expect(page.getByText('0 of 5 answered')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled();
   expect(await page.locator('body').innerText()).not.toMatch(/Explanation:/);                     // answers withheld before submission
-  await expect(page.getByText('Answers are shown after you submit')).toBeVisible();
+  await expect(page.getByText('Your score and explanations appear after you submit.')).toBeVisible();
   await shot(page, info, '23-quiz-question');
 
   // Question 1 wrong ("8 N"), the rest with option b ("15 N", "m v", "halve" are correct; others vary)

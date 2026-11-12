@@ -1,11 +1,11 @@
 'use client';
 import { useState, type KeyboardEvent } from 'react';
-import { ArrowLeft, ArrowRight, Layers, RotateCcw, Target } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Layers, RotateCcw } from 'lucide-react';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { FlashcardDeck } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
 import { GenerateState, TopicField, errorText } from './shared';
-import { NumberGrid, ProgressBar, SettingRow, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
+import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
 /** Flashcards: generated from the module's material. Flip each card, move through the set, and see which cards you have reviewed. */
@@ -45,11 +45,16 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
     if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(index - 1); }
   };
 
+  const meta = `${total} ${total === 1 ? 'card' : 'cards'} · ${usedTopic ? `Topic: ${usedTopic}` : 'All material'}`;
   return <ToolLayout
-    main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle="Flip a card to check yourself. Use the arrow keys to move between cards."
-      right={<span data-testid="card-counter" aria-live="polite" className="rounded-full bg-violet-50 px-3.5 py-1.5 text-sm font-semibold text-violet-700">Card {index + 1} of {total}</span>}>
-      <button type="button" onClick={flip} onKeyDown={onKey} aria-label={flipped ? 'Show question' : 'Reveal answer'} data-testid="flashcard"
-        className={cn('flex min-h-64 w-full flex-col items-center justify-center rounded-3xl border p-7 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:min-h-72',
+    main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle={meta}>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <span data-testid="card-counter" aria-live="polite" className="font-bold text-[#111034]">Card {index + 1} of {total}</span>
+        <span className="font-semibold text-zinc-500">{reviewed.size} reviewed</span>
+      </div>
+      <ProgressBar value={reviewed.size} max={total} label="Cards reviewed" className="mt-3" />
+      <button type="button" onClick={flip} onKeyDown={onKey} aria-label={flipped ? 'Show question' : 'Reveal answer'} aria-keyshortcuts="ArrowLeft ArrowRight" data-testid="flashcard"
+        className={cn('mt-6 flex min-h-64 w-full flex-col items-center justify-center rounded-3xl border p-7 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:min-h-72',
           flipped ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-indigo-50' : 'border-zinc-200 bg-white hover:border-violet-200 hover:bg-violet-50/30')}>
         <span className={cn('mb-4 rounded-full px-3 py-1 text-xs! font-bold! uppercase tracking-wider', flipped ? 'bg-violet-600 text-white' : 'bg-zinc-100 text-zinc-600')}>{flipped ? 'Answer' : 'Question'}</span>
         <span className="break-words text-xl! font-bold! leading-snug text-[#111034] sm:text-2xl!">{flipped ? card.back : card.front}</span>
@@ -61,22 +66,12 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
       </div>
       {error && <div className="mt-4"><ErrorBox message={error} /></div>}
     </ToolPanel>}
-    side={<>
-      <SideCard title="Progress" right={<span className="text-sm font-semibold text-zinc-500">{reviewed.size} / {total} reviewed</span>}>
-        <ProgressBar value={reviewed.size} max={total} label="Cards reviewed" />
-        <p className="mt-2 text-right text-sm font-semibold text-zinc-600">{Math.round((reviewed.size / total) * 100)}%</p>
-      </SideCard>
-      <SideCard title="Cards">
-        <NumberGrid label="Jump to a card" noun="Card" states={states} onSelect={goTo} />
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500"><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-emerald-400" />Reviewed</span><span className="inline-flex items-center gap-1"><i className="size-2.5 rounded-full bg-violet-500" />Current</span></p>
-      </SideCard>
-      <SideCard title="Deck settings" icon={<Layers className="size-4" />}>
-        <ul className="mb-4">
-          <SettingRow icon={<Layers className="size-4" />}>{total} {total === 1 ? 'card' : 'cards'}</SettingRow>
-          <SettingRow icon={<Target className="size-4" />}>Topic: {usedTopic || 'All material'}</SettingRow>
-        </ul>
+    side={<SideCard title="Cards">
+      <NumberGrid label="Jump to a card" noun="Card" states={states} onSelect={goTo} />
+      <GridLegend items={[{ label: 'Reviewed', dot: 'bg-emerald-400' }, { label: 'Current', dot: 'bg-violet-500' }]} />
+      <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
         <TopicField id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
-        <button type="button" className={cn(btnOutline, 'mt-3 w-full')} onClick={generate} disabled={loading}>{loading ? 'Generating…' : 'Generate a new set'}</button>
-      </SideCard>
-    </>} />;
+        <button type="button" className={cn(btnOutline, 'w-full')} onClick={generate} disabled={loading}>{loading ? 'Generating…' : 'Generate a new set'}</button>
+      </div>
+    </SideCard>} />;
 }

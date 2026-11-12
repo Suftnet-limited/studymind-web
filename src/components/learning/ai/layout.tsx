@@ -40,7 +40,7 @@ export function SideCard({ title, icon, right, children }: { title: string; icon
 
 /** Main content plus a right-hand column on wide screens; the column stacks below on small screens. */
 export function ToolLayout({ main, side }: { main: ReactNode; side: ReactNode }) {
-  return <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]"><div className="min-w-0">{main}</div><aside className="min-w-0 space-y-5">{side}</aside></div>;
+  return <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]"><div className="min-w-0">{main}</div><aside className="min-w-0 space-y-5 lg:sticky lg:top-6 lg:h-fit">{side}</aside></div>;
 }
 
 export function ProgressBar({ value, max, label, className }: { value: number; max: number; label: string; className?: string }) {
@@ -72,7 +72,7 @@ export function NumberGrid({ label, states, onSelect, noun }: { label: string; s
   </ul>;
 }
 
-/** A label/value row used in the settings card. */
-export function SettingRow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return <li className="flex items-center gap-3 border-t border-zinc-100 py-3 text-sm text-zinc-700 first:border-t-0 first:pt-0 last:pb-0"><span className="text-zinc-400" aria-hidden>{icon}</span><span className="min-w-0 break-words">{children}</span></li>;
+/** Colour legend shown under a NumberGrid. */
+export function GridLegend({ items }: { items: { label: string; dot: string }[] }) {
+  return <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">{items.map(i => <span key={i.label} className="inline-flex items-center gap-1.5"><i className={cn('size-2.5 rounded-full', i.dot)} />{i.label}</span>)}</p>;
 }
