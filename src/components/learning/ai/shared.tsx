@@ -30,7 +30,7 @@ export function TopicPicker({ id, value, onChange, disabled, outline, label = 'F
   const known = (v: string) => weeks.some(o => o.value === v) || documents.some(o => o.value === v);
   const selected = custom || (value !== '' && !known(value)) ? CUSTOM : value;
   if (weeks.length === 0 && documents.length === 0) return <TopicField id={id} value={value} onChange={onChange} disabled={disabled} label={label} />;
-  const select = 'h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-900 outline-none focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:opacity-60';
+  const select = 'h-11 w-full rounded-xl border border-zinc-200 bg-white px-3 text-base text-zinc-900 outline-none focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100 disabled:opacity-60';
   return <div className="space-y-2">
     <label htmlFor={id} className="block text-sm font-semibold text-zinc-700">{label}</label>
     <select id={id} value={selected} disabled={disabled} className={select}
