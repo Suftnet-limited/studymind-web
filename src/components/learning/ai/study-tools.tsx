@@ -26,7 +26,7 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName }: { mo
   return <section aria-labelledby="study-tools-title" className="space-y-5">
     <h2 id="study-tools-title" className="sr-only">Study tools</h2>
     {/* font sizes use `!` because the global unlayered `button{font:inherit}` rule otherwise beats every Tailwind font utility */}
-    <div role="tablist" aria-label="Module sections" className="flex gap-0.5 overflow-x-auto border-b border-zinc-200 sm:gap-1.5">
+    <div role="tablist" aria-label="Module sections" className="flex gap-0.5 overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
       {TABS.map((t, i) => <button key={t.id} id={`ai-tab-${t.id}`} role="tab" type="button" aria-selected={tab === t.id} aria-controls={`ai-panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
         onClick={() => setPicked(t.id)} onKeyDown={e => move(e, i)}
         className={cn('relative -mb-px flex-auto whitespace-nowrap rounded-t-xl px-[3px] min-[360px]:px-1 py-2.5 text-center font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 text-[length:11px]! min-[360px]:text-[length:12px]! min-[390px]:text-[length:13px]! sm:flex-none sm:px-5 sm:text-[15px]!',
