@@ -6,7 +6,7 @@ import type { Citation, Complexity } from '@/lib/learning-ai.mjs';
 import { Button } from '@/components/ui/button';
 import { MarkdownRenderer } from './markdown';
 import { errorText } from './shared';
-import { ToolPanel } from './layout';
+import { ToolPanel, btnPrimary } from './layout';
 import { cn } from '@/lib/utils';
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; scope?: string; isError?: boolean };
@@ -73,11 +73,11 @@ export function TutorTab({ moduleId, hasMaterials, onOpenDocuments }: { moduleId
       {sending && <div role="status" className="max-w-[60%] rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-500">Thinking…</div>}
     </div>
 
-    <form className="flex items-end gap-2" onSubmit={e => { e.preventDefault(); void send(); }}>
+    <form className="flex items-stretch gap-3" onSubmit={e => { e.preventDefault(); void send(); }}>
       <textarea aria-label="Ask a question" rows={2} maxLength={2000} value={input} onChange={e => setInput(e.target.value)} placeholder="Ask a question…"
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
-        className="min-h-11 flex-1 resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-violet-500" />
-      <Button type="submit" aria-label="Send question" disabled={sending || !input.trim()}><Send className="size-4" aria-hidden /> Send</Button>
+        className="min-h-14 flex-1 resize-none rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-zinc-400 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100" />
+      <button type="submit" aria-label="Send question" disabled={sending || !input.trim()} className={cn(btnPrimary, 'h-auto self-stretch px-6')}><Send className="size-4" aria-hidden /> Send</button>
     </form>
   </div>
   </ToolPanel>;
