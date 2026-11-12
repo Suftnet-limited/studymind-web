@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { isWideRoute } from '@/lib/wide-route';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CreditCard, GraduationCap, Home, Layers, LayoutGrid, LogOut, Sparkles, User } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
@@ -129,7 +130,7 @@ export function SiteHeader({ legacyUser, initialSignedIn }: { legacyUser: Legacy
     </nav>;
   }
   return <header className="border-b border-zinc-200/70 bg-white">
-    <div className="mx-auto flex h-[72px] max-w-6xl items-center gap-2 px-5 sm:gap-3">
+    <div className={cn('mx-auto flex h-[72px] items-center gap-2 px-5 sm:gap-3', isWideRoute(pathname) ? 'max-w-[88rem]' : 'max-w-6xl')}>
       <Logo />
       {(legacyUser || signedIn) && <span aria-hidden className="mx-1 hidden h-8 w-px bg-zinc-200 sm:block" />}
       {body}

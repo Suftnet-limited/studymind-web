@@ -100,7 +100,7 @@ export default function CanonicalModulePage() {
       </form>
     </SideCard>} />;
 
-  return <div className="mx-auto max-w-6xl space-y-6 px-5 py-8 sm:py-10">
+  return <div className="mx-auto max-w-[88rem] space-y-6 px-5 py-8 sm:py-10">
     <Link href="/my-learning" className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:underline"><span aria-hidden>←</span> Back to learning workspace</Link>
 
     {moduleQuery.isLoading && <LoadingBlock label="Loading module…" />}

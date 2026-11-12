@@ -40,10 +40,14 @@ export function SideCard({ title, icon, right, children }: { title: string; icon
 
 /**
  * The tool's content. With a `rail` (the Recent list) it uses the Chat layout: the rail on the left and the panel on the right, with
- * any side card stacked under the panel. Without a rail, the side card sits in a right-hand column on wide screens.
+ * any side card on the right (three columns on wide screens) or stacked under the panel on narrower ones. Without a rail, the side card sits in a right-hand column on wide screens.
  */
 export function ToolLayout({ main, side, rail }: { main: ReactNode; side?: ReactNode; rail?: ReactNode }) {
-  if (rail) return <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">{rail}<div className="min-w-0 space-y-5">{main}{side}</div></div>;
+  if (rail) return <div className={cn('grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]', side && 'xl:grid-cols-[320px_minmax(0,1fr)_320px]')}>
+    <div className="min-w-0 lg:row-span-2 xl:row-span-1">{rail}</div>
+    <div className="min-w-0 lg:col-start-2">{main}</div>
+    {side && <aside className="min-w-0 space-y-5 lg:col-start-2 xl:col-start-3 xl:row-start-1 xl:sticky xl:top-6 xl:h-fit">{side}</aside>}
+  </div>;
   if (!side) return <div className="min-w-0">{main}</div>;
   return <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]"><div className="min-w-0">{main}</div><aside className="min-w-0 space-y-5 lg:sticky lg:top-6 lg:h-fit">{side}</aside></div>;
 }
@@ -66,7 +70,7 @@ const CELL: Record<CellState, string> = {
 /** Numbered square buttons (question or card navigator). The state is also exposed in the accessible name. */
 export function NumberGrid({ label, states, onSelect, noun }: { label: string; states: CellState[]; onSelect: (index: number) => void; noun: string }) {
   const word: Record<CellState, string> = { idle: '', current: ', current', done: ', done', correct: ', correct', wrong: ', incorrect' };
-  return <ul aria-label={label} className="grid grid-cols-5 gap-2 sm:grid-cols-10">
+  return <ul aria-label={label} className="grid grid-cols-5 gap-2 sm:grid-cols-10 xl:grid-cols-5">
     {states.map((state, i) => <li key={i}>
       <button type="button" onClick={() => onSelect(i)} aria-current={state === 'current' ? 'true' : undefined} aria-label={`${noun} ${i + 1}${word[state]}`}
         className={cn('relative flex h-11 w-full items-center justify-center rounded-xl border text-sm! font-bold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500', CELL[state])}>
