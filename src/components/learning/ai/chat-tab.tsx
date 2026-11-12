@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, Copy, FileText, Layers, ListChecks, MessageCircle, MoreVertical, Paperclip, Plus, Send, Sparkles, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, FileText, MessageCircle, MoreVertical, Paperclip, Plus, Send, Sparkles, Trash2 } from 'lucide-react';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { ChatSessionSummary, Citation, Complexity, Scope } from '@/lib/learning-ai.mjs';
 import { initialsOf } from '@/lib/initials';
@@ -18,9 +18,6 @@ const SOURCES: { value: Scope; label: string; hint: string; button: string }[] =
   { value: 'personal_only', label: 'My notes only', hint: 'Only what you uploaded yourself', button: 'Using my notes only' },
 ];
 const LEVELS: { value: Complexity; label: string }[] = [{ value: 'simple', label: 'Simple' }, { value: 'normal', label: 'Normal' }, { value: 'expert', label: 'Expert' }];
-const CHIPS: { tool: OpenTool; label: string; icon: typeof FileText }[] = [
-  { tool: 'summary', label: 'Give a simple summary', icon: FileText }, { tool: 'flashcards', label: 'Create flashcards', icon: Layers }, { tool: 'quiz', label: 'Turn this into a quiz', icon: ListChecks },
-];
 let nextId = 0;
 
 const nowIso = () => new Date().toISOString();
@@ -35,7 +32,7 @@ function CopyAnswer({ text }: { text: string }) {
 }
 
 /** "Using module materials" selector: which sources the answer may use, and how simple or expert it should be. */
-function SourcesMenu({ scope, setScope, complexity, setComplexity, disabled }: { scope: Scope; setScope: (s: Scope) => void; complexity: Complexity; setComplexity: (c: Complexity) => void; disabled: boolean }) {
+function SourcesMenu({ scope, setScope, disabled }: { scope: Scope; setScope: (s: Scope) => void; disabled: boolean }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -53,17 +50,11 @@ function SourcesMenu({ scope, setScope, complexity, setComplexity, disabled }: {
       className="inline-flex h-11 items-center gap-2.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm! font-semibold! text-zinc-700 shadow-sm transition hover:border-violet-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-60">
       <FileText className="size-5 text-violet-600" aria-hidden />{current.button}<ChevronDown className={cn('size-4 text-zinc-500 transition-transform', open && 'rotate-180')} aria-hidden />
     </button>
-    {open && <div role="menu" aria-label="Answer sources and level" className="absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_18px_50px_rgba(76,29,149,0.12)]">
+    {open && <div role="menu" aria-label="Answer sources" className="absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_18px_50px_rgba(76,29,149,0.12)]">
       <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-zinc-500">Sources</p>
       {SOURCES.map(o => <button key={o.value} type="button" role="menuitemradio" aria-checked={scope === o.value} onClick={() => setScope(o.value)} className={row(scope === o.value)}>
         <Check className={cn('mt-0.5 size-4 shrink-0', scope === o.value ? 'text-violet-600' : 'text-transparent')} aria-hidden />
         <span><span className="block text-sm font-semibold text-[#111034]">{o.label}</span><span className="block text-xs text-zinc-500">{o.hint}</span></span>
-      </button>)}
-      <div className="my-2 h-px bg-zinc-100" />
-      <p className="px-3 pb-1 text-xs font-bold uppercase tracking-wide text-zinc-500">Answer level</p>
-      {LEVELS.map(l => <button key={l.value} type="button" role="menuitemradio" aria-checked={complexity === l.value} onClick={() => setComplexity(l.value)} className={row(complexity === l.value)}>
-        <Check className={cn('mt-0.5 size-4 shrink-0', complexity === l.value ? 'text-violet-600' : 'text-transparent')} aria-hidden />
-        <span className="text-sm font-semibold text-[#111034]">{l.label}</span>
       </button>)}
     </div>}
   </div>;
@@ -136,7 +127,6 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
   }
 
   const last = messages[messages.length - 1];
-  const showChips = !sending && last?.role === 'assistant' && !last.isError;
   const shown = chats ? (showAll ? chats : chats.slice(0, 5)) : [];
   const initials = initialsOf(userName);
 
@@ -182,7 +172,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
     </aside>
 
     <section aria-label="Conversation panel" className="flex min-w-0 flex-col gap-4 rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.05)] sm:p-6">
-      <div className="flex justify-end"><SourcesMenu scope={scope} setScope={setScope} complexity={complexity} setComplexity={setComplexity} disabled={sending} /></div>
+      <div className="flex justify-end"><SourcesMenu scope={scope} setScope={setScope} disabled={sending} /></div>
 
       <div ref={listRef} role="log" aria-live="polite" aria-label="Conversation" className="max-h-[32rem] min-h-72 space-y-5 overflow-y-auto pr-1">
         {messages.length === 0 && <div className="flex min-h-64 flex-col items-center justify-center text-center text-sm text-zinc-500">
@@ -223,11 +213,13 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
           <div role="status" className="rounded-2xl rounded-tl-md bg-zinc-100/80 px-5 py-3 text-sm text-zinc-500">Thinking…</div></div>}
       </div>
 
-      {showChips && <div className="flex flex-wrap justify-center gap-3">
-        {CHIPS.map(c => <button key={c.tool} type="button" onClick={() => onOpenTool(c.tool)}
-          className="inline-flex items-center gap-2.5 rounded-2xl border border-violet-200 bg-white px-5 py-3 text-sm! font-semibold! text-violet-700 transition hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
-          <c.icon className="size-[18px]" aria-hidden />{c.label}</button>)}
-      </div>}
+      <div role="radiogroup" aria-label="Answer level" className="flex flex-wrap items-center justify-center gap-3">
+        <span aria-hidden className="text-sm font-semibold text-zinc-500">Answer level</span>
+        {LEVELS.map(l => <button key={l.value} type="button" role="radio" aria-checked={complexity === l.value} disabled={sending} onClick={() => setComplexity(l.value)}
+          className={cn('inline-flex h-11 min-w-28 items-center justify-center gap-2 rounded-2xl border px-5 text-sm! font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-60',
+            complexity === l.value ? 'border-violet-600 bg-violet-600 text-white shadow-sm' : 'border-violet-200 bg-white text-violet-700 hover:bg-violet-50')}>
+          {complexity === l.value && <Check className="size-4" aria-hidden />}{l.label}</button>)}
+      </div>
 
       <form className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white p-2 pl-2.5 transition focus-within:border-violet-400 focus-within:ring-2 focus-within:ring-violet-100" onSubmit={e => { e.preventDefault(); void send(); }}>
         <button type="button" aria-label="Add study materials" title="Add study materials (opens Documents)" onClick={() => onOpenTool('documents')}

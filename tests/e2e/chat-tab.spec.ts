@@ -136,9 +136,12 @@ test('sources selector: "Using module materials" by default; the choice is sent 
   await trigger.click();
   await expect(page.getByRole('menuitemradio', { name: /All module materials/ })).toHaveAttribute('aria-checked', 'true');
   await page.getByRole('menuitemradio', { name: /My notes only/ }).click();
-  await page.getByRole('menuitemradio', { name: 'Expert' }).click();
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
+  await expect(page.getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true');   // the answer level is a separate control, default Normal
+  await page.getByRole('radio', { name: 'Expert' }).click();
+  await expect(page.getByRole('radio', { name: 'Expert' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('menuitemradio', { name: 'Expert' })).toHaveCount(0);                   // and no longer part of the Sources menu
   await expect(page.getByRole('button', { name: 'Using my notes only' })).toBeVisible();   // the button states what the next answer will use
   await page.getByLabel('Ask a question').fill('second question'); await page.keyboard.press('Enter');
   await expect(page.getByRole('log', { name: 'Conversation' }).getByText('second question')).toBeVisible();
@@ -150,22 +153,18 @@ test('sources selector: "Using module materials" by default; the choice is sent 
   expect((await ask(alice.ctx, modA.id, 'q', { include_archived: true })).status(), 'unknown fields are ignored, not forwarded').toBe(200);
 });
 
-test('answer actions: copy, suggestion chips open the matching tool, and the paperclip opens Documents', async ({ page, baseURL, context }) => {
+test('answer actions: copy, the answer level replaces the old shortcut chips, and the paperclip opens Documents', async ({ page, baseURL, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   const { modA, alice } = await world(baseURL!);
   await open(page, alice.email, modA.id);
-  await expect(page.getByRole('button', { name: 'Give a simple summary' })).toHaveCount(0);   // chips only after an answer
+  await expect(page.getByRole('radiogroup', { name: 'Answer level' }).getByRole('radio')).toHaveCount(3);   // Simple, Normal, Expert are always there
   await page.getByLabel('Ask a question').fill('Explain Newton force'); await page.keyboard.press('Enter');
   const log = page.getByRole('log', { name: 'Conversation' });
   await expect(log.getByTestId('citation')).toHaveCount(1);
   await page.getByRole('button', { name: 'Copy answer' }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Newton's");
   await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
-  for (const [chip, name] of [['Give a simple summary', 'Summary'], ['Create flashcards', 'Flashcards'], ['Turn this into a quiz', 'Quiz']] as const) {
-    await tab(page, 'Chat').click();
-    await page.getByRole('button', { name: chip }).click();
-    await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
-  }
+  for (const chip of ['Give a simple summary', 'Create flashcards', 'Turn this into a quiz']) await expect(page.getByRole('button', { name: chip })).toHaveCount(0);   // the shortcut chips are gone
   await tab(page, 'Chat').click();
   await page.getByRole('button', { name: 'Add study materials' }).click();
   await expect(tab(page, 'Documents')).toHaveAttribute('aria-selected', 'true');

@@ -27,10 +27,8 @@ test('Chat: empty state, loading, markdown answer with citations, follow-up and 
   await expect(page.getByText(/No indexed study material yet/)).toBeVisible();   // honest empty-materials hint
   await shot(page, info, '20-tutor-empty');
 
-  await page.getByRole('button', { name: 'Using module materials' }).click();                  // the sources / answer-level selector
-  await page.getByRole('menuitemradio', { name: 'Simple' }).click();
-  await expect(page.getByRole('menuitemradio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true');
-  await page.keyboard.press('Escape');
+  await page.getByRole('radio', { name: 'Simple' }).click();                                   // the answer level sits above the input
+  await expect(page.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true');
   await page.getByLabel('Ask a question').fill("Explain Newton's second law trigger_slow");
   await page.getByRole('button', { name: 'Send question' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Thinking…' })).toBeVisible();   // loading state
