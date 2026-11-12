@@ -5,16 +5,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, CreditCard, GraduationCap, Home, Layers, LayoutGrid, LogOut, Sparkles, User } from 'lucide-react';
 import { BrandMark } from '@/components/brand-mark';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
+import { initialsOf } from '@/lib/initials';
 import { cn } from '@/lib/utils';
 
 type LegacyUser = { name: string; role: string } | null;
 type NavItem = { href: string; label: string; icon: ReactNode; active: boolean };
-
-const initialsOf = (name: string) => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return '';
-  return ((parts[0][0] ?? '') + (parts.length > 1 ? parts[parts.length - 1][0] ?? '' : parts[0][1] ?? '')).toUpperCase();
-};
 
 function Logo() {
   return <Link href="/" className="flex shrink-0 items-center rounded-lg text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2">

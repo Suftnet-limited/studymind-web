@@ -11,7 +11,7 @@ const MODULE = '123e4567-e89b-12d3-a456-426614174000';
 const QID = '223e4567-e89b-12d3-a456-426614174001';
 
 test('chat input: trims, requires a question, bounds length, validates session and complexity', () => {
-  assert.deepEqual(parseChatInput({ message: '  What is F = m a?  ' }), { ok: true, value: { message: 'What is F = m a?', session_id: undefined, complexity: 'normal' } });
+  assert.deepEqual(parseChatInput({ message: '  What is F = m a?  ' }), { ok: true, value: { message: 'What is F = m a?', session_id: undefined, complexity: 'normal', scope_mode: 'everything' } });
   assert.equal(parseChatInput({ message: 'hi', complexity: 'expert', session_id: MODULE }).ok, true);
   for (const bad of [null, [], 'x', {}, { message: '   ' }, { message: 5 }, { message: 'x'.repeat(LIMITS.message + 1) }, { message: 'ok', complexity: 'genius' }, { message: 'ok', session_id: 'nope' }, { message: 'ok', session_id: 7 }])
     assert.equal(parseChatInput(bad).ok, false, JSON.stringify(bad)?.slice(0, 60));
@@ -35,8 +35,11 @@ test('AI requests are built from the URL module id; browser-supplied identity or
   const evil = { message: 'hi', complexity: 'normal', module_id: 'OTHER', user_id: 'victim', role: 'admin', scope_mode: 'class_only' };
   const parsed = parseChatInput(evil); assert.equal(parsed.ok, true);
   const req = toChatRequest(MODULE, parsed.value);
-  assert.deepEqual(req, { module_id: MODULE, message: 'hi', complexity: 'normal', scope_mode: 'everything' });
+  // The source selection is a whitelisted choice (only the default, class-only or own-notes-only: it can narrow, never widen; the AI
+  // backend still authorises every request). Identity, role and module fields from the browser are never forwarded.
+  assert.deepEqual(req, { module_id: MODULE, message: 'hi', complexity: 'normal', scope_mode: 'class_only' });
   assert.ok(!('user_id' in req) && !('role' in req));
+  assert.equal(parseChatInput({ ...evil, scope_mode: 'all_semesters' }).ok, false, 'scopes outside the public three are refused');
   assert.deepEqual(toQuizRequest(MODULE, { question_count: 5, topic: 'Cells' }), { module_id: MODULE, question_count: 5, question_type: 'mcq', topic: 'Cells' });
   assert.deepEqual(toQuizRequest(MODULE, { question_count: 5 }), { module_id: MODULE, question_count: 5, question_type: 'mcq' });
   assert.deepEqual(toFlashcardRequest(MODULE, { max_cards: 10 }), { module_id: MODULE, max_cards: 10 });

@@ -3,6 +3,8 @@
 // Forwards everything (auth, modules, documents, entitlements) to the real local StudyMind AI backend and answers
 // only the four AI generation endpoints with deterministic, clearly-marked fixtures:
 //   POST /api/chat · /api/quiz/generate · /api/quiz/{id}/submit · /api/flashcards/generate · /api/summarise
+// and keeps chat history in memory like the real backend does: GET /api/sessions?module_id= · GET/DELETE /api/sessions/{id}
+// (only the caller's own sessions; another user's id is a 404; the detail response does NOT include module_id, as in the real API).
 // Fixture responses carry `X-AI-Fixture: controlled`. Request validation mirrors the AI backend's pydantic schemas.
 // Like the real backend it does NOT check module membership on these endpoints, so tests prove that Web's own
 // guard is what keeps AI output scoped to modules the caller can open.
@@ -19,6 +21,7 @@ for (const u of [UPSTREAM]) if (!['127.0.0.1', 'localhost'].includes(new URL(u).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const calls = [];
 const attempts = new Map();   // attempt id -> { owner, questions }
+const sessions = new Map();   // session id -> { id, user_id, module_id, title, created_at, updated_at, messages[] }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readBody = (req) => new Promise((resolve) => { const parts = []; req.on('data', (c) => parts.push(c)); req.on('end', () => resolve(Buffer.concat(parts))); });
 const send = (res, status, body, extra = {}) => { res.writeHead(status, { 'Content-Type': 'application/json', 'X-AI-Fixture': 'controlled', ...extra }); res.end(JSON.stringify(body)); };
@@ -82,7 +85,15 @@ async function fixture(req, res, path, body) {
     if (m.includes('trigger_429')) return send(res, 429, { detail: 'AI usage allowance exhausted' });
     if (m.includes('trigger_slow')) await sleep(1500);
     const a = chatAnswer(data.message);
-    return send(res, 200, { message_id: randomUUID(), session_id: data.session_id || randomUUID(), answer: a.answer, sources: a.sources, latency_ms: 12, token_count: 99,
+    let sess = data.session_id ? sessions.get(data.session_id) : null;
+    if (sess && sess.user_id !== me.id) return send(res, 404, { detail: 'Session not found' });          // like the backend: someone else's chat id is a 404
+    const now = new Date().toISOString();
+    if (!sess) { sess = { id: data.session_id || randomUUID(), user_id: me.id, module_id: data.module_id ?? null, title: data.message.length > 60 ? `${data.message.slice(0, 60)}…` : data.message, created_at: now, updated_at: now, messages: [] }; sessions.set(sess.id, sess); }
+    const botId = randomUUID();
+    sess.messages.push({ id: randomUUID(), role: 'user', content: data.message, created_at: now, sources: null, latency_ms: null });
+    sess.messages.push({ id: botId, role: 'assistant', content: a.answer, created_at: new Date().toISOString(), sources: a.sources, latency_ms: 12 });
+    sess.updated_at = new Date().toISOString();
+    return send(res, 200, { message_id: botId, session_id: sess.id, answer: a.answer, sources: a.sources, latency_ms: 12, token_count: 99,
       scope: { description: `Module ${String(data.module_id).slice(0, 8)} · ${data.scope_mode ?? 'everything'}`, module_id: data.module_id, scope_mode: data.scope_mode ?? 'everything', document_count: a.sources.length },
       no_content_found: !!a.no_content_found, suggestions: a.suggestions ?? [] });
   }
@@ -122,6 +133,24 @@ async function fixture(req, res, path, body) {
   return send(res, 404, { detail: 'not a fixture route' });
 }
 
+async function sessionsApi(req, res, path, url) {
+  const me = await identity(req.headers.authorization || '');
+  if (!me) return send(res, 401, { detail: 'Could not validate credentials' });
+  const m = path.match(/^\/api\/sessions(?:\/([0-9a-f-]{36}))?$/i);
+  const row = (x) => ({ id: x.id, title: x.title, module_id: x.module_id, created_at: x.created_at, updated_at: x.updated_at, is_active: true, message_count: x.messages.length });
+  if (!m[1]) {
+    if (req.method !== 'GET') return send(res, 405, { detail: 'Method Not Allowed' });
+    const moduleId = url.searchParams.get('module_id');
+    const mine = [...sessions.values()].filter((x) => x.user_id === me.id && (!moduleId || x.module_id === moduleId)).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 50);
+    return send(res, 200, mine.map(row));
+  }
+  const sess = sessions.get(m[1]);
+  if (!sess || sess.user_id !== me.id) return send(res, 404, { detail: 'Session not found' });
+  if (req.method === 'GET') { const { module_id, ...rest } = row(sess); return send(res, 200, { ...rest, messages: sess.messages }); }
+  if (req.method === 'DELETE') { sessions.delete(sess.id); res.writeHead(204, { 'X-AI-Fixture': 'controlled' }); return res.end(); }
+  return send(res, 405, { detail: 'Method Not Allowed' });
+}
+
 const FIXTURE = /^\/api\/(chat|quiz\/generate|quiz\/[0-9a-f-]{36}\/submit|flashcards\/generate|summarise)$/i;
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const path = url.pathname;
@@ -129,6 +158,7 @@ http.createServer(async (req, res) => {
     if (path === '/__calls') { if (req.method === 'DELETE') { calls.length = 0; return send(res, 200, { cleared: true }); } return send(res, 200, calls); }
     const body = await readBody(req);
     if (req.method === 'POST' && FIXTURE.test(path)) return await fixture(req, res, path, body);
+    if (/^\/api\/sessions(\/[0-9a-f-]{36})?$/i.test(path) && ['GET', 'DELETE'].includes(req.method)) return await sessionsApi(req, res, path, url);
     // Everything else goes to the real backend unchanged.
     const headers = { ...req.headers }; delete headers.host; delete headers['content-length']; delete headers.connection;
     const up = await fetch(UPSTREAM + req.url, { method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body, redirect: 'manual' });

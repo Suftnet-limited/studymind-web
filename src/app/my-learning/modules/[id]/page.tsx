@@ -139,7 +139,7 @@ export default function CanonicalModulePage() {
         <p className="w-full text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
       </div>}
 
-      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} />
+      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} />
     </>}
   </div>;
 }

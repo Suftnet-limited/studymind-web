@@ -1,5 +1,5 @@
 import { ApiError } from '@/services/studymind-modules.service';
-import type { ChatResult, Complexity, FlashcardDeck, QuizGenerated, QuizResult, SummaryResult } from '@/lib/learning-ai.mjs';
+import type { ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
 
 async function data<T>(response: Response, fallback: string): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -13,8 +13,16 @@ const post = (moduleId: string, path: string, body: unknown) =>
 
 /** Browser client for the AI study tools. Identity and module access are decided server-side from the session cookie. */
 export const studyMindAiService = {
-  chat: async (moduleId: string, input: { message: string; session_id?: string | null; complexity: Complexity }) =>
+  chat: async (moduleId: string, input: { message: string; session_id?: string | null; complexity: Complexity; scope_mode?: Scope }) =>
     data<ChatResult>(await post(moduleId, 'chat', { ...input, session_id: input.session_id ?? undefined }), 'The AI Tutor could not answer'),
+  listChats: async (moduleId: string) =>
+    data<ChatSessionSummary[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to load your chats'),
+  openChat: async (moduleId: string, sessionId: string) =>
+    data<ChatSessionDetail>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions/${encodeURIComponent(sessionId)}`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to open this chat'),
+  deleteChat: async (moduleId: string, sessionId: string) => {
+    const response = await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', credentials: 'same-origin' });
+    if (!response.ok) { const body = await response.json().catch(() => ({})); throw new ApiError(typeof body.error === 'string' ? body.error : 'Unable to delete this chat', response.status); }
+  },
   generateQuiz: async (moduleId: string, input: { topic?: string; question_count?: number }) =>
     data<QuizGenerated>(await post(moduleId, 'quiz', input), 'Unable to generate a quiz'),
   submitQuiz: async (moduleId: string, attemptId: string, answers: { question_id: string; answer: string }[]) =>

@@ -856,7 +856,7 @@ if (fixtureMode) {
     eq(r.status, 200, JSON.stringify(r.body)); expect(/F = m a/.test(r.body.answer), 'answer'); eq(r.body.sources.length, 1, 'citations are de-duplicated by document'); eq(r.body.sources[0].filename, 'physics-notes.pdf'); expect(r.body.session_id, 'session');
     const forwarded = (await calls()).find((c) => c.path === '/api/chat');
     eq(forwarded.body.module_id, AM, 'module id must come from the URL, not the browser'); eq(forwarded.user_id, aId.st, 'identity comes from the signed-in session'); eq(forwarded.has_bearer, true);
-    expect(!('user_id' in forwarded.body) && !('role' in forwarded.body), 'browser-supplied identity fields must not be forwarded'); eq(forwarded.body.scope_mode, 'everything', 'browser cannot widen or narrow retrieval scope'); eq(forwarded.body.complexity, 'simple');
+    expect(!('user_id' in forwarded.body) && !('role' in forwarded.body), 'browser-supplied identity fields must not be forwarded'); eq(forwarded.body.scope_mode, 'class_only', 'only the whitelisted scope choice is forwarded'); eq(forwarded.body.complexity, 'simple');
     const next = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'And for 5 kg at 3 m/s^2?', session_id: r.body.session_id });
     eq(next.status, 200); eq(next.body.session_id, r.body.session_id, 'same conversation');
     noLeak('chat response', r.body);
@@ -914,7 +914,7 @@ if (fixtureMode) {
   const upP = await A.sl.upload(AP, 'private.txt', Buffer.from(`Private notes. Marker ${OTHER}. Newton force.`), 'personal', 'text/plain'); eq(upP.status, 201);
   await check('Web -> real backend: an enrolled student gets a grounded answer with a citation and nothing from other modules (provider stand-in)', async () => {
     await resetHits();
-    const r = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'Explain Newton force and the marker', module_id: AP, week_id: AM, document_id: AM, user_id: 'victim', scope_mode: 'personal_only' });
+    const r = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'Explain Newton force and the marker', module_id: AP, week_id: AM, document_id: AM, user_id: 'victim', scope_mode: 'class_only' });
     eq(r.status, 200, JSON.stringify(r.body)); expect(r.body.answer.includes(ORG), 'class material should ground the answer'); expect(r.body.sources.some((s) => s.filename === 'class-notes.txt'), 'citation');
     const h = (await hits()).filter((x) => x.path === 'chat.completions'); expect(h.length >= 1, 'provider should be called once authorised');
     expect(!h.some((x) => x.text.includes(OTHER)) && !r.body.answer.includes(OTHER), "another module's material must not reach the provider or the user, even with spoofed ids in the request");
@@ -934,6 +934,33 @@ if (fixtureMode) {
   await check("Web -> real backend: another user's chat session id cannot be reused", async () => {
     const mine = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'hello' }); eq(mine.status, 200);
     const stolen = await A.st2.json(aiPath(AM, 'chat'), 'POST', { message: 'hello', session_id: mine.body.session_id }); eq(stolen.status, 404, 'session ownership is enforced by the AI');
+  });
+  await check('Web -> real backend: chat history is private to its owner and to its module, and a chat can be deleted', async () => {
+    const chat = await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'history probe question' }); eq(chat.status, 200); const sid = chat.body.session_id;
+    const base = `/api/studymind/modules/${AM}/ai/sessions`;
+    const list = await A.st.req(base); eq(list.status, 200);
+    const mineRow = list.body.find((x) => x.id === sid); expect(mineRow, 'the new chat is listed'); eq(mineRow.title, 'history probe question');
+    eq(Object.keys(mineRow).sort().join(','), 'id,message_count,title,updated_at', 'no user or module identifiers in the list');
+    const detail = await A.st.req(`${base}/${sid}`); eq(detail.status, 200);
+    eq(detail.body.messages.map((m) => m.role).join(','), 'user,assistant'); eq(detail.body.messages[0].content, 'history probe question');
+    expect(!('user_id' in detail.body) && !('module_id' in detail.body), 'no internal identifiers in the detail');
+    // another user, even in the same module, sees nothing of it
+    eq((await A.st2.req(base)).body.some((x) => x.id === sid), false, "another student's list does not contain it");
+    eq((await A.st2.req(`${base}/${sid}`)).status, 404, 'cannot read it'); eq((await A.st2.req(`${base}/${sid}`, { method: 'DELETE' })).status, 404, 'cannot delete it');
+    // a different module (one the owner is not a member of): refused, so the chat cannot be reached through it
+    eq((await A.st.req(`/api/studymind/modules/${AP}/ai/sessions/${sid}`)).status, 403, 'a chat cannot be read through another module');
+    eq((await A.st.req(`/api/studymind/modules/${AP}/ai/sessions/${sid}`, { method: 'DELETE' })).status, 403, '...or deleted through another');
+    // not a member / not signed in: refused before any history is touched
+    for (const [who, expected] of [[A.out, 403], [new Client(), 401]]) { eq((await who.req(base)).status, expected); eq((await who.req(`${base}/${sid}`)).status, expected); eq((await who.req(`${base}/${sid}`, { method: 'DELETE' })).status, expected); }
+    eq((await A.st.req(`${base}/${sid}`, { method: 'DELETE', headers: { Origin: 'https://evil.example.com' } })).status, 403, 'cross-site delete refused');
+    eq((await A.st.req(`${base}/${sid}`)).status, 200, '...and the chat survived');
+    eq((await A.st.req(`${base}/${sid}`, { method: 'DELETE' })).status, 204); eq((await A.st.req(`${base}/${sid}`)).status, 404, 'a deleted chat is gone');
+    eq((await A.st.req(base)).body.some((x) => x.id === sid), false);
+  });
+  await check('Web -> real backend: the sources selection reaches the AI backend and only the public scopes are accepted', async () => {
+    await resetHits();
+    for (const scope of ['class_only', 'personal_only', 'everything']) eq((await A.st.json(aiPath(AM, 'chat'), 'POST', { message: `scope ${scope}`, scope_mode: scope })).status, 200, scope);
+    for (const bad of ['all_semesters', 'everything ', 'x']) eq((await A.st.json(aiPath(AM, 'chat'), 'POST', { message: 'q', scope_mode: bad })).status, 400, bad);
   });
 } else {
   await check('authorised users get a generic, readable failure when the AI cannot run (no OpenAI key locally); nothing internal is exposed', async () => {

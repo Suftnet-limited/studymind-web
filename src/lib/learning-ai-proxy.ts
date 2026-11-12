@@ -1,8 +1,9 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { aiFailure } from '@/lib/learning-ai.mjs';
+import { aiFailure, mapSessionDetail, mapSessionList, sessionIds } from '@/lib/learning-ai.mjs';
 import { isUuid } from '@/lib/studymind-validation.mjs';
+import { isCrossSite } from '@/lib/request-origin.mjs';
 
 /** AI generation is slow; this bounds a single proxied call (the identity default of 12s is too short). */
 export const AI_TIMEOUT_MS = 90_000;
@@ -78,4 +79,63 @@ export function aiRoute<I>(spec: RouteSpec<I>) {
       return fail(502, aiFailure(502, null).error);
     }
   };
+}
+
+
+// ── Chat history ──────────────────────────────────────────────────────────
+// The backend returns only the caller's OWN sessions, but its session-detail response does not say which module a chat belongs to.
+// So every history call here (1) requires access to the module in the URL, then (2) proves the session is one of the caller's
+// sessions FOR THAT MODULE by checking the module-filtered list, so a chat from module A can never be read while viewing module B.
+export type SessionContext = { params: Promise<{ id: string; sessionId?: string }> };
+
+async function ownSessionsForModule(moduleId: string): Promise<{ ok: true; raw: unknown } | { ok: false; response: NextResponse }> {
+  const denied = await requireModuleAccess(moduleId);
+  if (denied) return { ok: false, response: denied };
+  const res = await authenticatedAiFetch(`/api/sessions?module_id=${moduleId}`);
+  if (!res || res.status === 401) return { ok: false, response: fail(401, 'Authentication required') };
+  if (!res.ok) { const f = aiFailure(res.status, null); return { ok: false, response: fail(f.status, f.error) }; }
+  return { ok: true, raw: await res.json().catch(() => null) };
+}
+
+export async function sessionList(context: SessionContext) {
+  const { id } = await context.params;
+  if (!isUuid(id)) return fail(400, 'Invalid module ID');
+  try {
+    const own = await ownSessionsForModule(id);
+    if (!own.ok) return own.response;
+    return NextResponse.json(mapSessionList(own.raw), { headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+export async function sessionOpen(context: SessionContext) {
+  const { id, sessionId } = await context.params;
+  if (!isUuid(id)) return fail(400, 'Invalid module ID');
+  if (!sessionId || !isUuid(sessionId)) return fail(400, 'Invalid chat ID');
+  try {
+    const own = await ownSessionsForModule(id);
+    if (!own.ok) return own.response;
+    if (!sessionIds(own.raw).includes(sessionId.toLowerCase())) return fail(404, 'This chat could not be found.');
+    const res = await authenticatedAiFetch(`/api/sessions/${sessionId.toLowerCase()}`);
+    if (!res || res.status === 401) return fail(401, 'Authentication required');
+    if (!res.ok) { const f = aiFailure(res.status === 404 ? 404 : 500, null); return fail(f.status, res.status === 404 ? 'This chat could not be found.' : f.error); }
+    const detail = mapSessionDetail(await res.json().catch(() => null));
+    if (!detail) return fail(502, aiFailure(502, null).error);
+    return NextResponse.json(detail, { headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+export async function sessionDelete(request: Request, context: SessionContext) {
+  if (isCrossSite(request)) return fail(403, 'Cross-site requests are not allowed');
+  const { id, sessionId } = await context.params;
+  if (!isUuid(id)) return fail(400, 'Invalid module ID');
+  if (!sessionId || !isUuid(sessionId)) return fail(400, 'Invalid chat ID');
+  try {
+    const own = await ownSessionsForModule(id);
+    if (!own.ok) return own.response;
+    if (!sessionIds(own.raw).includes(sessionId.toLowerCase())) return fail(404, 'This chat could not be found.');
+    const res = await authenticatedAiFetch(`/api/sessions/${sessionId.toLowerCase()}`, { method: 'DELETE' });
+    if (!res || res.status === 401) return fail(401, 'Authentication required');
+    if (!res.ok && res.status !== 404) { const f = aiFailure(500, null); return fail(f.status, f.error); }
+    return new NextResponse(null, { status: 204, headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
 }

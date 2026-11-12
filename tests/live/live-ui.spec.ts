@@ -33,7 +33,7 @@ test('desktop: session persistence, module access, and the four AI tools with re
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
   await tab(page, 'Documents').click();                                              // materials live in the Documents tab
   await expect(page.getByText('biology-intro.docx').first()).toBeVisible();
-  await tab(page, 'AI Tutor').click();
+  await tab(page, 'Chat').click();
   await page.screenshot({ path: `${SHOTS}/live-01-module.png`, fullPage: true });
 
   // Tutor (generation 1): loading state, markdown, citation
@@ -102,7 +102,7 @@ test('mobile (Pixel 5): layouts of workspace, module and all four tools have no 
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
   await noHScroll(page);
   await page.screenshot({ path: `${SHOTS}/live-m2-module.png`, fullPage: true });
-  for (const name of ['Quiz', 'Flashcards', 'Summary', 'AI Tutor']) {
+  for (const name of ['Quiz', 'Flashcards', 'Summary', 'Chat']) {
     await tab(page, name).click();
     await noHScroll(page);
   }

@@ -20,15 +20,17 @@ async function enrolledStudent(baseURL: string, role: 'student' | 'self_learner'
 const tab = (page: Page, name: string) => page.getByRole('tab', { name });
 const LEAKS = /traceback|sk-fixture|incorrect api key|\.py"/i;
 
-test('AI Tutor: empty state, loading, markdown answer with citations, follow-up and new chat', async ({ page, baseURL }, info) => {
+test('Chat: empty state, loading, markdown answer with citations, follow-up and new chat', async ({ page, baseURL }, info) => {
   const { mod, learner } = await enrolledStudent(baseURL!);
   await openModule(page, learner.email, mod.id);
   await expect(page.getByText('Ask a question about this module.')).toBeVisible();
   await expect(page.getByText(/No indexed study material yet/)).toBeVisible();   // honest empty-materials hint
   await shot(page, info, '20-tutor-empty');
 
-  await page.getByRole('radio', { name: 'Simple' }).click();
-  await expect(page.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('button', { name: 'Using module materials' }).click();                  // the sources / answer-level selector
+  await page.getByRole('menuitemradio', { name: 'Simple' }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
   await page.getByLabel('Ask a question').fill("Explain Newton's second law trigger_slow");
   await page.getByRole('button', { name: 'Send question' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Thinking…' })).toBeVisible();   // loading state
@@ -55,7 +57,7 @@ test('AI Tutor: empty state, loading, markdown answer with citations, follow-up 
   await expect(log.getByTestId('citation')).toHaveCount(0);
 });
 
-test('AI Tutor: no-material answer and provider failure are handled; the conversation can continue', async ({ page, baseURL }, info) => {
+test('Chat: no-material answer and provider failure are handled; the conversation can continue', async ({ page, baseURL }, info) => {
   const { mod, learner } = await enrolledStudent(baseURL!, 'self_learner');
   await openModule(page, learner.email, mod.id);
   const ask = async (text: string) => { await page.getByLabel('Ask a question').fill(text); await page.getByRole('button', { name: 'Send question' }).click(); };
@@ -196,12 +198,12 @@ test('navigation: tabs are keyboard accessible and each tool keeps its state whe
   await page.getByLabel('Ask a question').fill('Explain Newton force');
   await page.getByRole('button', { name: 'Send question' }).click();
   await expect(page.getByTestId('citation')).toHaveCount(1);
-  await tab(page, 'AI Tutor').focus();
+  await tab(page, 'Chat').focus();
   await page.keyboard.press('ArrowRight');
   await expect(tab(page, 'Quiz')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tabpanel', { name: 'AI Tutor' })).toBeHidden();
+  await expect(page.getByRole('tabpanel', { name: 'Chat' })).toBeHidden();
   await page.keyboard.press('ArrowLeft');
-  await expect(tab(page, 'AI Tutor')).toHaveAttribute('aria-selected', 'true');
+  await expect(tab(page, 'Chat')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('citation')).toHaveCount(1);          // conversation survived the tab change
   await expect(page.getByRole('link', { name: /Back to learning workspace/ })).toBeVisible();
 });

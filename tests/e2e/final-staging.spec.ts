@@ -66,7 +66,7 @@ for (const width of [320, 360, 393]) {
     await openModule(page, learner.email, mod.id);
     const list = page.getByRole('tablist', { name: 'Module sections' });
     const lb = (await list.boundingBox())!;
-    for (const name of ['Documents', 'AI Tutor', 'Quiz', 'Flashcards', 'Summary']) {
+    for (const name of ['Documents', 'Chat', 'Quiz', 'Flashcards', 'Summary']) {
       const tb = (await page.getByRole('tab', { name }).boundingBox())!;
       expect(tb.x, `${name} left edge`).toBeGreaterThanOrEqual(lb.x - 1);
       expect(tb.x + tb.width, `${name} right edge`).toBeLessThanOrEqual(lb.x + lb.width + 1);

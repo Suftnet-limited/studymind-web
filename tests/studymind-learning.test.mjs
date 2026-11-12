@@ -142,7 +142,7 @@ test('plans presentation matches the agreed pricing; the only purchase path is t
   assert.doesNotMatch(route, /POST|PUT|PATCH|DELETE|stripe|prisma/i, 'entitlement route must be read-only');
   const checkout = read('src/app/api/studymind/checkout/route.ts');
   assert.doesNotMatch(checkout, /request\.(json|formData|text|arrayBuffer)\(|from 'stripe'|prisma/, 'the checkout route reads nothing from the browser body and never grants access');
-  assert.match(checkout, /sec-fetch-site/); assert.match(checkout, /checkout\\\.stripe\\\.com/);
+  assert.match(checkout, /isCrossSite\(request\)/); assert.match(checkout, /checkout\\\.stripe\\\.com/);
 });
 
 test('parseEntitlements reports checkout availability only when the backend says so', () => {

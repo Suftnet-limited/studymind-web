@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
+import { isCrossSite } from '@/lib/request-origin.mjs';
 export const runtime = 'nodejs';
 
 /**
@@ -15,11 +16,7 @@ const fail = (status: number, error: string) => NextResponse.json({ error }, { s
 
 export async function POST(request: Request) {
   // Refuse cross-site requests: a page on another origin must not be able to start a purchase for a signed-in user.
-  const site = request.headers.get('sec-fetch-site');
-  if (site && !['same-origin', 'same-site', 'none'].includes(site)) return fail(403, 'Cross-site requests are not allowed');
-  const origin = request.headers.get('origin');
-  try { if (origin && new URL(origin).host !== new URL(request.url).host) return fail(403, 'Cross-site requests are not allowed'); }
-  catch { return fail(403, 'Cross-site requests are not allowed'); }
+  if (isCrossSite(request)) return fail(403, 'Cross-site requests are not allowed');
   try {
     const upstream = await authenticatedAiFetch('/api/billing/checkout', { method: 'POST' });
     if (!upstream || upstream.status === 401) return fail(401, 'Authentication required');

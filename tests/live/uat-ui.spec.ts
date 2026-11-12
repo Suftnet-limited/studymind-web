@@ -35,7 +35,7 @@ test('student: full study journey in the browser', async ({ page }, info) => {
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
   await tab(page, 'Documents').click();                                              // materials live in the Documents tab
   await expect(page.getByText('cell-biology-and-energy.docx').first()).toBeVisible();
-  await tab(page, 'AI Tutor').click();
+  await tab(page, 'Chat').click();
   await page.screenshot({ path: `${SHOTS}/uat-02-module.png`, fullPage: true });
 
   await page.getByLabel('Ask a question').fill('How is the cell membrane structured?');
@@ -43,6 +43,9 @@ test('student: full study journey in the browser', async ({ page }, info) => {
   const log = page.getByRole('log', { name: 'Conversation' });
   await expect(log.getByTestId('citation').first()).toContainText('.docx', { timeout: 60_000 });
   await expect(log).toContainText(/phospholipid|bilayer/i);
+  // the real chat was saved by the real backend and is listed (privately) under Recent Chats, with a date
+  const recent = page.getByRole('complementary', { name: 'Chats' });
+  await expect(recent.getByRole('button', { name: /^How is the cell membrane structured\?/ })).toContainText(/Today, \d\d:\d\d/);
   await page.screenshot({ path: `${SHOTS}/uat-03-tutor-grounded.png`, fullPage: true });
 
   await page.getByLabel('Ask a question').fill('Who won the 1966 football World Cup final?');

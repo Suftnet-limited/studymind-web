@@ -1,23 +1,23 @@
 'use client';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { TutorTab } from './tutor-tab';
+import { ChatTab } from './chat-tab';
 import { QuizTab } from './quiz-tab';
 import { FlashcardsTab } from './flashcards-tab';
 import { SummaryTab } from './summary-tab';
 
 const TABS = [
-  { id: 'documents', label: 'Documents' }, { id: 'tutor', label: 'AI Tutor' }, { id: 'quiz', label: 'Quiz' },
+  { id: 'documents', label: 'Documents' }, { id: 'chat', label: 'Chat' }, { id: 'quiz', label: 'Quiz' },
   { id: 'flashcards', label: 'Flashcards' }, { id: 'summary', label: 'Summary' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
 /**
  * The module's sections: Documents (upload and materials) and the four AI learning features. Every panel stays mounted so a chat
- * or a quiz survives tab changes. The AI Tutor is the default; its "no materials yet" hint links to Documents.
+ * or a quiz survives tab changes. Chat is the default; its "no materials yet" hint, the paperclip and the suggestion chips jump to other sections.
  */
-export function StudyTools({ moduleId, hasMaterials, documents }: { moduleId: string; hasMaterials: boolean; documents: ReactNode }) {
-  const [tab, setPicked] = useState<TabId>('tutor');
+export function StudyTools({ moduleId, hasMaterials, documents, userName }: { moduleId: string; hasMaterials: boolean; documents: ReactNode; userName: string }) {
+  const [tab, setPicked] = useState<TabId>('chat');
   const move = (e: KeyboardEvent, i: number) => {
     const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
     if (next === null) return;
@@ -33,7 +33,8 @@ export function StudyTools({ moduleId, hasMaterials, documents }: { moduleId: st
           tab === t.id ? 'bg-violet-50 text-violet-700 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-600' : 'text-zinc-600 hover:bg-zinc-50 hover:text-violet-700')}>{t.label}</button>)}
     </div>
     <div id="ai-panel-documents" role="tabpanel" aria-labelledby="ai-tab-documents" hidden={tab !== 'documents'}>{documents}</div>
-    <div id="ai-panel-tutor" role="tabpanel" aria-labelledby="ai-tab-tutor" hidden={tab !== 'tutor'}><TutorTab moduleId={moduleId} hasMaterials={hasMaterials} onOpenDocuments={() => { setPicked('documents'); document.getElementById('ai-tab-documents')?.focus(); }} /></div>
+    <div id="ai-panel-chat" role="tabpanel" aria-labelledby="ai-tab-chat" hidden={tab !== 'chat'}><ChatTab moduleId={moduleId} hasMaterials={hasMaterials} userName={userName}
+      onOpenTool={(t) => { setPicked(t); document.getElementById(`ai-tab-${t}`)?.focus(); }} /></div>
     <div id="ai-panel-quiz" role="tabpanel" aria-labelledby="ai-tab-quiz" hidden={tab !== 'quiz'}><QuizTab moduleId={moduleId} /></div>
     <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} /></div>
     <div id="ai-panel-summary" role="tabpanel" aria-labelledby="ai-tab-summary" hidden={tab !== 'summary'}><SummaryTab moduleId={moduleId} /></div>

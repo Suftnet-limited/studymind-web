@@ -7,6 +7,8 @@ const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v : undefined);
 
 export const COMPLEXITIES = ['simple', 'normal', 'expert'];
+// The chat sources selector. `all_semesters` and `include_archived` are deliberately not exposed to the browser.
+export const SCOPES = ['everything', 'class_only', 'personal_only'];
 export const LIMITS = { message: 2000, topic: 200, answer: 500, quizQuestions: [5, 20], flashcards: [5, 50] };
 
 export function parseTopic(value) {
@@ -31,7 +33,9 @@ export function parseChatInput(body) {
     return { ok: false, error: 'Invalid session' };
   const complexity = body.complexity ?? 'normal';
   if (!COMPLEXITIES.includes(complexity)) return { ok: false, error: 'Invalid complexity' };
-  return { ok: true, value: { message, session_id: body.session_id ?? undefined, complexity } };
+  const scope_mode = body.scope_mode ?? 'everything';
+  if (!SCOPES.includes(scope_mode)) return { ok: false, error: 'Invalid source selection' };
+  return { ok: true, value: { message, session_id: body.session_id ?? undefined, complexity, scope_mode } };
 }
 export function parseQuizInput(body) {
   if (body !== undefined && body !== null && !isObject(body)) return { ok: false, error: 'Invalid request' };
@@ -65,7 +69,7 @@ export function parseQuizSubmit(body) {
 }
 
 // ── Requests to the AI backend: module_id is ALWAYS the validated URL id; nothing user-identifying comes from the browser ──
-export const toChatRequest = (moduleId, v) => ({ module_id: moduleId, message: v.message, complexity: v.complexity, scope_mode: 'everything', ...(v.session_id ? { session_id: v.session_id } : {}) });
+export const toChatRequest = (moduleId, v) => ({ module_id: moduleId, message: v.message, complexity: v.complexity, scope_mode: v.scope_mode ?? 'everything', ...(v.session_id ? { session_id: v.session_id } : {}) });
 export const toQuizRequest = (moduleId, v) => ({ module_id: moduleId, question_count: v.question_count, question_type: 'mcq', ...(v.topic ? { topic: v.topic } : {}) });
 export const toFlashcardRequest = (moduleId, v) => ({ module_id: moduleId, max_cards: v.max_cards, ...(v.topic ? { title: `Flashcards: ${v.topic}`.slice(0, 255), topic: v.topic } : {}) });
 export const toSummaryRequest = (moduleId, v) => ({ module_id: moduleId, scope: 'module', ...(v.topic ? { topic: v.topic } : {}) });
@@ -150,4 +154,27 @@ export function aiFailure(status, data) {
   if (status === 422) return { status: 422, error: /\b(no|not enough) (indexed )?(content|documents?|material)/i.test(detail) ? detail : 'The AI could not produce a usable result for this request. Please try again, or check that the module has indexed study material.' };
   if (status === 429 || status === 402) return { status: 429, error: 'You have used your AI allowance for now. Check Plans for details.' };
   return { status: 502, error: 'The AI service is unavailable right now. Please try again in a moment.' };
+}
+
+
+// ── Chat history (the caller's own sessions only; the backend enforces ownership, Web enforces module scope) ──
+const iso = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? v : null);
+export const sessionIds = (raw) => (Array.isArray(raw) ? raw : []).filter((s) => isObject(s) && typeof s.id === 'string' && UUID.test(s.id)).map((s) => s.id.toLowerCase());
+export function mapSessionList(raw) {
+  return (Array.isArray(raw) ? raw : []).filter((s) => isObject(s) && typeof s.id === 'string' && UUID.test(s.id)).slice(0, 50).map((s) => ({
+    id: s.id.toLowerCase(), title: text(s.title, 120) || 'New conversation', updated_at: iso(s.updated_at) ?? iso(s.created_at),
+    message_count: Number.isInteger(s.message_count) && s.message_count >= 0 ? s.message_count : 0,
+  }));
+}
+export function mapSessionDetail(raw) {
+  if (!isObject(raw) || typeof raw.id !== 'string' || !Array.isArray(raw.messages)) return null;
+  const messages = raw.messages.filter((m) => isObject(m) && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(0, 200).map((m) => {
+    const seen = new Map();
+    for (const c of Array.isArray(m.sources) ? m.sources : []) {
+      if (!isObject(c) || typeof c.filename !== 'string' || seen.has(c.filename)) continue;
+      seen.set(c.filename, { filename: text(c.filename, 255), snippet: text(c.content_snippet, 300), document_id: text(c.document_id, 64) });
+    }
+    return { id: typeof m.id === 'string' ? m.id : '', role: m.role, content: m.content.slice(0, 20000), created_at: iso(m.created_at), sources: m.role === 'assistant' ? [...seen.values()].slice(0, 8) : [] };
+  });
+  return { id: raw.id.toLowerCase(), title: text(raw.title, 120) || 'New conversation', messages };
 }
