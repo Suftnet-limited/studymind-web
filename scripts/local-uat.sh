@@ -95,7 +95,7 @@ start)
     ( cd $WEB && PORT=18200 nohup node tests/fixtures/openai-stub.mjs > $HOME_DIR/log/openai-standin.log 2>&1 & echo $! > $HOME_DIR/run/openai_standin.pid )
     PROXY_EXTRA=(UPSTREAM_URL=http://127.0.0.1:18200 MAX_CHAT_CALLS=20000 MAX_EMBED_CALLS=50000); LEDGER=$HOME_DIR/ledger-standin.json; AI=standin; sleep 1
   fi
-  ( cd $WEB && env PROXY_OPENAI_API_KEY="$KEY" MAX_CHAT_CALLS=${MAX_CHAT_CALLS:-200} MAX_EMBED_CALLS=${MAX_EMBED_CALLS:-400} MAX_USD=${UAT_MAX_USD:-5} "${PROXY_EXTRA[@]}" \
+  ( cd $WEB && export PROXY_OPENAI_API_KEY="$KEY" && env MAX_CHAT_CALLS=${MAX_CHAT_CALLS:-200} MAX_EMBED_CALLS=${MAX_EMBED_CALLS:-400} MAX_USD=${UAT_MAX_USD:-5} "${PROXY_EXTRA[@]}" \
     PORT=$PROXY_PORT LEDGER_FILE=$LEDGER nohup node tests/fixtures/openai-budget-proxy.mjs \
     > $HOME_DIR/log/proxy.log 2>&1 & echo $! > $HOME_DIR/run/proxy.pid )
   # ---- Stripe test mode (opt-in) ----
