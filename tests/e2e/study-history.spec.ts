@@ -31,7 +31,7 @@ test('Quiz: several quizzes are kept in Recent Quizzes; an unfinished one reopen
   const { modA, alice } = await world(baseURL!);
   await open(page, alice.email, modA.id, 'Quiz');
   const r = rail(page, 'Quiz');
-  await expandRecent(page, 'Quiz', /^Recent Quizzes/);
+  await expandRecent(page, 'Quiz', /^Recent/);
   await expect(r.getByText('Quizzes you create for this module will appear here.')).toBeVisible();
 
   await panel(page, 'Quiz').getByLabel('Focus on a topic (optional)').fill('Forces');
@@ -41,7 +41,7 @@ test('Quiz: several quizzes are kept in Recent Quizzes; an unfinished one reopen
   await panel(page, 'Quiz').getByLabel('Focus on a topic (optional)').fill('Energy');
   await page.getByRole('button', { name: 'Generate quiz' }).click();
   await expect(page.getByText(/Question 1 of 5/)).toBeVisible();
-  await expandRecent(page, 'Quiz', /^Recent Quizzes/);
+  await expandRecent(page, 'Quiz', /^Recent/);
   await expect(r.getByRole('button', { name: /^Quiz: Energy/ })).toHaveAttribute('aria-current', 'true');
   await expect(r.getByRole('button', { name: /^Quiz: Forces/ })).toBeVisible();
   await expect(r.getByRole('button', { name: /^Quiz: Energy/ })).toContainText(/5 questions · 0 answered/);
@@ -52,7 +52,7 @@ test('Quiz: several quizzes are kept in Recent Quizzes; an unfinished one reopen
     await panel(page, 'Quiz').getByRole('button', { name: i === 4 ? 'Submit quiz' : 'Next', exact: true }).click();
   }
   await expect(page.getByTestId('quiz-score')).toContainText(/Score: \d+%/);
-  await expandRecent(page, 'Quiz', /^Recent Quizzes/);
+  await expandRecent(page, 'Quiz', /^Recent/);
   await expect(r.getByRole('button', { name: /^Quiz: Energy/ })).toContainText(/Score \d+%/);
 
   // reopen the unfinished one: questions only, no explanations, nothing about the answers
@@ -61,13 +61,13 @@ test('Quiz: several quizzes are kept in Recent Quizzes; an unfinished one reopen
   await expect(page.getByText(/Your score and explanations appear after you submit/)).toBeVisible();
   await expect(page.getByText('Explanation:')).toHaveCount(0);
   // and the submitted one again, any time: score and explanations
-  await expandRecent(page, 'Quiz', /^Recent Quizzes/);
+  await expandRecent(page, 'Quiz', /^Recent/);
   await r.getByRole('button', { name: /^Quiz: Energy/ }).click();
   await expect(page.getByTestId('quiz-score')).toContainText(/Score: \d+%/);
   await expect(page.getByText('Explanation:').first()).toBeVisible();
 
   // delete with confirmation
-  await expandRecent(page, 'Quiz', /^Recent Quizzes/);
+  await expandRecent(page, 'Quiz', /^Recent/);
   await r.getByRole('button', { name: 'Options for Quiz: Energy' }).click();
   await page.getByRole('menuitem', { name: /Delete quiz/ }).click();
   await expect(page.getByText('Delete this quiz?')).toBeVisible();
@@ -86,7 +86,7 @@ test('Flashcards: several sets are kept, any can be reopened from the start, and
   const { modA, alice } = await world(baseURL!);
   await open(page, alice.email, modA.id, 'Flashcards');
   const r = rail(page, 'Flashcards');
-  await expandRecent(page, 'Flashcards', /^Recent Flashcards/);
+  await expandRecent(page, 'Flashcards', /^Recent/);
   await expect(r.getByText('Flashcard sets you create for this module will appear here.')).toBeVisible();
   await panel(page, 'Flashcards').getByLabel('Focus on a topic (optional)').fill('Newton');
   await page.getByRole('button', { name: 'Generate flashcards' }).click();
@@ -95,7 +95,7 @@ test('Flashcards: several sets are kept, any can be reopened from the start, and
   await panel(page, 'Flashcards').getByLabel('Focus on a topic (optional)').fill('Energy');
   await page.getByRole('button', { name: 'Generate flashcards' }).click();
   await expect(page.getByTestId('card-counter')).toHaveText('Card 1 of 6');
-  await expandRecent(page, 'Flashcards', /^Recent Flashcards/);
+  await expandRecent(page, 'Flashcards', /^Recent/);
   await expect(r.getByRole('button', { name: /^Flashcards: Energy/ })).toHaveAttribute('aria-current', 'true');
   await expect(r.getByRole('button', { name: /^Flashcards: Newton/ })).toContainText('6 cards');
 
@@ -105,7 +105,7 @@ test('Flashcards: several sets are kept, any can be reopened from the start, and
   await expect(page.getByTestId('card-counter')).toHaveText('Card 1 of 6');
   await expect(page.getByTestId('flashcard')).toContainText("State Newton's second law.");
 
-  await expandRecent(page, 'Flashcards', /^Recent Flashcards/);
+  await expandRecent(page, 'Flashcards', /^Recent/);
   await r.getByRole('button', { name: 'Options for Flashcards: Newton' }).click();
   await page.getByRole('menuitem', { name: /Delete flashcard set/ }).click();
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
@@ -117,7 +117,7 @@ test('Summary: several summaries are kept, any can be reopened, and delete asks 
   const { modA, alice } = await world(baseURL!);
   await open(page, alice.email, modA.id, 'Summary');
   const r = rail(page, 'Summary');
-  await expandRecent(page, 'Summary', /^Recent Summaries/);
+  await expandRecent(page, 'Summary', /^Recent/);
   await expect(r.getByText('Summaries you create for this module will appear here.')).toBeVisible();
   await panel(page, 'Summary').getByLabel('Summarise a topic (optional)').fill('Momentum');
   await page.getByRole('button', { name: 'Generate summary' }).click();
@@ -126,13 +126,13 @@ test('Summary: several summaries are kept, any can be reopened, and delete asks 
   await panel(page, 'Summary').getByLabel('Summarise a topic (optional)').fill('Forces');
   await page.getByRole('button', { name: 'Generate summary' }).click();
   await expect(page.getByTestId('summary').getByRole('heading', { name: 'Summary: Forces' })).toBeVisible();
-  await expandRecent(page, 'Summary', /^Recent Summaries/);
+  await expandRecent(page, 'Summary', /^Recent/);
   await expect(r.getByRole('button', { name: /^Summary: Forces/ })).toHaveAttribute('aria-current', 'true');
   await r.getByRole('button', { name: /^Summary: Momentum/ }).click();
   await expect(page.getByTestId('summary').getByRole('heading', { name: 'Summary: Momentum' })).toBeVisible();
   await expect(page.getByTestId('summary').locator('ol li')).toHaveCount(2);
 
-  await expandRecent(page, 'Summary', /^Recent Summaries/);
+  await expandRecent(page, 'Summary', /^Recent/);
   await r.getByRole('button', { name: 'Options for Summary: Momentum' }).click();
   await page.getByRole('menuitem', { name: /Delete summary/ }).click();
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
@@ -191,7 +191,7 @@ test('layout: the Recent card sits to the left of the panel on desktop (like Cha
   const [a, b] = [(await r.boundingBox())!, (await panel.boundingBox())!];
   if (info.project.name === 'desktop') { expect(a.x + a.width, 'rail is left of the panel').toBeLessThanOrEqual(b.x); expect(Math.round(a.width)).toBe(320); }
   else {
-    const toggle = r.getByRole('button', { name: /^Recent Quizzes/ });
+    const toggle = r.getByRole('button', { name: /^Recent/ });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(r.getByRole('button', { name: /^Quiz: Layout/ })).toBeHidden();
     await toggle.click();

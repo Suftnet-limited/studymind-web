@@ -4,7 +4,7 @@ import { ChevronDown, MoreVertical, Plus, Trash2 } from 'lucide-react';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { HistoryKind, HistoryRow } from '@/lib/learning-ai.mjs';
 import { btnOutline } from './layout';
-import { errorText, when } from './shared';
+import { errorText, iconTone, when } from './shared';
 import { cn } from '@/lib/utils';
 
 /** The caller's saved items of one kind for this module, newest first. History is private to the user and to the module (the server enforces both). */
@@ -21,9 +21,9 @@ export function useHistory(moduleId: string, kind: HistoryKind) {
 
 type Words = { title: string; subtitle: string; newLabel: string; recent: string; empty: string; viewAll: string; fewer: string; item: string };
 export const HISTORY_WORDS: Record<HistoryKind, Words> = {
-  quiz: { title: 'Quiz', subtitle: 'Test yourself on this module', newLabel: 'New Quiz', recent: 'Recent Quizzes', empty: 'Quizzes you create for this module will appear here.', viewAll: 'View all quizzes', fewer: 'Show fewer quizzes', item: 'quiz' },
-  flashcards: { title: 'Flashcards', subtitle: 'Memorise the key ideas', newLabel: 'New Flashcards', recent: 'Recent Flashcards', empty: 'Flashcard sets you create for this module will appear here.', viewAll: 'View all sets', fewer: 'Show fewer sets', item: 'flashcard set' },
-  summary: { title: 'Summary', subtitle: 'A clear overview of the material', newLabel: 'New Summary', recent: 'Recent Summaries', empty: 'Summaries you create for this module will appear here.', viewAll: 'View all summaries', fewer: 'Show fewer summaries', item: 'summary' },
+  quiz: { title: 'Quiz', subtitle: 'Test yourself on this module', newLabel: 'New Quiz', recent: 'Recent', empty: 'Quizzes you create for this module will appear here.', viewAll: 'View all quizzes', fewer: 'Show fewer quizzes', item: 'quiz' },
+  flashcards: { title: 'Flashcards', subtitle: 'Memorise the key ideas', newLabel: 'New Flashcards', recent: 'Recent', empty: 'Flashcard sets you create for this module will appear here.', viewAll: 'View all sets', fewer: 'Show fewer sets', item: 'flashcard set' },
+  summary: { title: 'Summary', subtitle: 'A clear overview of the material', newLabel: 'New Summary', recent: 'Recent', empty: 'Summaries you create for this module will appear here.', viewAll: 'View all summaries', fewer: 'Show fewer summaries', item: 'summary' },
 };
 
 /**
@@ -59,7 +59,7 @@ export function HistoryRail({ kind, icon, rows, error, activeId, opening, busy, 
         <div className={cn('flex items-center gap-1 rounded-2xl pr-1 transition', r.id === activeId ? 'bg-violet-50' : 'hover:bg-zinc-50')}>
           <button type="button" onClick={() => onOpen(r.id)} aria-current={r.id === activeId ? 'true' : undefined} disabled={opening === r.id || busy}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
-            <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm ring-1 ring-zinc-100 [&>svg]:size-[18px]">{icon}</span>
+            <span aria-hidden className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl [&>svg]:size-[18px]', iconTone(r.id))}>{icon}</span>
             <span className="min-w-0"><span className="block truncate text-sm font-semibold text-[#111034]">{r.title}</span><span className="block text-xs text-zinc-500">{when(r.created_at)}</span><span className="block text-xs text-zinc-500">{r.detail}</span></span>
           </button>
           <button type="button" aria-label={`Options for ${r.title}`} aria-haspopup="menu" aria-expanded={menuFor === r.id} onClick={() => { setMenuFor(menuFor === r.id ? null : r.id); setConfirmFor(null); }}

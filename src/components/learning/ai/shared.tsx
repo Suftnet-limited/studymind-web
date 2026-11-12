@@ -38,3 +38,11 @@ export function when(iso: string | null) {
   const today = new Date().toDateString() === d.toDateString();
   return today ? `Today, ${clock(iso)}` : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}, ${clock(iso)}`;
 }
+
+const TONES = ['bg-rose-50 text-rose-600', 'bg-amber-50 text-amber-600', 'bg-emerald-50 text-emerald-600', 'bg-sky-50 text-sky-600', 'bg-violet-50 text-violet-600',
+  'bg-pink-50 text-pink-600', 'bg-teal-50 text-teal-600', 'bg-orange-50 text-orange-600', 'bg-indigo-50 text-indigo-600'];
+/** A colour for a list icon. It is derived from the item's id, so it looks random across the list but never changes between renders. */
+export function iconTone(id: string) {
+  let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return TONES[h % TONES.length];
+}

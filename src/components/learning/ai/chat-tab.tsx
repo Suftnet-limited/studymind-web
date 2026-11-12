@@ -5,7 +5,7 @@ import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { ChatSessionSummary, Citation, Complexity, Scope } from '@/lib/learning-ai.mjs';
 import { initialsOf } from '@/lib/initials';
 import { MarkdownRenderer } from './markdown';
-import { clock, errorText, when } from './shared';
+import { clock, errorText, iconTone, when } from './shared';
 import { btnOutline } from './layout';
 import { cn } from '@/lib/utils';
 
@@ -138,7 +138,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
         <div className={cn('flex items-center gap-1 rounded-2xl pr-1 transition', c.id === sessionId ? 'bg-violet-50' : 'hover:bg-zinc-50')}>
           <button type="button" onClick={() => void openChat(c.id)} aria-current={c.id === sessionId ? 'true' : undefined} disabled={opening === c.id}
             className="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-2.5 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
-            <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-violet-600 shadow-sm ring-1 ring-zinc-100"><MessageCircle className="size-[18px]" /></span>
+            <span aria-hidden className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', iconTone(c.id))}><MessageCircle className="size-[18px]" /></span>
             <span className="min-w-0"><span className="block truncate text-sm font-semibold text-[#111034]">{c.title}</span><span className="block text-xs text-zinc-500">{when(c.updated_at)}</span></span>
           </button>
           <button type="button" aria-label={`Options for ${c.title}`} aria-haspopup="menu" aria-expanded={menuFor === c.id} onClick={() => { setMenuFor(menuFor === c.id ? null : c.id); setConfirmFor(null); }}
@@ -164,9 +164,9 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
         <div className="min-w-0"><h2 className="text-lg font-bold leading-tight text-[#111034]">AI Tutor</h2><p className="text-sm text-zinc-500">Module-focused study assistant</p></div>
       </div>
       <button type="button" onClick={newChat} disabled={sending} className={cn(btnOutline, 'mt-5 w-full')}><Plus className="size-4" aria-hidden /> New Chat</button>
-      <h3 className="mt-6 hidden text-base font-bold text-[#111034] lg:block">Recent Chats</h3>
+      <h3 className="mt-6 hidden text-base font-bold text-[#111034] lg:block">Recent</h3>
       <button type="button" aria-expanded={recentOpen} onClick={() => setRecentOpen(o => !o)} className="mt-5 flex w-full items-center justify-between rounded-xl px-1 py-1 text-left text-base! font-bold! text-[#111034] lg:hidden">
-        <span>Recent Chats{chats && chats.length > 0 ? ` (${chats.length})` : ''}</span><ChevronDown className={cn('size-4 text-zinc-500 transition-transform', recentOpen && 'rotate-180')} aria-hidden />
+        <span>Recent{chats && chats.length > 0 ? ` (${chats.length})` : ''}</span><ChevronDown className={cn('size-4 text-zinc-500 transition-transform', recentOpen && 'rotate-180')} aria-hidden />
       </button>
       <div className={cn('mt-3', recentOpen ? 'block' : 'hidden lg:block')}>{recentList}</div>
     </aside>

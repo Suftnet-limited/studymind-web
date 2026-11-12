@@ -7,7 +7,7 @@ const tab = (page: Page, name: string) => page.getByRole('tab', { name });
 const recent = (page: Page) => page.getByRole('complementary', { name: 'Chats' });
 /** On small screens Recent Chats is collapsed behind a toggle; open it (no-op on desktop). */
 async function expandRecent(page: Page) {
-  const toggle = recent(page).getByRole('button', { name: /^Recent Chats/ });
+  const toggle = recent(page).getByRole('button', { name: /^Recent/ });
   if (await toggle.isVisible() && (await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
 }
 
@@ -189,7 +189,7 @@ test('mobile: Recent Chats is a collapsible section above the conversation and n
   await open(page, alice.email, modA.id);
   await expectNoHorizontalScroll(page);
   await expect(recent(page).getByRole('button', { name: /^A saved mobile chat/ })).toBeHidden();      // collapsed by default on small screens
-  await recent(page).getByRole('button', { name: /^Recent Chats/ }).click();
+  await recent(page).getByRole('button', { name: /^Recent/ }).click();
   await expect(recent(page).getByRole('button', { name: /^A saved mobile chat/ })).toBeVisible();
   await recent(page).getByRole('button', { name: /^A saved mobile chat/ }).click();
   await expect(page.getByRole('log', { name: 'Conversation' }).getByText('A saved mobile chat')).toBeVisible();
