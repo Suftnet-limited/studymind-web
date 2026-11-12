@@ -1,7 +1,7 @@
 // Staging-preparation fixes: signed-in header, tab layout on narrow screens, Tutor grounding label, summary/advice split.
 // Runs against the controlled fixture AI (tests/fixtures/ai-shim.mjs): Web behaviour is real, the AI answers are fixtures.
 import { expect, test, type Page } from '@playwright/test';
-import { apiAccount, apiCreateClass, expectNoHorizontalScroll, shot, signIn } from './helpers';
+import { apiAccount, apiCreateClass, expectNoHorizontalScroll, expectSignedIn, shot, signIn, signOut } from './helpers';
 
 async function enrolled(baseURL: string) {
   const lecturer = await apiAccount(baseURL, 'fs-lec', 'lecturer');
@@ -24,17 +24,17 @@ test('header: signed-out visitors see Sign in / Get started; a signed-in user se
   await expect(header(page).getByRole('link', { name: 'Sign in' })).toBeVisible();
 
   await signIn(page, learner.email);
-  await expect(header(page).getByRole('link', { name: 'Learning workspace' })).toBeVisible();
+  await expect(header(page).getByRole('link', { name: 'My modules' })).toBeVisible();
   await expect(header(page).getByRole('link', { name: 'Get started' })).toHaveCount(0);
   await expect(header(page).getByRole('link', { name: 'Sign in' })).toHaveCount(0);
 
   await page.reload();                                                       // server hint: no flash of the signed-out header
-  await expect(header(page).getByRole('link', { name: 'Learning workspace' })).toBeVisible();
+  await expect(header(page).getByRole('link', { name: 'My modules' })).toBeVisible();
   await expect(header(page).getByRole('link', { name: 'Get started' })).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Sign out' }).click();              // no route change: the event keeps the header in step
+  await signOut(page);              // the account menu signs out and returns to the sign-in screen
   await expect(header(page).getByRole('link', { name: 'Get started' })).toBeVisible();
-  await expect(header(page).getByRole('link', { name: 'Learning workspace' })).toHaveCount(0);
+  await expect(header(page).getByRole('link', { name: 'My modules' })).toHaveCount(0);
 });
 
 test('header: a stale or invalid session cookie does not make the header claim the user is signed in', async ({ page, context }) => {
@@ -55,7 +55,7 @@ test('session: concurrent requests after the access cookie expires share one ref
   expect((await calls[1].json()).authenticated).toBe(true);
   expect((await page.request.get('/api/studymind/learning-overview')).status()).toBe(200);   // still signed in afterwards
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 });
 
 for (const width of [320, 360, 393]) {

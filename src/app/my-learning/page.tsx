@@ -112,16 +112,11 @@ function ModuleSection({ id, title, count, owned, modules, empty }: {
 }
 
 export default function MyLearningPage() {
-  const cache = useQueryClient();
   const overview = useQuery({
     queryKey: ['canonical', 'overview'], queryFn: studyMindIdentityService.overview,
     retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 1,
   });
   const modules = useQuery({ queryKey: ['canonical', 'modules'], queryFn: studyMindModulesService.list, enabled: overview.isSuccess, retry: false });
-  const logout = useMutation({
-    mutationFn: studyMindIdentityService.logout,
-    onSuccess: async () => { cache.removeQueries({ queryKey: ['canonical'] }); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
-  });
   const signedOut = overview.error instanceof ApiError && overview.error.status === 401;
   const user = overview.data?.user;
   const caps = roleCapabilities(user?.role ?? '');
@@ -145,7 +140,6 @@ export default function MyLearningPage() {
           <p className="text-sm">Signed in as <strong>{user.full_name}</strong> <span className="text-zinc-500">({user.role.replace('_', ' ')})</span></p>
           <p className="mt-1 text-xs text-zinc-500">{overview.data.modules.owned} owned · {overview.data.modules.enrolled} enrolled</p>
         </div>
-        <Button variant="outline" size="sm" disabled={logout.isPending} onClick={() => logout.mutate()}>Sign out</Button>
       </div>
 
       {(caps.canCreatePersonal || caps.canJoin) && <div className="grid gap-4 md:grid-cols-2">

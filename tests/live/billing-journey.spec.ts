@@ -6,6 +6,7 @@ import { expect, request as pwRequest, test, type APIRequestContext, type Page }
 import { execFileSync } from 'node:child_process';
 import { randomBytes, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { accountMenu, expectSignedIn, signOut } from '../e2e/helpers';
 
 const WEB = process.env.E2E_WEB_URL || 'http://localhost:3100';
 const STRIPE = process.env.STRIPE_STANDIN_URL || 'http://127.0.0.1:18400';
@@ -85,10 +86,10 @@ test('free user buys StudyMind Plus: checkout, signed webhook, 28-day entitlemen
 
   await page.reload();                                                            // refresh keeps the entitlement
   await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');
-  await page.goto('/my-learning'); await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  await page.goto('/my-learning'); await signOut(page);
+  await expect(accountMenu(page)).toHaveCount(0);
   await page.getByLabel('Email').fill(me.email); await page.getByLabel('Password').fill(PASSWORD); await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
   await openPlans(page);
   await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');   // and so does signing in again
 

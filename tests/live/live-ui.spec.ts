@@ -3,6 +3,7 @@
 // generations (Tutor, Quiz, Flashcards, Summary) on desktop; the mobile test makes none.
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { accountMenu, expectSignedIn, signOut } from '../e2e/helpers';
 
 const state = JSON.parse(readFileSync(process.env.STATE!, 'utf8'));
 const ids = state.steps.find((s: any) => s.name === 'accounts and modules').moduleIds as { A: string; B: string; P: string };
@@ -15,7 +16,7 @@ async function signIn(page: Page) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 }
 const tab = (page: Page, name: string) => page.getByRole('tab', { name });
 const noHScroll = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
@@ -26,7 +27,7 @@ test('desktop: session persistence, module access, and the four AI tools with re
   test.setTimeout(240_000);
   await signIn(page);
   await page.reload();                                                           // session persistence
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 
   await page.goto(`/my-learning/modules/${ids.A}`);
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
@@ -84,8 +85,8 @@ test('desktop: session persistence, module access, and the four AI tools with re
 test('desktop: signing out ends the session (no AI calls)', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop');
   await signIn(page);
-  await page.getByRole('button', { name: 'Sign out' }).click();               // the button is on the workspace page
-  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  await signOut(page);               // the button is on the workspace page
+  await expect(accountMenu(page)).toHaveCount(0);
   await page.goto(`/my-learning/modules/${ids.A}`);
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   const r = await page.request.post(`/api/studymind/modules/${ids.A}/ai/chat`, { data: { message: 'should be refused' } });

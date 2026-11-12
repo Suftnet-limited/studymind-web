@@ -40,7 +40,7 @@ export async function signIn(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 }
 
 export async function apiUpload(ctx: APIRequestContext, moduleId: string, name: string, text: string, visibility: 'class' | 'personal') {
@@ -61,3 +61,11 @@ export const aiUserId = (email: string) => aiSql(`select id from users where ema
 
 /** The module page opens on the AI Tutor; upload and the materials list live in the Documents tab. */
 export const openDocuments = (page: Page) => page.getByRole('tab', { name: 'Documents' }).click();
+
+/** The header's avatar button is the "signed in" marker; Sign out lives in the menu it opens. */
+export const accountMenu = (page: Page) => page.getByRole('button', { name: 'Account menu' });
+export const expectSignedIn = (page: Page) => expect(accountMenu(page)).toBeVisible();
+export async function signOut(page: Page) {
+  await accountMenu(page).click(); await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page.getByTestId('auth-shell')).toBeVisible();      // signing out ends on the sign-in screen: wait for it so the next step cannot race the navigation
+}

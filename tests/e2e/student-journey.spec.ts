@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, openDocuments, PASSWORD, shot, signIn, submitSignIn, uniqueEmail } from './helpers';
+import { PASSWORD, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
 
 async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
   const email = uniqueEmail(role);
@@ -93,7 +93,7 @@ test('self-learner journey: register, create a personal module, join a class, op
 
   // Back, sign out, sign back in
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await signIn(page, email);
   await expect(page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
@@ -138,7 +138,7 @@ test("student journey: register, join a lecturer's class by Course ID, view and 
   await uploadAndCheckStatus(page, info, 'student-05');
 
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await signIn(page, email);
   await expect(page.getByRole('region', { name: /Enrolled modules/ }).getByRole('link', { name: /Biology 101/ })).toBeVisible();
   await shot(page, info, 'student-06-signed-back-in');
@@ -181,8 +181,8 @@ test('session: protected routes require sign-in and a refreshed session survives
   // Drop the access cookie (as if it expired); the refresh cookie must keep the session alive
   await context.clearCookies({ name: 'studymind_ai_access' });
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expectSignedIn(page);
+  await signOut(page);
   await page.goto('/my-learning/plans');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
 });

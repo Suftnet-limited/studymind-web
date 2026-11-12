@@ -2,6 +2,7 @@
 //   npx playwright test -c tests/live/playwright.uat.config.ts      (accounts come from ~/.studymind-uat/accounts.json)
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { accountMenu, expectSignedIn, signOut } from '../e2e/helpers';
 
 const A = JSON.parse(readFileSync(`${process.env.HOME}/.studymind-uat/accounts.json`, 'utf8'));
 const SHOTS = process.env.UAT_SHOTS || 'test-results';
@@ -11,7 +12,7 @@ async function signIn(page: Page, who: 'student' | 'lecturer') {
   await page.getByLabel('Email').fill(A[who].email);
   await page.getByLabel('Password').fill(A[who].password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 }
 async function moduleId(page: Page, title: string) {
   const mods = await (await page.request.get('/api/studymind/modules')).json();
@@ -75,8 +76,8 @@ test('student: full study journey in the browser', async ({ page }, info) => {
   const cs = await (await page.request.get('/api/studymind/modules')).json();
   expect(cs.length).toBe(mine.length);                              // still exactly the student's own modules
   await page.goto('/my-learning');                                  // the Sign out button lives on the workspace page
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  await signOut(page);
+  await expect(accountMenu(page)).toHaveCount(0);
   await page.goto(`/my-learning/modules/${bio}`);
   await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   await signIn(page, 'student');                                   // log back in

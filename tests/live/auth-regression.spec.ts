@@ -4,6 +4,7 @@
 //   FAULT_PROXY=1 scripts/local-uat.sh start && npx playwright test -c tests/live/playwright.uat.config.ts auth-regression
 import { expect, request as pwRequest, test, type BrowserContext, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { accountMenu, expectSignedIn, signOut } from '../e2e/helpers';
 
 const WEB = process.env.E2E_WEB_URL || 'http://127.0.0.1:3100';
 const FAULT = process.env.FAULT_URL || 'http://127.0.0.1:8002';
@@ -29,7 +30,7 @@ async function signIn(page: Page, who: 'student' | 'lecturer') {
   await page.getByLabel('Email').fill(users[who].email);
   await page.getByLabel('Password').fill(users[who].password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
 }
 const authenticated = async (page: Page) => (await (await page.request.get('/api/studymind/auth/status')).json()).authenticated;
 const cookieNames = async (ctx: BrowserContext) => (await ctx.cookies()).map((c) => c.name);
@@ -223,8 +224,8 @@ test('a genuinely revoked session is signed out securely and cannot come back', 
 test('signing out revokes the refresh token on the backend: replaying the old refresh cookie fails', async ({ page, context }) => {
   await signIn(page, 'student');
   const old = (await context.cookies()).find((c) => c.name === REFRESH)!;
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
+  await signOut(page);
+  await expect(accountMenu(page)).toHaveCount(0);
   await context.clearCookies();
   await context.addCookies([{ name: REFRESH, value: old.value, url: WEB, httpOnly: true, sameSite: 'Lax' }]);   // attacker replays the stolen refresh cookie
   const r = await page.request.get('/api/studymind/modules');

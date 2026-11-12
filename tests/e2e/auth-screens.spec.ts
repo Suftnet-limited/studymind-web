@@ -1,6 +1,7 @@
 // Sign-in and registration screens (adapted from Learnify's auth design). Real sign-in against the running stack; no AI is used.
 import { expect, test, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
+import { expectSignedIn } from './helpers';
 
 const PASSWORD = 'Screens-Test-Pass-123!';
 const email = () => `screens-${randomBytes(4).toString('hex')}@example.com`;
@@ -60,7 +61,7 @@ test('registration: strength tips, role help, validation, creates the account an
   await page.screenshot({ path: info.outputPath(`register-${info.project.name}.png`), fullPage: true });
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByTestId('auth-shell')).toHaveCount(0, { timeout: 20_000 });       // signed in: the workspace replaces the screen
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+  await expectSignedIn(page);
   expect(await (await page.request.get('/api/studymind/auth/status')).json()).toMatchObject({ authenticated: true });
 });
 
