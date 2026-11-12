@@ -214,7 +214,6 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
       </div>
 
       <div role="radiogroup" aria-label="Answer level" className="flex flex-wrap items-center justify-center gap-3">
-        <span aria-hidden className="text-sm font-semibold text-zinc-500">Answer level</span>
         {LEVELS.map(l => <button key={l.value} type="button" role="radio" aria-checked={complexity === l.value} disabled={sending} onClick={() => setComplexity(l.value)}
           className={cn('inline-flex h-11 min-w-28 items-center justify-center gap-2 rounded-2xl border px-5 text-sm! font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-60',
             complexity === l.value ? 'border-violet-600 bg-violet-600 text-white shadow-sm' : 'border-violet-200 bg-white text-violet-700 hover:bg-violet-50')}>
