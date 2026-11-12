@@ -8,7 +8,7 @@ async function openModule(page: Page, email: string, moduleId: string) {
   await page.goto('/my-learning');
   await signIn(page, email);
   await page.goto(`/my-learning/modules/${moduleId}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
 }
 async function enrolledStudent(baseURL: string, role: 'student' | 'self_learner' = 'student') {
   const lecturer = await apiAccount(baseURL, 'ai-lec', 'lecturer');
@@ -73,35 +73,52 @@ test('AI Tutor: no-material answer and provider failure are handled; the convers
   await expect(page.getByTestId('citation').last()).toContainText('physics-notes.pdf');
 });
 
-test('Quiz: generate, answer gating, submit, score, correctness and explanations', async ({ page, baseURL }, info) => {
+test('Quiz: one question at a time, navigator, answer gating, submit, score, correctness and explanations', async ({ page, baseURL }, info) => {
   const { mod, learner } = await enrolledStudent(baseURL!);
   await openModule(page, learner.email, mod.id);
   await tab(page, 'Quiz').click();
-  await expect(page.getByText(/Test your knowledge with a quiz/)).toBeVisible();
+  await expect(page.getByText(/Generate a multiple-choice quiz/)).toBeVisible();
   await page.getByLabel('Focus on a topic (optional)').first().fill('TRIGGER_SLOW');
   await page.getByRole('button', { name: 'Generate quiz' }).click();
   await expect(page.getByRole('button', { name: 'Generating quiz…' })).toBeDisabled();          // loading state
   await expect(page.getByRole('status').filter({ hasText: 'up to a minute' })).toBeVisible();
-  const groups = page.getByRole('group');
-  await expect(groups.first()).toBeVisible();
-  expect(await groups.count()).toBe(5);
+  const group = page.getByRole('group');
+  await expect(group).toHaveCount(1);                                                            // one question at a time
+  await expect(page.getByText('Question 1 of 5')).toBeVisible();
+  await expect(page.getByText('0 of 5 answered')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Previous' })).toBeDisabled();
   expect(await page.locator('body').innerText()).not.toMatch(/Explanation:/);                     // answers withheld before submission
-  const submit = page.getByRole('button', { name: 'Submit quiz' });
-  await expect(submit).toBeDisabled();
-  await expect(page.getByText('Answer every question to submit.')).toBeVisible();
-  await shot(page, info, '23-quiz-questions');
+  await expect(page.getByText('Answers are shown after you submit')).toBeVisible();
+  await shot(page, info, '23-quiz-question');
 
-  // Answer: first question wrong ("8 N"), the rest with option b ("15 N", "m v", "halve" are correct; others vary)
-  await groups.nth(0).getByRole('radio').first().check();
-  for (let i = 1; i < 5; i++) await groups.nth(i).getByRole('radio').nth(1).check();
+  // Question 1 wrong ("8 N"), the rest with option b ("15 N", "m v", "halve" are correct; others vary)
+  await group.getByRole('radio').first().check();
+  await expect(page.getByText('1 of 5 answered')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Question 1, current' })).toBeVisible();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText('Question 2 of 5')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Question 2, current' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Question 1, done' })).toBeVisible();              // answered questions are marked in the grid
+  await page.getByRole('button', { name: 'Previous' }).click();                                  // go back: the answer is remembered
+  await expect(group.getByRole('radio').first()).toBeChecked();
+  await page.getByRole('button', { name: 'Question 5' }).click();                                // jump with the navigator
+  await expect(page.getByText('Question 5 of 5')).toBeVisible();
+  const submit = page.getByRole('button', { name: 'Submit quiz' });
+  await expect(submit).toBeDisabled();                                                           // not every question is answered yet
+  await expect(page.getByText(/Answer every question to submit \(4 left\)\./)).toBeVisible();
+  await group.getByRole('radio').nth(1).check();
+  for (const n of [2, 3, 4]) { await page.getByRole('button', { name: new RegExp(`^Question ${n}`) }).click(); await group.getByRole('radio').nth(1).check(); }
+  await page.getByRole('button', { name: /^Question 5/ }).click();
   await expect(submit).toBeEnabled();
+  await shot(page, info, '23b-quiz-ready-to-submit');
   await submit.click();
   await expect(page.getByTestId('quiz-score')).toBeVisible();
   await expect(page.getByTestId('quiz-score')).toContainText(/Score: \d+%/);
   await expect(page.getByText('Explanation:').first()).toBeVisible();
   await expect(page.getByLabel('Correct answer').first()).toBeVisible();
   await expect(page.getByLabel('Your answer was incorrect').first()).toBeVisible();
-  await expect(groups.first().getByRole('radio').first()).toBeDisabled();                        // locked after submission
+  await expect(page.getByRole('radio')).toHaveCount(0);                                          // locked after submission
+  await expect(page.getByRole('button', { name: /^Question 1, incorrect/ })).toBeVisible();      // the grid now shows correct / incorrect
   await shot(page, info, '24-quiz-results');
   await expectNoHorizontalScroll(page);
   await page.getByRole('button', { name: 'Generate a new quiz' }).click();
@@ -144,7 +161,7 @@ test('Summary: generate with a topic, rendered Markdown, copy, regenerate', asyn
   await expect(summary.getByRole('heading', { name: 'Summary: Momentum' })).toBeVisible();
   await expect(summary.locator('strong').first()).toContainText("Newton's laws");
   await expect(summary.locator('ol li')).toHaveCount(2);
-  await expect(page.getByText('Based on 2 documents.')).toBeVisible();
+  await expect(page.getByText('Based on 2 documents')).toBeVisible();
   await page.getByRole('button', { name: 'Copy summary' }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("Newton's laws");
   await shot(page, info, '26-summary');
@@ -196,7 +213,7 @@ test('isolation: a signed-in user without access cannot see or use the tools for
   await signIn(page, outsider.email);
   await page.goto(`/my-learning/modules/${mod.id}`);
   await expect(page.getByRole('alert').filter({ hasText: /not found, or you do not have access/i })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   // Direct requests from the outsider's authenticated browser session are refused too
   for (const [what, data] of [['chat', { message: 'hello' }], ['quiz', {}], ['flashcards', {}], ['summary', {}]] as const) {
     const r = await page.request.post(`/api/studymind/modules/${mod.id}/ai/${what}`, { data });

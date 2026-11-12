@@ -1,8 +1,8 @@
 'use client';
 import type { ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ErrorBox } from '@/components/learning/states';
+import { btnPrimary } from './layout';
 
 export const errorText = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -10,9 +10,9 @@ export const errorText = (e: unknown, fallback: string) => (e instanceof Error &
 export function TopicField({ id, value, onChange, disabled, label = 'Focus on a topic (optional)' }: {
   id: string; value: string; onChange: (v: string) => void; disabled?: boolean; label?: string;
 }) {
-  return <div className="space-y-1">
-    <label htmlFor={id} className="block text-sm font-medium text-zinc-700">{label}</label>
-    <Input id={id} value={value} maxLength={200} disabled={disabled} placeholder="e.g. a chapter or concept" onChange={e => onChange(e.target.value)} />
+  return <div className="space-y-1.5">
+    <label htmlFor={id} className="block text-sm font-semibold text-zinc-700">{label}</label>
+    <Input id={id} value={value} maxLength={200} disabled={disabled} placeholder="e.g. a chapter or concept" onChange={e => onChange(e.target.value)} className="h-11 rounded-xl" />
   </div>;
 }
 
@@ -21,14 +21,12 @@ export function GenerateState({ icon, text, buttonLabel, loadingLabel, loading, 
   icon: ReactNode; text: string; buttonLabel: string; loadingLabel: string; loading: boolean; error: string | null;
   onGenerate: () => void; children?: ReactNode;
 }) {
-  return <div className="space-y-4">
-    {children}
-    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
-      <div className="mb-2 flex justify-center text-zinc-400" aria-hidden>{icon}</div>
-      <p className="mb-4 text-sm text-zinc-600">{text}</p>
-      {error && <div className="mb-4 text-left"><ErrorBox message={error} onRetry={onGenerate} /></div>}
-      <Button onClick={onGenerate} disabled={loading}>{loading ? loadingLabel : buttonLabel}</Button>
-      {loading && <p role="status" className="mt-3 text-xs text-zinc-500">This can take up to a minute.</p>}
-    </div>
+  return <div className="mx-auto max-w-md py-6 text-center">
+    <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-3xl bg-violet-50 text-violet-600" aria-hidden>{icon}</div>
+    <p className="mb-6 text-sm leading-6 text-zinc-600">{text}</p>
+    {children && <div className="mb-5 text-left">{children}</div>}
+    {error && <div className="mb-4 text-left"><ErrorBox message={error} onRetry={onGenerate} /></div>}
+    <button type="button" onClick={onGenerate} disabled={loading} className={btnPrimary}>{loading ? loadingLabel : buttonLabel}</button>
+    {loading && <p role="status" className="mt-3 text-xs text-zinc-500">This can take up to a minute.</p>}
   </div>;
 }

@@ -58,3 +58,6 @@ export function aiSql(sql: string) {
   return execFileSync(bin, [...args, '-tAc', sql]).toString().trim();
 }
 export const aiUserId = (email: string) => aiSql(`select id from users where email='${email}'`);
+
+/** The module page opens on the AI Tutor; upload and the materials list live in the Documents tab. */
+export const openDocuments = (page: Page) => page.getByRole('tab', { name: 'Documents' }).click();

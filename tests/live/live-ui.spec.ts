@@ -29,8 +29,10 @@ test('desktop: session persistence, module access, and the four AI tools with re
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 
   await page.goto(`/my-learning/modules/${ids.A}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
+  await tab(page, 'Documents').click();                                              // materials live in the Documents tab
   await expect(page.getByText('biology-intro.docx').first()).toBeVisible();
+  await tab(page, 'AI Tutor').click();
   await page.screenshot({ path: `${SHOTS}/live-01-module.png`, fullPage: true });
 
   // Tutor (generation 1): loading state, markdown, citation
@@ -46,11 +48,11 @@ test('desktop: session persistence, module access, and the four AI tools with re
   await tab(page, 'Quiz').click();
   await page.getByRole('button', { name: 'Generate quiz' }).click();
   await expect(page.getByRole('button', { name: 'Generating quiz…' })).toBeDisabled();
-  const groups = page.getByRole('group');
-  await expect(groups.first()).toBeVisible({ timeout: 90_000 });
+  const group = page.getByRole('group');                                          // the quiz shows one question at a time
+  await expect(group).toBeVisible({ timeout: 90_000 });
   expect(await page.locator('body').innerText()).not.toMatch(/Explanation:/);
-  const n = await groups.count(); expect(n).toBeGreaterThanOrEqual(5);
-  for (let i = 0; i < n; i++) await groups.nth(i).getByRole('radio').nth(1).check();
+  const n = Number((await page.getByText(/^Question 1 of \d+$/).innerText()).match(/of (\d+)/)![1]); expect(n).toBeGreaterThanOrEqual(5);
+  for (let i = 0; i < n; i++) { await group.getByRole('radio').nth(1).check(); if (i < n - 1) await page.getByRole('button', { name: 'Next', exact: true }).click(); }
   await page.getByRole('button', { name: 'Submit quiz' }).click();
   await expect(page.getByTestId('quiz-score')).toContainText(/Score: \d+%/);
   await expect(page.getByText('Explanation:').first()).toBeVisible();
@@ -73,7 +75,7 @@ test('desktop: session persistence, module access, and the four AI tools with re
 
   // Error state: a module the student is not enrolled in is refused, with no provider call and no internals shown
   await page.goto(`/my-learning/modules/${ids.B}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toMatch(LEAKS);
   await expect(page.getByText('This module was not found, or you do not have access to it.')).toBeVisible();
   await page.screenshot({ path: `${SHOTS}/live-06-not-enrolled.png`, fullPage: true });
@@ -85,7 +87,7 @@ test('desktop: signing out ends the session (no AI calls)', async ({ page }, inf
   await page.getByRole('button', { name: 'Sign out' }).click();               // the button is on the workspace page
   await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
   await page.goto(`/my-learning/modules/${ids.A}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   const r = await page.request.post(`/api/studymind/modules/${ids.A}/ai/chat`, { data: { message: 'should be refused' } });
   expect(r.status()).toBe(401);                                              // proxy refuses an unauthenticated call before any AI work
 });
@@ -96,7 +98,7 @@ test('mobile (Pixel 5): layouts of workspace, module and all four tools have no 
   await noHScroll(page);
   await page.screenshot({ path: `${SHOTS}/live-m1-workspace.png`, fullPage: true });
   await page.goto(`/my-learning/modules/${ids.A}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
   await noHScroll(page);
   await page.screenshot({ path: `${SHOTS}/live-m2-module.png`, fullPage: true });
   for (const name of ['Quiz', 'Flashcards', 'Summary', 'AI Tutor']) {

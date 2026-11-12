@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, PASSWORD, shot, signIn, submitSignIn, uniqueEmail } from './helpers';
+import { apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, openDocuments, PASSWORD, shot, signIn, submitSignIn, uniqueEmail } from './helpers';
 
 async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
   const email = uniqueEmail(role);
@@ -21,17 +21,18 @@ async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner
 
 /** Upload validation in the browser, then a real upload and its reported indexing status. */
 async function uploadAndCheckStatus(page: Page, info: TestInfo, prefix: string) {
-  await page.getByLabel('Document').setInputFiles({ name: 'virus.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('MZ') });
+  await openDocuments(page);
+  await page.getByLabel('Document', { exact: true }).setInputFiles({ name: 'virus.exe', mimeType: 'application/octet-stream', buffer: Buffer.from('MZ') });
   await expect(page.getByRole('alert').filter({ hasText: 'Unsupported file type' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload document' })).toBeDisabled();
   const big = info.outputPath('big.txt'); // Playwright cannot attach in-memory buffers over 50 MB
   writeFileSync(big, Buffer.alloc(51 * 1024 * 1024, 97));
-  await page.getByLabel('Document').setInputFiles(big);
+  await page.getByLabel('Document', { exact: true }).setInputFiles(big);
   await expect(page.getByRole('alert').filter({ hasText: '50 MB' })).toBeVisible();
   await shot(page, info, `${prefix}-upload-errors`);
 
   // The local AI has no OpenAI/Typesense, so a valid upload is accepted but indexing is reported as failed.
-  await page.getByLabel('Document').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Mitochondria are the powerhouse of the cell.') });
+  await page.getByLabel('Document', { exact: true }).setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('Mitochondria are the powerhouse of the cell.') });
   await page.getByRole('button', { name: 'Upload document' }).click();
   const row = page.getByRole('listitem').filter({ hasText: 'notes.txt' });
   await expect(row).toBeVisible();
@@ -72,6 +73,7 @@ test('self-learner journey: register, create a personal module, join a class, op
   await enrolled.getByRole('link', { name: /History 110/ }).click();
   await expect(page.getByRole('heading', { name: 'History 110 (E2E)', level: 1 })).toBeVisible();
   await expect(page.getByText('Enrolled', { exact: true })).toBeVisible();
+  await openDocuments(page);
   await expect(page.getByRole('listitem').filter({ hasText: 'reading-list.txt' })).toBeVisible();
   await expect(page.getByText('lecturer-private.txt')).toHaveCount(0);
   await expect(page.getByTestId('course-id')).toHaveCount(0);
@@ -85,6 +87,7 @@ test('self-learner journey: register, create a personal module, join a class, op
   await page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /My Chemistry Notes/ }).click();
   await expect(page.getByRole('heading', { name: 'My Chemistry Notes', level: 1 })).toBeVisible();
   await expect(page.getByTestId('course-id')).toHaveCount(0);
+  await openDocuments(page);
   await expect(page.getByText('No materials yet')).toBeVisible();
   await uploadAndCheckStatus(page, info, 'self_learner-06');
 

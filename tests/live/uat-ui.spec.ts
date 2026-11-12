@@ -23,12 +23,18 @@ test('student: full study journey in the browser', async ({ page }, info) => {
   test.setTimeout(300_000);
   await signIn(page, 'student');
   await expect(page.getByText('Introduction to Biology').first()).toBeVisible();
-  expect(await page.locator('body').innerText()).not.toMatch(/Introduction to (Computer Science|Chemistry)/);   // not enrolled
+  // The workspace shows exactly the modules this student belongs to (the API is the source of truth), nothing more.
+  const mine: string[] = (await (await page.request.get('/api/studymind/modules')).json()).map((m: { title: string }) => m.title);
+  for (const title of ['Introduction to Biology', 'Introduction to Computer Science', 'Introduction to Chemistry']) {
+    expect(await page.getByText(title).count() > 0, `${title} shown only if the student belongs to it`).toBe(mine.includes(title));
+  }
   await page.screenshot({ path: `${SHOTS}/uat-01-student-workspace.png`, fullPage: true });
   const bio = await moduleId(page, 'Biology');
   await page.goto(`/my-learning/modules/${bio}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
+  await tab(page, 'Documents').click();                                              // materials live in the Documents tab
   await expect(page.getByText('cell-biology-and-energy.docx').first()).toBeVisible();
+  await tab(page, 'AI Tutor').click();
   await page.screenshot({ path: `${SHOTS}/uat-02-module.png`, fullPage: true });
 
   await page.getByLabel('Ask a question').fill('How is the cell membrane structured?');
@@ -45,10 +51,10 @@ test('student: full study journey in the browser', async ({ page }, info) => {
 
   await tab(page, 'Quiz').click();
   await page.getByRole('button', { name: 'Generate quiz' }).click();
-  const groups = page.getByRole('group');
-  await expect(groups.first()).toBeVisible({ timeout: 90_000 });
-  const n = await groups.count(); expect(n).toBeGreaterThanOrEqual(5);
-  for (let i = 0; i < n; i++) await groups.nth(i).getByRole('radio').nth(0).check();
+  const group = page.getByRole('group');                                          // the quiz shows one question at a time
+  await expect(group).toBeVisible({ timeout: 90_000 });
+  const n = Number((await page.getByText(/^Question 1 of \d+$/).innerText()).match(/of (\d+)/)![1]); expect(n).toBeGreaterThanOrEqual(5);
+  for (let i = 0; i < n; i++) { await group.getByRole('radio').nth(0).check(); if (i < n - 1) await page.getByRole('button', { name: 'Next', exact: true }).click(); }
   await page.getByRole('button', { name: 'Submit quiz' }).click();
   await expect(page.getByTestId('quiz-score')).toContainText(/Score: \d+%/);
   await expect(page.getByText('Explanation:').first()).toBeVisible();
@@ -67,15 +73,15 @@ test('student: full study journey in the browser', async ({ page }, info) => {
   await page.screenshot({ path: `${SHOTS}/uat-07-summary.png`, fullPage: true });
 
   const cs = await (await page.request.get('/api/studymind/modules')).json();
-  expect(cs.length).toBe(1);
+  expect(cs.length).toBe(mine.length);                              // still exactly the student's own modules
   await page.goto('/my-learning');                                  // the Sign out button lives on the workspace page
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('button', { name: 'Sign out' })).toHaveCount(0);
   await page.goto(`/my-learning/modules/${bio}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toHaveCount(0);
   await signIn(page, 'student');                                   // log back in
   await page.goto(`/my-learning/modules/${bio}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
 });
 
 test('lecturer: login, modules, documents', async ({ page }, info) => {
@@ -85,7 +91,8 @@ test('lecturer: login, modules, documents', async ({ page }, info) => {
   await page.screenshot({ path: `${SHOTS}/uat-08-lecturer-workspace.png`, fullPage: true });
   const bio = await moduleId(page, 'Biology');
   await page.goto(`/my-learning/modules/${bio}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
+  await tab(page, 'Documents').click();
   await expect(page.getByText('lecturer-private-draft.docx').first()).toBeVisible();
   expect(await page.locator('body').innerText()).not.toContain('student-a-private-notes.docx');
   await page.screenshot({ path: `${SHOTS}/uat-09-lecturer-module.png`, fullPage: true });

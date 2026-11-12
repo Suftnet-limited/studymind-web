@@ -13,7 +13,7 @@ async function enrolled(baseURL: string) {
 async function openModule(page: Page, email: string, id: string) {
   await page.goto('/my-learning'); await signIn(page, email);
   await page.goto(`/my-learning/modules/${id}`);
-  await expect(page.getByRole('heading', { name: 'Study tools' })).toBeVisible();
+  await expect(page.getByRole('tablist', { name: 'Module sections' })).toBeVisible();
 }
 const header = (page: Page) => page.getByRole('banner');
 
@@ -64,9 +64,9 @@ for (const width of [320, 360, 393]) {
     await page.setViewportSize({ width, height: 800 });
     const { mod, learner } = await enrolled(baseURL!);
     await openModule(page, learner.email, mod.id);
-    const list = page.getByRole('tablist', { name: 'AI study tools' });
+    const list = page.getByRole('tablist', { name: 'Module sections' });
     const lb = (await list.boundingBox())!;
-    for (const name of ['AI Tutor', 'Quiz', 'Flashcards', 'Summary']) {
+    for (const name of ['Documents', 'AI Tutor', 'Quiz', 'Flashcards', 'Summary']) {
       const tb = (await page.getByRole('tab', { name }).boundingBox())!;
       expect(tb.x, `${name} left edge`).toBeGreaterThanOrEqual(lb.x - 1);
       expect(tb.x + tb.width, `${name} right edge`).toBeLessThanOrEqual(lb.x + lb.width + 1);

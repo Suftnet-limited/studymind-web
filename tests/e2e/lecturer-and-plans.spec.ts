@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { aiSql, aiUserId, apiAccount, apiCreateClass, expectNoHorizontalScroll, hasAiDb, shot, signIn } from './helpers';
+import { aiSql, aiUserId, apiAccount, apiCreateClass, expectNoHorizontalScroll, hasAiDb, openDocuments, shot, signIn } from './helpers';
 
 test('lecturer: creates a class, copies the Course ID, and cannot join', async ({ page, baseURL, context }, info) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -22,6 +22,7 @@ test('lecturer: creates a class, copies the Course ID, and cannot join', async (
   await expectNoHorizontalScroll(page);
 
   // The lecturer can choose class or personal visibility for uploads
+  await openDocuments(page);
   await expect(page.getByLabel('Visibility')).toBeVisible();
 });
 
@@ -38,6 +39,7 @@ test('indexing progress: the materials list refreshes from "Indexing…" to "Ind
     await route.fulfill({ json: [{ id: 'doc-1', filename: 'lecture-notes.pdf', visibility: 'personal', status, chunk_count: status === 'indexed' ? 12 : 0 }] });
   });
   await page.goto(`/my-learning/modules/${mod.id}`);
+  await openDocuments(page);
   const row = page.getByRole('listitem').filter({ hasText: 'lecture-notes.pdf' });
   await expect(row.getByText('Indexing…')).toBeVisible();
   await shot(page, info, '10-indexing-in-progress');
@@ -144,8 +146,9 @@ test('document privacy end to end: class material is shared, personal notes stay
   await page.goto('/my-learning');
   await signIn(page, lecturer.email);
   await page.goto(`/my-learning/modules/${mod.id}`);
+  await openDocuments(page);
   const upload = async (name: string, visibility: 'Class material' | 'Personal notes') => {
-    await page.getByLabel('Document').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(`content of ${name}`) });
+    await page.getByLabel('Document', { exact: true }).setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(`content of ${name}`) });
     await page.getByLabel('Visibility').selectOption({ label: visibility });
     await page.getByRole('button', { name: 'Upload document' }).click();
     await expect(page.getByRole('listitem').filter({ hasText: name })).toBeVisible();
@@ -162,17 +165,18 @@ test('document privacy end to end: class material is shared, personal notes stay
   await studentPage.goto(`${baseURL}/my-learning`);
   await signIn(studentPage, student.email);
   await studentPage.goto(`${baseURL}/my-learning/modules/${mod.id}`);
+  await openDocuments(studentPage);
   await expect(studentPage.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toBeVisible();
   await expect(studentPage.getByText('lecturer-only.txt')).toHaveCount(0);
   await expect(studentPage.getByLabel('Visibility')).toHaveCount(0); // students can only add personal notes
-  await studentPage.getByLabel('Document').setInputFiles({ name: 'student-note.txt', mimeType: 'text/plain', buffer: Buffer.from('my note') });
+  await studentPage.getByLabel('Document', { exact: true }).setInputFiles({ name: 'student-note.txt', mimeType: 'text/plain', buffer: Buffer.from('my note') });
   await studentPage.getByRole('button', { name: 'Upload document' }).click();
   const mine = studentPage.getByRole('listitem').filter({ hasText: 'student-note.txt' });
   await expect(mine).toContainText('Personal note · only you can see it');
   await shot(studentPage, info, '17-student-sees-class-and-own-note');
 
   // Same filename as the lecturer's class file: both coexist for the student, the lecturer still sees only the class one
-  await studentPage.getByLabel('Document').setInputFiles({ name: 'class-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('my own take on the class notes') });
+  await studentPage.getByLabel('Document', { exact: true }).setInputFiles({ name: 'class-notes.txt', mimeType: 'text/plain', buffer: Buffer.from('my own take on the class notes') });
   await studentPage.getByRole('button', { name: 'Upload document' }).click();
   const sameName = studentPage.getByRole('listitem').filter({ hasText: 'class-notes.txt' });
   await expect(sameName).toHaveCount(2);
@@ -181,6 +185,7 @@ test('document privacy end to end: class material is shared, personal notes stay
 
   // The lecturer must not see the student's personal notes, and the class file is unaffected
   await page.reload();
+  await openDocuments(page);
   await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toHaveCount(1);
   await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toContainText('Class material');
   await expect(page.getByRole('listitem').filter({ hasText: 'class-notes.txt' })).toBeVisible();
@@ -196,5 +201,5 @@ test('document errors are understandable: no access to a module shows a clear me
   await signIn(page, outsider.email);
   await page.goto(`/my-learning/modules/${mod.id}`);
   await expect(page.getByRole('alert').filter({ hasText: /not found, or you do not have access/i })).toBeVisible();
-  await expect(page.getByLabel('Document')).toHaveCount(0); // no upload form for a module you cannot open
+  await expect(page.getByLabel('Document', { exact: true })).toHaveCount(0); // no upload form for a module you cannot open
 });

@@ -6,6 +6,7 @@ import type { Citation, Complexity } from '@/lib/learning-ai.mjs';
 import { Button } from '@/components/ui/button';
 import { MarkdownRenderer } from './markdown';
 import { errorText } from './shared';
+import { ToolPanel } from './layout';
 import { cn } from '@/lib/utils';
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; scope?: string; isError?: boolean };
@@ -13,7 +14,7 @@ const LEVELS: { value: Complexity; label: string }[] = [{ value: 'simple', label
 let nextId = 0;
 
 /** AI Tutor: chat grounded in the module's materials, with source citations. */
-export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMaterials: boolean }) {
+export function TutorTab({ moduleId, hasMaterials, onOpenDocuments }: { moduleId: string; hasMaterials: boolean; onOpenDocuments?: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -37,7 +38,8 @@ export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMate
   }
   const newChat = () => { if (sending || !messages.length) return; setMessages([]); setSessionId(null); };
 
-  return <div className="space-y-3">
+  return <ToolPanel icon={<MessageCircle className="size-5" />} title="AI Tutor" subtitle="Ask questions about this module. Answers cite the documents they came from.">
+  <div className="space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div role="radiogroup" aria-label="Answer complexity" className="flex gap-1.5">
         {LEVELS.map(l => <button key={l.value} type="button" role="radio" aria-checked={complexity === l.value} disabled={sending} onClick={() => setComplexity(l.value)}
@@ -50,7 +52,7 @@ export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMate
       {messages.length === 0 && <div className="py-8 text-center text-sm text-zinc-500">
         <MessageCircle className="mx-auto mb-2 size-8 text-zinc-400" aria-hidden />
         <p>Ask a question about this module.</p>
-        {!hasMaterials && <p className="mt-1 text-xs">No indexed study material yet, so answers may be limited. Upload documents first for grounded answers.</p>}
+        {!hasMaterials && <p className="mt-1 text-xs">No indexed study material yet, so answers may be limited. Upload documents first for grounded answers.{onOpenDocuments && <> <button type="button" onClick={onOpenDocuments} className="font-semibold! text-violet-700 underline">Go to Documents</button></>}</p>}
       </div>}
       {messages.map(m => m.role === 'user'
         ? <div key={m.id} className="ml-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-violet-600 px-4 py-2.5 text-sm text-white">{m.content}</div>
@@ -77,5 +79,6 @@ export function TutorTab({ moduleId, hasMaterials }: { moduleId: string; hasMate
         className="min-h-11 flex-1 resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus-visible:ring-2 focus-visible:ring-violet-500" />
       <Button type="submit" aria-label="Send question" disabled={sending || !input.trim()}><Send className="size-4" aria-hidden /> Send</Button>
     </form>
-  </div>;
+  </div>
+  </ToolPanel>;
 }
