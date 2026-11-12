@@ -47,6 +47,32 @@ test('topic suggestions: weeks in order, indexed latest documents only, titles o
   assert.deepEqual(o.weeks, [{ label: 'Week 1: Forces', value: 'Forces' }, { label: 'Week 2: Energy and work', value: 'Energy and work' }]);
   assert.deepEqual(o.documents.map((d) => d.value), ['Cell-Biology', 'chunks']);          // 'Forces.docx' duplicates the week title; old/pending excluded
   assert.ok(!JSON.stringify(o).includes(id(9)) && !JSON.stringify(o).includes(id(7)));
-  assert.deepEqual(mapOutline(null, 'x'), { weeks: [], documents: [] });
+  assert.deepEqual(mapOutline(null, 'x'), { weeks: [], documents: [], chapters: [] });
   assert.equal(mapOutline(Array.from({ length: 90 }, (_, i) => ({ week_number: i + 1, title: `W${i}` })), []).weeks.length, 60);
+});
+
+import { parseFocus, parseQuizInput, parseSummaryInput, parseFlashcardInput, toQuizRequest, toFlashcardRequest, toSummaryRequest } from '../src/lib/learning-ai.mjs';
+const REF = (n, i = 0) => `${id(n)}:${i}`;
+test('chapter focus: only well-formed references pass, duplicates collapse, at most 12, plain requests are unchanged', () => {
+  assert.deepEqual(parseQuizInput({}), { ok: true, value: { topic: undefined, question_count: 5 } });             // nothing new appears unless asked for
+  assert.deepEqual(parseFocus({ sections: [REF(1), REF(1).toUpperCase(), REF(2, 3)], label: ' Chapter 1 ' }), { ok: true, value: { sections: [REF(1), REF(2, 3)], label: 'Chapter 1' } });
+  assert.deepEqual(parseFocus({ balanced: true }), { ok: true, value: { balanced: true } });
+  assert.deepEqual(parseFocus({ sections: [REF(1)], balanced: true }).value, { sections: [REF(1)] }, 'chosen chapters win over balanced');
+  for (const bad of [{ sections: 'x' }, { sections: ['nope'] }, { sections: [REF(1), 5] }, { sections: Array.from({ length: 13 }, (_, i) => REF(i + 1)) }, { balanced: 'yes' }, { sections: [`${id(1)}:99999`] }])
+    assert.equal(parseFocus(bad).ok, false, JSON.stringify(bad).slice(0, 40));
+  for (const parse of [parseQuizInput, parseFlashcardInput, parseSummaryInput]) { assert.equal(parse({ sections: ['x'] }).ok, false); assert.deepEqual(parse({ sections: [REF(1)], label: 'L' }).value.sections, [REF(1)]); }
+});
+test('chapter focus is forwarded to the AI backend with a readable title; the module id still comes from the URL', () => {
+  const v = { question_count: 5, sections: [REF(1)], label: 'Chapter 1: Cells' };
+  assert.deepEqual(toQuizRequest(id(9), v), { module_id: id(9), question_count: 5, question_type: 'mcq', sections: [REF(1)], title: 'Quiz: Chapter 1: Cells' });
+  assert.equal(toFlashcardRequest(id(9), { max_cards: 20, sections: [REF(1)], label: 'Cells' }).title, 'Flashcards: Cells');
+  assert.deepEqual(toSummaryRequest(id(9), { balanced: true }), { module_id: id(9), scope: 'module', balanced: true });
+  assert.deepEqual(toSummaryRequest(id(9), {}), { module_id: id(9), scope: 'module' });
+});
+test('outline chapters: titles, levels and pages only; malformed references dropped', () => {
+  const o = mapOutline([], [], { documents: [{ document_id: id(7), filename: 'Handbook.pdf', sections: [
+    { ref: REF(1), index: 0, title: ' Chapter 1 ', level: 1, page: 3, user_id: id(5) }, { ref: 'bad', title: 'x', level: 1 }, { ref: REF(1, 1), title: 'Sub', level: 9, page: 0 }] }, { filename: 'empty.pdf', sections: [] }] });
+  assert.deepEqual(o.chapters, [{ document: 'Handbook', sections: [{ ref: REF(1), title: 'Chapter 1', level: 1, page: 3 }, { ref: REF(1, 1), title: 'Sub', level: 3, page: null }] }]);
+  assert.ok(!JSON.stringify(o).includes(id(5)) && !JSON.stringify(o).includes(id(7)));
+  assert.deepEqual(mapOutline([], [], null).chapters, []);
 });

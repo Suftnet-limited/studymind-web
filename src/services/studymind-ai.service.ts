@@ -1,6 +1,8 @@
 import { ApiError } from '@/services/studymind-modules.service';
 import type { Outline, HistoryDetail, HistoryKind, HistoryRow, ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
 
+type FocusFields = { sections?: string[]; balanced?: boolean; label?: string };
+
 async function data<T>(response: Response, fallback: string): Promise<T> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new ApiError(typeof body.error === 'string' ? body.error : fallback, response.status);
@@ -33,12 +35,12 @@ export const studyMindAiService = {
     const response = await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/history/${kind}/${encodeURIComponent(itemId)}`, { method: 'DELETE', credentials: 'same-origin' });
     if (!response.ok) { const body = await response.json().catch(() => ({})); throw new ApiError(typeof body.error === 'string' ? body.error : 'Unable to delete this item', response.status); }
   },
-  generateQuiz: async (moduleId: string, input: { topic?: string; question_count?: number }) =>
+  generateQuiz: async (moduleId: string, input: { topic?: string; question_count?: number } & FocusFields) =>
     data<QuizGenerated>(await post(moduleId, 'quiz', input), 'Unable to generate a quiz'),
   submitQuiz: async (moduleId: string, attemptId: string, answers: { question_id: string; answer: string }[]) =>
     data<QuizResult>(await post(moduleId, `quiz/${encodeURIComponent(attemptId)}`, { answers }), 'Unable to submit the quiz'),
-  generateFlashcards: async (moduleId: string, input: { topic?: string; max_cards?: number }) =>
+  generateFlashcards: async (moduleId: string, input: { topic?: string; max_cards?: number } & FocusFields) =>
     data<FlashcardDeck>(await post(moduleId, 'flashcards', input), 'Unable to generate flashcards'),
-  summarise: async (moduleId: string, input: { topic?: string }) =>
+  summarise: async (moduleId: string, input: { topic?: string } & FocusFields) =>
     data<SummaryResult>(await post(moduleId, 'summary', input), 'Unable to generate a summary'),
 };

@@ -18,6 +18,24 @@ export function parseTopic(value) {
   if (topic.length > LIMITS.topic) return { ok: false, error: `Topic must be at most ${LIMITS.topic} characters` };
   return { ok: true, value: topic || undefined };
 }
+// Chapters the learner picked in the topic list. Each is "document_id:index" from the module outline; the AI backend checks every one
+// against what this user can see in this module, so the browser can only narrow what is used, never reach other material.
+export const SECTION_REF = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:\d{1,4}$/i;
+export const MAX_SECTIONS = 12;
+/** Optional chapter focus: { sections?, balanced?, label? } with only the keys that were actually sent. */
+export function parseFocus(input) {
+  const out = {};
+  if (input.sections !== undefined && input.sections !== null) {
+    if (!Array.isArray(input.sections) || input.sections.length > MAX_SECTIONS || !input.sections.every((r) => typeof r === 'string' && SECTION_REF.test(r)))
+      return { ok: false, error: `Choose up to ${MAX_SECTIONS} chapters` };
+    const refs = [...new Set(input.sections.map((r) => r.toLowerCase()))];
+    if (refs.length) out.sections = refs;
+  }
+  if (input.balanced !== undefined && typeof input.balanced !== 'boolean') return { ok: false, error: 'Invalid request' };
+  if (input.balanced === true && !out.sections) out.balanced = true;
+  if (typeof input.label === 'string' && input.label.trim()) out.label = input.label.trim().slice(0, 120);
+  return { ok: true, value: out };
+}
 function intInRange(value, [min, max], fallback, label) {
   if (value === undefined || value === null) return { ok: true, value: fallback };
   if (!Number.isInteger(value) || value < min || value > max) return { ok: false, error: `${label} must be between ${min} and ${max}` };
@@ -42,19 +60,22 @@ export function parseQuizInput(body) {
   const input = body ?? {};
   const topic = parseTopic(input.topic); if (!topic.ok) return topic;
   const count = intInRange(input.question_count, LIMITS.quizQuestions, 5, 'Question count'); if (!count.ok) return count;
-  return { ok: true, value: { topic: topic.value, question_count: count.value } };
+  const focus = parseFocus(input); if (!focus.ok) return focus;
+  return { ok: true, value: { topic: topic.value, question_count: count.value, ...focus.value } };
 }
 export function parseFlashcardInput(body) {
   if (body !== undefined && body !== null && !isObject(body)) return { ok: false, error: 'Invalid request' };
   const input = body ?? {};
   const topic = parseTopic(input.topic); if (!topic.ok) return topic;
   const count = intInRange(input.max_cards, LIMITS.flashcards, 20, 'Card count'); if (!count.ok) return count;
-  return { ok: true, value: { topic: topic.value, max_cards: count.value } };
+  const focus = parseFocus(input); if (!focus.ok) return focus;
+  return { ok: true, value: { topic: topic.value, max_cards: count.value, ...focus.value } };
 }
 export function parseSummaryInput(body) {
   if (body !== undefined && body !== null && !isObject(body)) return { ok: false, error: 'Invalid request' };
   const topic = parseTopic((body ?? {}).topic); if (!topic.ok) return topic;
-  return { ok: true, value: { topic: topic.value } };
+  const focus = parseFocus(body ?? {}); if (!focus.ok) return focus;
+  return { ok: true, value: { topic: topic.value, ...focus.value } };
 }
 export function parseQuizSubmit(body) {
   if (!isObject(body) || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 30) return { ok: false, error: 'Answer at least one question' };
@@ -70,9 +91,10 @@ export function parseQuizSubmit(body) {
 
 // ── Requests to the AI backend: module_id is ALWAYS the validated URL id; nothing user-identifying comes from the browser ──
 export const toChatRequest = (moduleId, v) => ({ module_id: moduleId, message: v.message, complexity: v.complexity, scope_mode: v.scope_mode ?? 'everything', ...(v.session_id ? { session_id: v.session_id } : {}) });
-export const toQuizRequest = (moduleId, v) => ({ module_id: moduleId, question_count: v.question_count, question_type: 'mcq', ...(v.topic ? { topic: v.topic } : {}) });
-export const toFlashcardRequest = (moduleId, v) => ({ module_id: moduleId, max_cards: v.max_cards, ...(v.topic ? { title: `Flashcards: ${v.topic}`.slice(0, 255), topic: v.topic } : {}) });
-export const toSummaryRequest = (moduleId, v) => ({ module_id: moduleId, scope: 'module', ...(v.topic ? { topic: v.topic } : {}) });
+const toFocus = (v) => ({ ...(v.sections?.length ? { sections: v.sections } : {}), ...(v.balanced ? { balanced: true } : {}) });
+export const toQuizRequest = (moduleId, v) => ({ module_id: moduleId, question_count: v.question_count, question_type: 'mcq', ...(v.topic ? { topic: v.topic } : {}), ...toFocus(v), ...(v.sections?.length && v.label ? { title: `Quiz: ${v.label}`.slice(0, 255) } : {}) });
+export const toFlashcardRequest = (moduleId, v) => ({ module_id: moduleId, max_cards: v.max_cards, ...(v.topic ? { title: `Flashcards: ${v.topic}`.slice(0, 255), topic: v.topic } : {}), ...toFocus(v), ...(v.sections?.length && v.label ? { title: `Flashcards: ${v.label}`.slice(0, 255) } : {}) });
+export const toSummaryRequest = (moduleId, v) => ({ module_id: moduleId, scope: 'module', ...(v.topic ? { topic: v.topic } : {}), ...toFocus(v) });
 
 // ── Responses: whitelist fields; never forward unknown/internal data ──
 const text = (v, max) => (typeof v === 'string' ? v.slice(0, max) : '');
@@ -223,11 +245,22 @@ export const mapSummaryDetail = (raw) => { const s = mapSummary(raw); return s ?
 const cleanTitle = (v) => text(typeof v === 'string' ? v : '', 200).replace(/\s+/g, ' ').trim();
 const stripExtension = (name) => name.replace(/\.[A-Za-z0-9]{1,5}$/, '');
 /** Titles only: no ids, owners or file details. Each value is what is sent as the topic. */
-export function mapOutline(weeksRaw, docsRaw) {
+export function mapOutline(weeksRaw, docsRaw, structureRaw) {
   const seen = new Set(); const take = (label, value) => { const key = value.toLowerCase(); if (!value || seen.has(key)) return null; seen.add(key); return { label, value }; };
   const weeks = (Array.isArray(weeksRaw) ? weeksRaw : []).filter(isObject).sort((a, b) => (Number(a.week_number) || 0) - (Number(b.week_number) || 0)).slice(0, 60)
     .map((w) => { const title = cleanTitle(w.title); return title ? take(Number.isInteger(w.week_number) ? `Week ${w.week_number}: ${title}` : title, title) : null; }).filter(Boolean);
   const documents = (Array.isArray(docsRaw) ? docsRaw : []).filter((d) => isObject(d) && d.is_latest !== false && (String(d.status ?? '').toLowerCase() === 'indexed' || Number(d.chunk_count) > 0))
     .slice(0, 100).map((d) => { const title = stripExtension(cleanTitle(d.filename ?? d.original_filename)); return title ? take(title, title) : null; }).filter(Boolean);
-  return { weeks, documents };
+  return { weeks, documents, chapters: mapChapters(structureRaw) };
+}
+/** Chapters and sections detected at upload, per document. `ref` is what a generation request sends back. */
+function mapChapters(raw) {
+  const docs = isObject(raw) && Array.isArray(raw.documents) ? raw.documents : [];
+  return docs.filter(isObject).slice(0, 30).map((d) => {
+    const sections = (Array.isArray(d.sections) ? d.sections : []).filter(isObject).slice(0, 200).map((x) => {
+      const title = cleanTitle(x.title); const ref = typeof x.ref === 'string' ? x.ref.toLowerCase() : '';
+      return title && SECTION_REF.test(ref) ? { ref, title, level: Math.min(Math.max(Number(x.level) || 1, 1), 3), page: Number.isInteger(x.page) && x.page > 0 ? x.page : null } : null;
+    }).filter(Boolean);
+    return { document: stripExtension(cleanTitle(d.filename)) || 'Document', sections };
+  }).filter((d) => d.sections.length > 0);
 }

@@ -5,14 +5,14 @@ import type { Outline } from '@/lib/learning-ai.mjs';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { FlashcardDeck } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicPicker, errorText, when } from './shared';
+import { GenerateState, NO_FOCUS, TopicPicker, errorText, focusNote, focusRequest, when, type Focus } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
 /** Flashcards: generated from the module's material. Flip each card, move through the set, and see which cards you have reviewed. */
 export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline: Outline | null }) {
-  const [topic, setTopic] = useState('');
+  const [focus, setFocus] = useState<Focus>(NO_FOCUS);
   const [note, setNote] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
   const hist = useHistory(moduleId, 'flashcards');
@@ -26,8 +26,8 @@ export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline
   async function generate() {
     setLoading(true); setError(null);
     try {
-      const d = await studyMindAiService.generateFlashcards(moduleId, { topic: topic.trim() || undefined });
-      setDeck(d); setNote(topic.trim() ? `Topic: ${topic.trim()}` : ''); setIndex(0); setFlipped(false); setReviewed(new Set()); void hist.refresh();
+      const d = await studyMindAiService.generateFlashcards(moduleId, focusRequest(focus, outline));
+      setDeck(d); setNote(focusNote(focus, outline)); setIndex(0); setFlipped(false); setReviewed(new Set()); void hist.refresh();
     } catch (e) { setError(errorText(e, 'Unable to generate flashcards')); }
     finally { setLoading(false); }
   }
@@ -52,7 +52,7 @@ export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline
   if (!deck || !card) return <ToolLayout rail={rail} main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle="Memorise the key ideas in this module.">
     <GenerateState icon={<Layers className="size-8" />} text="Generate a set of flashcards from this module's material. Flip each card to check yourself."
       buttonLabel="Generate flashcards" loadingLabel="Generating flashcards…" loading={loading} error={error} onGenerate={generate}>
-      <TopicPicker outline={outline} id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
+      <TopicPicker outline={outline} id="cards-topic" value={focus} onChange={setFocus} disabled={loading} />
       {deck && !deck.cards.length && <div className="mt-3"><ErrorBox message="No flashcards could be generated from the current material." /></div>}
     </GenerateState>
   </ToolPanel>} />;
@@ -91,7 +91,7 @@ export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline
       <NumberGrid label="Jump to a card" noun="Card" states={states} onSelect={goTo} />
       <GridLegend items={[{ label: 'Reviewed', dot: 'bg-emerald-400' }, { label: 'Current', dot: 'bg-violet-500' }]} />
       <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
-        <TopicPicker outline={outline} id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
+        <TopicPicker outline={outline} id="cards-topic" value={focus} onChange={setFocus} disabled={loading} />
         <button type="button" className={cn(btnOutline, 'w-full')} onClick={generate} disabled={loading}>{loading ? 'Generating…' : 'Generate a new set'}</button>
       </div>
     </SideCard>} />;

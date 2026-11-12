@@ -101,3 +101,84 @@ test('the outline route: titles only, members only', async ({ baseURL }) => {
   expect((await outsider.ctx.get(`/api/studymind/modules/${mod.id}/ai/outline`)).status()).toBe(403);
   expect((await student.ctx.get('/api/studymind/modules/not-a-uuid/ai/outline')).status()).toBe(400);
 });
+
+// ── Chapters detected at upload (the outline response is mocked here; real detection, indexing and scoping are covered by the integration suite) ──
+const refOf = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}:${n}`;
+const chapters = (count: number) => Array.from({ length: count }, (_, i) => ({ ref: refOf(i), title: i === 0 ? 'Chapter 1: Cells' : i === 1 ? 'Chapter 2: Genetics' : `Chapter ${i + 1}: Topic ${i + 1}`, level: i === 5 ? 2 : 1, page: 10 + i }));
+async function mockOutline(page: Page, count = 4) {
+  await page.route('**/ai/outline', async (route) => {
+    const real = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...real, chapters: [{ document: 'Biology Handbook', sections: chapters(count) }] } });
+  });
+}
+
+test('chapters: whole module spreads across chapters by default; ticked chapters are sent as references; a free-text topic still works', async ({ page, baseURL }) => {
+  const { mod, student } = await world(baseURL!, false);
+  await mockOutline(page);
+  await page.goto('/my-learning'); await signIn(page, student.email);
+  await page.goto(`/my-learning/modules/${mod.id}`); await page.getByRole('tab', { name: 'Quiz' }).click();
+  const quiz = panel(page, 'Quiz');
+  const select = quiz.getByLabel('Focus on a topic (optional)');
+  await expect(select).toHaveJSProperty('tagName', 'SELECT');
+  expect(await select.locator('option').allTextContents()).toEqual(['Whole module (spread across all chapters)', 'Choose chapters…', 'Type my own topic…']);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/ai/quiz', async (route) => { bodies.push(route.request().postDataJSON()); await route.continue(); });
+
+  await quiz.getByRole('button', { name: 'Generate quiz' }).click();
+  await expect(page.getByText(/Question 1 of 5/)).toBeVisible();
+  expect(bodies[0]).toMatchObject({ balanced: true }); expect(bodies[0].sections).toBeUndefined(); expect(bodies[0].topic).toBeUndefined();
+  await expect(page.getByText(/Whole module/).first()).toBeVisible();
+
+  await page.getByRole('complementary', { name: 'Quiz history' }).getByRole('button', { name: 'New Quiz' }).click();
+  await select.selectOption({ label: 'Choose chapters…' });
+  const list = quiz.getByRole('group', { name: 'Chapters to cover' });
+  await expect(list.getByRole('checkbox')).toHaveCount(4);
+  await expect(list).toContainText('p. 10');
+  await expect(quiz.getByText('Nothing ticked: the whole module is used.')).toBeVisible();
+  await list.getByRole('checkbox', { name: /Chapter 1: Cells/ }).check();
+  await list.getByRole('checkbox', { name: /Chapter 2: Genetics/ }).check();
+  await expect(quiz.getByText('2 selected')).toBeVisible();
+  await quiz.getByRole('button', { name: 'Generate quiz' }).click();
+  await expect(page.getByText(/Question 1 of 5/)).toBeVisible();
+  expect(bodies[1]).toMatchObject({ sections: [refOf(0), refOf(1)], label: 'Chapter 1: Cells + Chapter 2: Genetics' }); expect(bodies[1].balanced).toBeUndefined();
+  await expect(page.getByText(/Chapters: Chapter 1: Cells, Chapter 2: Genetics/)).toBeVisible();
+
+  await page.getByRole('complementary', { name: 'Quiz history' }).getByRole('button', { name: 'New Quiz' }).click();
+  await select.selectOption({ label: 'Type my own topic…' });
+  await quiz.getByLabel('Your own topic').fill('Mitosis');
+  await quiz.getByRole('button', { name: 'Generate quiz' }).click();
+  await expect(page.getByText(/Topic: Mitosis/)).toBeVisible();
+  expect(bodies[2]).toMatchObject({ topic: 'Mitosis' }); expect(bodies[2].sections).toBeUndefined(); expect(bodies[2].balanced).toBeUndefined();
+});
+
+test('chapters: at most 12 can be ticked, sub-sections are indented, and Flashcards and Summary use the same chooser', async ({ page, baseURL }) => {
+  const { mod, student } = await world(baseURL!, false);
+  await mockOutline(page, 14);
+  await page.goto('/my-learning'); await signIn(page, student.email);
+  await page.goto(`/my-learning/modules/${mod.id}`); await page.getByRole('tab', { name: 'Flashcards' }).click();
+  const cards = panel(page, 'Flashcards');
+  const select = cards.getByLabel('Focus on a topic (optional)');
+  await expect(select).toHaveJSProperty('tagName', 'SELECT');
+  await select.selectOption({ label: 'Choose chapters…' });
+  const boxes = cards.getByRole('group', { name: 'Chapters to cover' }).getByRole('checkbox');
+  for (let i = 0; i < 12; i++) await boxes.nth(i).check();
+  await expect(boxes.nth(12)).toBeDisabled();                                                   // the 13th is refused
+  await expect(cards.getByText(/12 selected \(the most you can pick\)/)).toBeVisible();
+  await boxes.nth(0).uncheck(); await expect(boxes.nth(12)).toBeEnabled();
+  const a = (await boxes.nth(4).boundingBox())!, b = (await boxes.nth(5).boundingBox())!;
+  expect(b.x, 'a level-2 section is indented').toBeGreaterThan(a.x + 8);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/ai/flashcards', async (route) => { bodies.push(route.request().postDataJSON()); await route.continue(); });
+  await cards.getByRole('button', { name: 'Generate flashcards' }).click();
+  await expect(page.getByTestId('card-counter')).toHaveText('Card 1 of 6');
+  expect((bodies[0].sections as string[]).length).toBe(11);
+
+  await page.getByRole('tab', { name: 'Summary' }).click();
+  const summary = panel(page, 'Summary');
+  await expect(summary.getByLabel('Summarise a topic (optional)')).toHaveJSProperty('tagName', 'SELECT');
+  const sb: Record<string, unknown>[] = [];
+  await page.route('**/ai/summary', async (route) => { sb.push(route.request().postDataJSON()); await route.continue(); });
+  await summary.getByRole('button', { name: 'Generate summary' }).click();
+  await expect(page.getByTestId('summary')).toBeVisible();
+  expect(sb[0]).toMatchObject({ balanced: true });
+});

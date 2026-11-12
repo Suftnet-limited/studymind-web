@@ -972,6 +972,44 @@ if (fixtureMode) {
     eq((await A.st.req(`${base}/summary/${sid}`, { method: 'DELETE' })).status, 204); eq((await A.st.req(`${base}/summary/${sid}`)).status, 404);
     eq((await A.st.req(`${base}/quiz`)).status, 200); eq((await A.st.req(`${base}/flashcards`)).status, 200);
   });
+  await check('Web -> real backend: chapters detected at upload scope Quiz/Flashcards/Summary to exactly the chosen chapters, privately', async () => {
+    const words = (tag, n) => Array.from({ length: n }, (_, i) => `${tag}word${i}`).join(' ');
+    const M1 = `CHAPONE${run}`, M2 = `CHAPTWO${run}`, M3 = `CHAPTHREE${run}`, MP = `PERSONALCHAP${run}`;
+    const handbook = `# Biology Handbook\n\n## Chapter 1: Cells\n\n${M1} ${words('cell', 900)}\n\n## Chapter 2: Genetics\n\n${words('gene', 300)} ${M2} ${words('gene', 600)}\n\n## Chapter 3: Evolution\n\n${words('evo', 300)} ${M3} ${words('evo', 600)}\n`;
+    const mine = `# My Notes\n\n## Revision A\n\n${MP} ${words('mine', 700)}\n\n## Revision B\n\n${words('minb', 700)}\n`;
+    eq((await A.lec.upload(AM, 'handbook.md', Buffer.from(handbook), 'class', 'text/markdown')).status, 201);
+    eq((await A.st2.upload(AM, 'st2-notes.md', Buffer.from(mine), 'personal', 'text/markdown')).status, 201);
+    const outline = async (who) => (await who.req(aiPath(AM, 'outline'))).body;
+    const o1 = await outline(A.st); eq((await A.st.req(aiPath(AM, 'outline'))).status, 200);
+    const book = o1.chapters.find((g) => g.document === 'handbook'); expect(book, 'the class handbook has chapters');
+    eq(book.sections.map((x) => x.title).join('|'), 'Biology Handbook|Chapter 1: Cells|Chapter 2: Genetics|Chapter 3: Evolution');
+    expect(!o1.chapters.some((g) => g.document === 'st2-notes'), "another student's personal notes are not in my outline");
+    expect(!JSON.stringify(o1.chapters).match(/user_id|owner|module_id|chunk/), 'titles and refs only');
+    const o2 = await outline(A.st2); expect(o2.chapters.some((g) => g.document === 'st2-notes'), 'the owner sees their own personal notes');
+    eq((await A.out.req(aiPath(AM, 'outline'))).status, 403); eq((await new Client().req(aiPath(AM, 'outline'))).status, 401);
+    const ref = (title) => book.sections.find((x) => x.title === title).ref;
+    const prompts = async () => (await hits()).filter((x) => x.path === 'chat.completions').map((x) => x.text).join('\n');
+    await resetHits();
+    const one = await A.st.json(aiPath(AM, 'summary'), 'POST', { sections: [ref('Chapter 2: Genetics')], label: 'Chapter 2: Genetics' }); eq(one.status, 201, JSON.stringify(one.body));
+    let seen = await prompts();
+    expect(seen.includes(M2) && !seen.includes(M1) && !seen.includes(M3), 'a chapter-2 summary is built from chapter 2 only');
+    await resetHits();
+    const two = await A.st.json(aiPath(AM, 'summary'), 'POST', { sections: [ref('Chapter 1: Cells'), ref('Chapter 3: Evolution')] }); eq(two.status, 201);
+    seen = await prompts(); expect(seen.includes(M3) && !seen.includes(M2), 'two chapters: both present, the other absent'); expect(seen.includes(M1) || seen.includes('cellword'), 'chapter 1 present');
+    await resetHits();
+    const whole = await A.st.json(aiPath(AM, 'summary'), 'POST', { balanced: true }); eq(whole.status, 201);
+    seen = await prompts(); expect(/cellword/.test(seen) && /geneword/.test(seen) && /evoword/.test(seen), 'the whole-module request is spread across every chapter');
+    // privacy: another student's personal chapter cannot be used by me, nor an invented / other-module reference
+    const theirs = o2.chapters.find((g) => g.document === 'st2-notes').sections[0].ref;
+    await resetHits();
+    eq((await A.st.json(aiPath(AM, 'summary'), 'POST', { sections: [theirs] })).status, 422, "someone else's personal chapter");
+    eq((await A.st.json(aiPath(AM, 'summary'), 'POST', { sections: [`${AM}:0`] })).status, 422, 'a reference that is not a document of this module');
+    eq((await A.st.json(aiPath(AP, 'summary'), 'POST', { sections: [ref('Chapter 1: Cells')] })).status, 403, 'a module the student is not in');
+    expect((await hits()).length === 0, 'refused requests never reach the provider');
+    for (const bad of [['not-a-ref'], [ref('Chapter 1: Cells'), 5], 'x', Array.from({ length: 13 }, () => ref('Chapter 1: Cells').replace(/:\d+$/, (m, i) => `:${i}`))]) eq((await A.st.json(aiPath(AM, 'quiz'), 'POST', { sections: bad })).status, 400, JSON.stringify(bad).slice(0, 40));
+    // the owner can use their own personal chapter
+    const mineOnly = await A.st2.json(aiPath(AM, 'summary'), 'POST', { sections: [theirs] }); eq(mineOnly.status, 201, JSON.stringify(mineOnly.body));
+  });
   await check('Web -> real backend: the sources selection reaches the AI backend and only the public scopes are accepted', async () => {
     await resetHits();
     for (const scope of ['class_only', 'personal_only', 'everything']) eq((await A.st.json(aiPath(AM, 'chat'), 'POST', { message: `scope ${scope}`, scope_mode: scope })).status, 200, scope);

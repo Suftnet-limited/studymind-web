@@ -5,7 +5,7 @@ import type { Outline } from '@/lib/learning-ai.mjs';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { QuizGenerated, QuizResult } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicPicker, errorText, when } from './shared';
+import { GenerateState, NO_FOCUS, TopicPicker, errorText, focusNote, focusRequest, when, type Focus } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ const LETTERS = 'ABCDEFGHIJ';
  * are NOT sent to the browser until the quiz is submitted; the results view reveals them.
  */
 export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outline | null }) {
-  const [topic, setTopic] = useState('');
+  const [focus, setFocus] = useState<Focus>(NO_FOCUS);
   const [note, setNote] = useState('');
   const [opening, setOpening] = useState<string | null>(null);
   const hist = useHistory(moduleId, 'quiz');
@@ -32,8 +32,8 @@ export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outl
   async function generate() {
     setLoading(true); setError(null);
     try {
-      setQuiz(await studyMindAiService.generateQuiz(moduleId, { topic: topic.trim() || undefined }));
-      setNote(topic.trim() ? `Topic: ${topic.trim()}` : ''); setAnswers({}); setResult(null); setCurrent(0); void hist.refresh();
+      setQuiz(await studyMindAiService.generateQuiz(moduleId, focusRequest(focus, outline)));
+      setNote(focusNote(focus, outline)); setAnswers({}); setResult(null); setCurrent(0); void hist.refresh();
     } catch (e) { setError(errorText(e, 'Unable to generate a quiz')); }
     finally { setLoading(false); }
   }
@@ -66,7 +66,7 @@ export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outl
   if (!quiz || !quiz.questions.length) return <ToolLayout rail={rail} main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle="Test your understanding with questions built from this module's material.">
     <GenerateState icon={<ClipboardList className="size-8" />} text="Generate a multiple-choice quiz. You will see your score and an explanation for every question once you submit."
       buttonLabel="Generate quiz" loadingLabel="Generating quiz…" loading={loading} error={error} onGenerate={generate}>
-      <TopicPicker outline={outline} id="quiz-topic" value={topic} onChange={setTopic} disabled={loading} />
+      <TopicPicker outline={outline} id="quiz-topic" value={focus} onChange={setFocus} disabled={loading} />
       {quiz && !quiz.questions.length && <div className="mt-3"><ErrorBox message="No questions could be generated from the current material." /></div>}
     </GenerateState>
   </ToolPanel>} />;

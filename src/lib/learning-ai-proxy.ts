@@ -218,10 +218,11 @@ export async function moduleOutline(context: { params: Promise<{ id: string }> }
   if (!isUuid(id)) return fail(400, 'Invalid module ID');
   try {
     const denied = await requireModuleAccess(id); if (denied) return denied;
-    const [weeks, docs] = await Promise.all([authenticatedAiFetch(`/api/modules/${id}/weeks`), authenticatedAiFetch(`/api/modules/${id}/documents`)]);
-    if (!weeks || !docs || weeks.status === 401 || docs.status === 401) return fail(401, 'Authentication required');
+    const [weeks, docs, structure] = await Promise.all([authenticatedAiFetch(`/api/modules/${id}/weeks`), authenticatedAiFetch(`/api/modules/${id}/documents`), authenticatedAiFetch(`/api/modules/${id}/outline`)]);
+    if (!weeks || !docs || !structure || weeks.status === 401 || docs.status === 401) return fail(401, 'Authentication required');
     // Suggestions are a convenience: if one list cannot be read the other is still offered, and the free-text topic always works.
     const w = weeks.ok ? await weeks.json().catch(() => null) : null; const d = docs.ok ? await docs.json().catch(() => null) : null;
-    return NextResponse.json(mapOutline(w, d), { headers: NO_STORE });
+    const c = structure.ok ? await structure.json().catch(() => null) : null;   // an older backend has no outline route: then there are simply no chapters
+    return NextResponse.json(mapOutline(w, d, c), { headers: NO_STORE });
   } catch { return fail(502, aiFailure(502, null).error); }
 }
