@@ -1,7 +1,8 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
-import { aiFailure, mapSessionDetail, mapSessionList, sessionIds } from '@/lib/learning-ai.mjs';
+import { HISTORY_KINDS, aiFailure, mapFlashcardDetail, mapHistoryList, mapQuizDetail, mapSessionDetail, mapSessionList, mapSummaryDetail, sessionIds } from '@/lib/learning-ai.mjs';
+import type { HistoryKind } from '@/lib/learning-ai.mjs';
 import { isUuid } from '@/lib/studymind-validation.mjs';
 import { isCrossSite } from '@/lib/request-origin.mjs';
 
@@ -136,6 +137,76 @@ export async function sessionDelete(request: Request, context: SessionContext) {
     const res = await authenticatedAiFetch(`/api/sessions/${sessionId.toLowerCase()}`, { method: 'DELETE' });
     if (!res || res.status === 401) return fail(401, 'Authentication required');
     if (!res.ok && res.status !== 404) { const f = aiFailure(500, null); return fail(f.status, f.error); }
+    return new NextResponse(null, { status: 204, headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+
+// ── Saved quizzes, flashcard sets and summaries ───────────────────────────
+// Same model as chat history: require access to the module in the URL, then prove the item is one of the caller's OWN items for THAT
+// module by finding it in the module-filtered list (the backend scopes that list to the caller). Only whitelisted fields are returned,
+// and a quiz that has not been submitted never carries its correct answers or explanations.
+export type HistoryContext = { params: Promise<{ id: string; kind: string; itemId?: string }> };
+const HISTORY_PATHS: Record<HistoryKind, { list: (m: string) => string; item: (i: string) => string }> = {
+  quiz: { list: (m) => `/api/quiz/history/list?module_id=${m}`, item: (i) => `/api/quiz/${i}` },
+  flashcards: { list: (m) => `/api/flashcards?module_id=${m}`, item: (i) => `/api/flashcards/${i}` },
+  summary: { list: (m) => `/api/summarise?module_id=${m}`, item: (i) => `/api/summarise/${i}` },
+};
+const NOT_FOUND = 'This item could not be found.';
+
+async function ownItems(kind: HistoryKind, moduleId: string): Promise<{ ok: true; raw: unknown } | { ok: false; response: NextResponse }> {
+  const denied = await requireModuleAccess(moduleId);
+  if (denied) return { ok: false, response: denied };
+  const res = await authenticatedAiFetch(HISTORY_PATHS[kind].list(moduleId));
+  if (!res || res.status === 401) return { ok: false, response: fail(401, 'Authentication required') };
+  if (!res.ok) { const f = aiFailure(res.status, null); return { ok: false, response: fail(f.status, f.error) }; }
+  return { ok: true, raw: await res.json().catch(() => null) };
+}
+async function historyParams(context: HistoryContext, needItem: boolean): Promise<{ ok: true; id: string; kind: HistoryKind; itemId: string } | { ok: false; response: NextResponse }> {
+  const { id, kind, itemId } = await context.params;
+  if (!isUuid(id)) return { ok: false, response: fail(400, 'Invalid module ID') };
+  if (!(HISTORY_KINDS as readonly string[]).includes(kind)) return { ok: false, response: fail(404, NOT_FOUND) };
+  if (needItem && (!itemId || !isUuid(itemId))) return { ok: false, response: fail(400, 'Invalid ID') };
+  return { ok: true, id, kind: kind as HistoryKind, itemId: (itemId ?? '').toLowerCase() };
+}
+
+export async function historyList(context: HistoryContext) {
+  const p = await historyParams(context, false); if (!p.ok) return p.response;
+  try {
+    const own = await ownItems(p.kind, p.id); if (!own.ok) return own.response;
+    return NextResponse.json(mapHistoryList(p.kind, own.raw), { headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+export async function historyOpen(context: HistoryContext) {
+  const p = await historyParams(context, true); if (!p.ok) return p.response;
+  try {
+    const own = await ownItems(p.kind, p.id); if (!own.ok) return own.response;
+    if (!sessionIds(own.raw).includes(p.itemId)) return fail(404, NOT_FOUND);
+    let raw: unknown;
+    if (p.kind === 'quiz') {   // the quiz list holds no questions, so fetch the one attempt
+      const res = await authenticatedAiFetch(HISTORY_PATHS.quiz.item(p.itemId));
+      if (!res || res.status === 401) return fail(401, 'Authentication required');
+      if (!res.ok) { const f = aiFailure(res.status === 404 ? 404 : 500, null); return fail(f.status, res.status === 404 ? NOT_FOUND : f.error); }
+      raw = await res.json().catch(() => null);
+    } else {   // flashcard sets and summaries are already complete in the caller's own list
+      raw = (Array.isArray(own.raw) ? own.raw : []).find((x) => x && typeof x === 'object' && String((x as { id?: unknown }).id).toLowerCase() === p.itemId);
+    }
+    const detail = p.kind === 'quiz' ? mapQuizDetail(raw) : p.kind === 'flashcards' ? mapFlashcardDetail(raw) : mapSummaryDetail(raw);
+    if (!detail) return fail(502, aiFailure(502, null).error);
+    return NextResponse.json(detail, { headers: NO_STORE });
+  } catch { return fail(502, aiFailure(502, null).error); }
+}
+
+export async function historyDelete(request: Request, context: HistoryContext) {
+  if (isCrossSite(request)) return fail(403, 'Cross-site requests are not allowed');
+  const p = await historyParams(context, true); if (!p.ok) return p.response;
+  try {
+    const own = await ownItems(p.kind, p.id); if (!own.ok) return own.response;
+    if (!sessionIds(own.raw).includes(p.itemId)) return fail(404, NOT_FOUND);
+    const res = await authenticatedAiFetch(HISTORY_PATHS[p.kind].item(p.itemId), { method: 'DELETE' });
+    if (!res || res.status === 401) return fail(401, 'Authentication required');
+    if (!res.ok && res.status !== 404) return fail(502, aiFailure(500, null).error);
     return new NextResponse(null, { status: 204, headers: NO_STORE });
   } catch { return fail(502, aiFailure(502, null).error); }
 }

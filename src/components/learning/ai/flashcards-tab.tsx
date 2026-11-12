@@ -4,14 +4,17 @@ import { ArrowLeft, ArrowRight, Layers, RotateCcw } from 'lucide-react';
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { FlashcardDeck } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicField, errorText } from './shared';
+import { GenerateState, TopicField, errorText, when } from './shared';
+import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
 /** Flashcards: generated from the module's material. Flip each card, move through the set, and see which cards you have reviewed. */
 export function FlashcardsTab({ moduleId }: { moduleId: string }) {
   const [topic, setTopic] = useState('');
-  const [usedTopic, setUsedTopic] = useState('');
+  const [note, setNote] = useState('');
+  const [opening, setOpening] = useState<string | null>(null);
+  const hist = useHistory(moduleId, 'flashcards');
   const [deck, setDeck] = useState<FlashcardDeck | null>(null);
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -23,18 +26,35 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
     setLoading(true); setError(null);
     try {
       const d = await studyMindAiService.generateFlashcards(moduleId, { topic: topic.trim() || undefined });
-      setDeck(d); setUsedTopic(topic.trim()); setIndex(0); setFlipped(false); setReviewed(new Set());
+      setDeck(d); setNote(topic.trim() ? `Topic: ${topic.trim()}` : ''); setIndex(0); setFlipped(false); setReviewed(new Set()); void hist.refresh();
     } catch (e) { setError(errorText(e, 'Unable to generate flashcards')); }
     finally { setLoading(false); }
   }
+  const reset = () => { setDeck(null); setIndex(0); setFlipped(false); setReviewed(new Set()); setError(null); };
+  async function open(id: string) {
+    if (id === deck?.deck_id) return;
+    setOpening(id); setError(null);
+    try {
+      const d = await studyMindAiService.openHistory(moduleId, 'flashcards', id);
+      if (d.kind !== 'flashcards') throw new Error('Unable to open this set');
+      setDeck(d.deck); setNote(d.created_at ? `Created ${when(d.created_at)}` : ''); setIndex(0); setFlipped(false); setReviewed(new Set());
+    } catch (e) { setError(errorText(e, 'Unable to open this set')); }
+    finally { setOpening(null); }
+  }
+  async function remove(id: string) {
+    await studyMindAiService.deleteHistory(moduleId, 'flashcards', id);
+    if (id === deck?.deck_id) reset();
+    await hist.refresh();
+  }
+  const rail = <HistoryRail kind="flashcards" icon={<Layers />} rows={hist.rows} error={hist.error} activeId={deck?.deck_id ?? null} opening={opening} busy={loading} onNew={reset} onOpen={id => void open(id)} onDelete={remove} />;
   const card = deck?.cards[index];
-  if (!deck || !card) return <ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle="Memorise the key ideas in this module.">
+  if (!deck || !card) return <ToolLayout rail={rail} main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle="Memorise the key ideas in this module.">
     <GenerateState icon={<Layers className="size-8" />} text="Generate a set of flashcards from this module's material. Flip each card to check yourself."
       buttonLabel="Generate flashcards" loadingLabel="Generating flashcards…" loading={loading} error={error} onGenerate={generate}>
       <TopicField id="cards-topic" value={topic} onChange={setTopic} disabled={loading} />
       {deck && !deck.cards.length && <div className="mt-3"><ErrorBox message="No flashcards could be generated from the current material." /></div>}
     </GenerateState>
-  </ToolPanel>;
+  </ToolPanel>} />;
 
   const total = deck.cards.length;
   const goTo = (i: number) => { if (i < 0 || i >= total) return; setIndex(i); setFlipped(false); };
@@ -45,8 +65,8 @@ export function FlashcardsTab({ moduleId }: { moduleId: string }) {
     if (e.key === 'ArrowLeft') { e.preventDefault(); goTo(index - 1); }
   };
 
-  const meta = `${total} ${total === 1 ? 'card' : 'cards'} · ${usedTopic ? `Topic: ${usedTopic}` : 'All material'}`;
-  return <ToolLayout
+  const meta = `${total} ${total === 1 ? 'card' : 'cards'} · ${note || 'All material'}`;
+  return <ToolLayout rail={rail}
     main={<ToolPanel icon={<Layers className="size-5" />} title="Flashcards" subtitle={meta}>
       <div className="flex items-center justify-between gap-4 text-sm">
         <span data-testid="card-counter" aria-live="polite" className="font-bold text-[#111034]">Card {index + 1} of {total}</span>

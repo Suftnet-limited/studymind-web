@@ -21,6 +21,8 @@ for (const u of [UPSTREAM]) if (!['127.0.0.1', 'localhost'].includes(new URL(u).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const calls = [];
 const attempts = new Map();   // attempt id -> { owner, questions }
+const decks = new Map();      // deck id -> { owner, body }
+const summaries = new Map();  // summary id -> { owner, body }
 const sessions = new Map();   // session id -> { id, user_id, module_id, title, created_at, updated_at, messages[] }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const readBody = (req) => new Promise((resolve) => { const parts = []; req.on('data', (c) => parts.push(c)); req.on('end', () => resolve(Buffer.concat(parts))); });
@@ -104,8 +106,9 @@ async function fixture(req, res, path, body) {
     if (topic.includes('TRIGGER_SLOW')) await sleep(1500);
     const n = Math.min(data.question_count ?? 5, PHYSICS.length);
     const id = randomUUID(); const questions = PHYSICS.slice(0, n).map((q, i) => ({ id: randomUUID(), position: i + 1, question: q.q, options: q.opts.map((t, j) => ({ id: 'abcd'[j], text: t })), correct_answer: q.correct, explanation: q.why, source_chunk: 'physics-notes.pdf', student_answer: null, is_correct: null }));
-    attempts.set(id, { owner: me.id, questions });
-    return send(res, 201, { id, module_id: data.module_id, title: topic ? `Quiz: ${topic}` : 'Quiz', question_type: 'mcq', question_count: n, status: 'generated', created_at: new Date().toISOString(), questions });
+    const created = { id, module_id: data.module_id, title: topic ? `Quiz: ${topic}` : 'Quiz', question_type: 'mcq', question_count: n, status: 'generated', created_at: new Date().toISOString(), score: null, submitted_at: null };
+    attempts.set(id, { owner: me.id, questions, head: created });
+    return send(res, 201, { ...created, questions });
   }
   const submit = path.match(/^\/api\/quiz\/([0-9a-f-]{36})\/submit$/i);
   if (submit) {
@@ -115,20 +118,25 @@ async function fixture(req, res, path, body) {
     const map = new Map(data.answers.map((a) => [a.question_id, a.answer]));
     const questions = attempt.questions.map((q) => { const given = (map.get(q.id) || ''); return { ...q, student_answer: given, is_correct: !!given.trim() && given.trim().toLowerCase() === q.correct_answer }; });
     const correct = questions.filter((q) => q.is_correct).length;
+    attempt.questions = questions; attempt.head = { ...attempt.head, status: 'submitted', score: Math.round((correct / questions.length) * 1000) / 10, submitted_at: new Date().toISOString() };
     return send(res, 200, { attempt_id: submit[1], score: Math.round((correct / questions.length) * 1000) / 10, total: questions.length, correct, questions });
   }
   if (path === '/api/flashcards/generate') {
     if (![data.module_id, data.week_id, data.document_id].some(Boolean) || needModule()) return bad(res, 'module_id required');
     if (!Number.isInteger(data.max_cards ?? 20) || (data.max_cards ?? 20) < 5 || (data.max_cards ?? 20) > 50) return bad(res, 'max_cards must be 5..50');
     const cards = CARDS.slice(0, Math.min(data.max_cards ?? 20, CARDS.length)).map(([front, back], i) => ({ id: randomUUID(), position: i + 1, front, back, source_chunk: 'physics-notes.pdf', status: 'new' }));
-    return send(res, 201, { id: randomUUID(), module_id: data.module_id, title: data.title || 'Flashcards', card_count: cards.length, mastered_count: 0, created_at: new Date().toISOString(), last_studied_at: null, cards });
+    const deck = { id: randomUUID(), module_id: data.module_id, title: data.title || 'Flashcards', card_count: cards.length, mastered_count: 0, created_at: new Date().toISOString(), last_studied_at: null, cards };
+    decks.set(deck.id, { owner: me.id, body: deck });
+    return send(res, 201, deck);
   }
   if (path === '/api/summarise') {
     if (![data.module_id, data.week_id, data.document_id].some(Boolean) || needModule()) return bad(res, 'module_id required');
     if (!['document', 'week', 'module'].includes(data.scope ?? 'document')) return bad(res, 'scope invalid');
     if (topic.includes('TRIGGER_SLOW')) await sleep(1500);
-    return send(res, 201, { id: randomUUID(), module_id: data.module_id, scope: data.scope ?? 'document', source_doc_count: 2, created_at: new Date().toISOString(),
-      content: `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws${topic.includes('TRIGGER_ADVICE') ? '\n\n## General study advice (not from your documents)\n- Use spaced repetition.\n- Test yourself regularly.' : ''}` });
+    const summary = { id: randomUUID(), module_id: data.module_id, scope: data.scope ?? 'document', source_doc_count: 2, created_at: new Date().toISOString(),
+      content: `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws${topic.includes('TRIGGER_ADVICE') ? '\n\n## General study advice (not from your documents)\n- Use spaced repetition.\n- Test yourself regularly.' : ''}` };
+    summaries.set(summary.id, { owner: me.id, body: summary });
+    return send(res, 201, summary);
   }
   return send(res, 404, { detail: 'not a fixture route' });
 }
@@ -151,6 +159,26 @@ async function sessionsApi(req, res, path, url) {
   return send(res, 405, { detail: 'Method Not Allowed' });
 }
 
+// Saved quizzes, flashcard sets and summaries: the caller's own only, like the real backend. Quiz detail returns the full attempt (the Web layer withholds answers until submitted).
+async function historyApi(req, res, path, url) {
+  const me = await identity(req.headers.authorization || '');
+  if (!me) return send(res, 401, { detail: 'Could not validate credentials' });
+  const moduleId = url.searchParams.get('module_id');
+  const stores = { quiz: attempts, flashcards: decks, summarise: summaries };
+  const list = path.match(/^\/api\/(flashcards|summarise)$/i) || path.match(/^\/api\/(quiz)\/history\/list$/i);
+  if (list) {
+    const kind = list[1].toLowerCase(); if (req.method !== 'GET') return send(res, 405, { detail: 'Method Not Allowed' });
+    const rows = [...stores[kind].values()].filter((x) => x.owner === me.id).map((x) => (kind === 'quiz' ? { ...x.head, answered_count: x.questions.filter((q) => q.student_answer).length } : x.body)).filter((x) => !moduleId || x.module_id === moduleId)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 50);
+    return send(res, 200, rows);
+  }
+  const one = path.match(/^\/api\/(quiz|flashcards|summarise)\/([0-9a-f-]{36})$/i);
+  const kind = one[1].toLowerCase(); const rec = stores[kind].get(one[2]);
+  if (!rec || rec.owner !== me.id) return send(res, 404, { detail: 'Not found' });
+  if (req.method === 'DELETE') { stores[kind].delete(one[2]); res.writeHead(204, { 'X-AI-Fixture': 'controlled' }); return res.end(); }
+  return send(res, 200, kind === 'quiz' ? { ...rec.head, questions: rec.questions } : rec.body);
+}
+
 const FIXTURE = /^\/api\/(chat|quiz\/generate|quiz\/[0-9a-f-]{36}\/submit|flashcards\/generate|summarise)$/i;
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'); const path = url.pathname;
@@ -159,6 +187,7 @@ http.createServer(async (req, res) => {
     const body = await readBody(req);
     if (req.method === 'POST' && FIXTURE.test(path)) return await fixture(req, res, path, body);
     if (/^\/api\/sessions(\/[0-9a-f-]{36})?$/i.test(path) && ['GET', 'DELETE'].includes(req.method)) return await sessionsApi(req, res, path, url);
+    if (['GET', 'DELETE'].includes(req.method) && (/^\/api\/(flashcards|summarise)$/i.test(path) || /^\/api\/quiz\/history\/list$/i.test(path) || /^\/api\/(quiz|flashcards|summarise)\/[0-9a-f-]{36}$/i.test(path))) return await historyApi(req, res, path, url);
     // Everything else goes to the real backend unchanged.
     const headers = { ...req.headers }; delete headers.host; delete headers['content-length']; delete headers.connection;
     const up = await fetch(UPSTREAM + req.url, { method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body, redirect: 'manual' });

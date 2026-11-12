@@ -30,3 +30,11 @@ export function GenerateState({ icon, text, buttonLabel, loadingLabel, loading, 
     {loading && <p role="status" className="mt-3 text-xs text-zinc-500">This can take up to a minute.</p>}
   </div>;
 }
+
+export const clock = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+export function when(iso: string | null) {
+  if (!iso) return '';
+  const d = new Date(iso); if (Number.isNaN(d.getTime())) return '';
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? `Today, ${clock(iso)}` : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}, ${clock(iso)}`;
+}

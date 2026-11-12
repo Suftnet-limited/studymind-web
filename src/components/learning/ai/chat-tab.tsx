@@ -5,7 +5,7 @@ import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { ChatSessionSummary, Citation, Complexity, Scope } from '@/lib/learning-ai.mjs';
 import { initialsOf } from '@/lib/initials';
 import { MarkdownRenderer } from './markdown';
-import { errorText } from './shared';
+import { clock, errorText, when } from './shared';
 import { btnOutline } from './layout';
 import { cn } from '@/lib/utils';
 
@@ -23,13 +23,6 @@ const CHIPS: { tool: OpenTool; label: string; icon: typeof FileText }[] = [
 ];
 let nextId = 0;
 
-const clock = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
-function when(iso: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso); if (Number.isNaN(d.getTime())) return '';
-  const today = new Date().toDateString() === d.toDateString();
-  return today ? `Today, ${clock(iso)}` : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}, ${clock(iso)}`;
-}
 const nowIso = () => new Date().toISOString();
 
 function CopyAnswer({ text }: { text: string }) {

@@ -957,6 +957,21 @@ if (fixtureMode) {
     eq((await A.st.req(`${base}/${sid}`, { method: 'DELETE' })).status, 204); eq((await A.st.req(`${base}/${sid}`)).status, 404, 'a deleted chat is gone');
     eq((await A.st.req(base)).body.some((x) => x.id === sid), false);
   });
+  await check('Web -> real backend: saved summaries are private to their owner and module, can be reopened, and can be deleted; unknown kinds are refused', async () => {
+    const made = await A.st.json(aiPath(AM, 'summary'), 'POST', {}); eq(made.status, 201, JSON.stringify(made.body)); const sid = made.body.id;
+    const base = `/api/studymind/modules/${AM}/ai/history`;
+    const list = await A.st.req(`${base}/summary`); eq(list.status, 200);
+    const row = list.body.find((x) => x.id === sid); expect(row, 'the new summary is listed'); eq(Object.keys(row).sort().join(','), 'completed,created_at,detail,id,title', 'display fields only');
+    const detail = await A.st.req(`${base}/summary/${sid}`); eq(detail.status, 200); expect(detail.body.summary.content.length > 0, 'content'); expect(!('user_id' in detail.body.summary) && !('module_id' in detail.body.summary), 'no internal identifiers');
+    eq((await A.st2.req(`${base}/summary`)).body.some((x) => x.id === sid), false, "another student's list does not contain it");
+    eq((await A.st2.req(`${base}/summary/${sid}`)).status, 404); eq((await A.st2.req(`${base}/summary/${sid}`, { method: 'DELETE' })).status, 404);
+    eq((await A.st.req(`/api/studymind/modules/${AP}/ai/history/summary/${sid}`)).status, 403, 'a module the student is not in is refused');
+    for (const [who, expected] of [[A.out, 403], [new Client(), 401]]) { eq((await who.req(`${base}/summary`)).status, expected); eq((await who.req(`${base}/summary/${sid}`)).status, expected); eq((await who.req(`${base}/summary/${sid}`, { method: 'DELETE' })).status, expected); }
+    eq((await A.st.req(`${base}/chat`)).status, 404, 'unknown kind');
+    eq((await A.st.req(`${base}/summary/${sid}`, { method: 'DELETE', headers: { Origin: 'https://evil.example.com' } })).status, 403, 'cross-site delete refused');
+    eq((await A.st.req(`${base}/summary/${sid}`, { method: 'DELETE' })).status, 204); eq((await A.st.req(`${base}/summary/${sid}`)).status, 404);
+    eq((await A.st.req(`${base}/quiz`)).status, 200); eq((await A.st.req(`${base}/flashcards`)).status, 200);
+  });
   await check('Web -> real backend: the sources selection reaches the AI backend and only the public scopes are accepted', async () => {
     await resetHits();
     for (const scope of ['class_only', 'personal_only', 'everything']) eq((await A.st.json(aiPath(AM, 'chat'), 'POST', { message: `scope ${scope}`, scope_mode: scope })).status, 200, scope);

@@ -35,3 +35,14 @@ export type ChatSessionDetail = { id: string; title: string; messages: ChatSessi
 export function sessionIds(raw: unknown): string[];
 export function mapSessionList(raw: unknown): ChatSessionSummary[];
 export function mapSessionDetail(raw: unknown): ChatSessionDetail | null;
+export const HISTORY_KINDS: readonly ['quiz', 'flashcards', 'summary'];
+export type HistoryKind = 'quiz' | 'flashcards' | 'summary';
+export type HistoryRow = { id: string; title: string; created_at: string | null; detail: string; completed: boolean };
+export type HistoryDetail =
+  | { kind: 'quiz'; status: 'in_progress' | 'submitted'; created_at: string | null; quiz: QuizGenerated; answers: Record<string, string>; result: QuizResult | null }
+  | { kind: 'flashcards'; created_at: string | null; deck: FlashcardDeck }
+  | { kind: 'summary'; created_at: string | null; summary: SummaryResult };
+export function mapHistoryList(kind: HistoryKind, raw: unknown): HistoryRow[];
+export function mapQuizDetail(raw: unknown): Extract<HistoryDetail, { kind: 'quiz' }> | null;
+export function mapFlashcardDetail(raw: unknown): Extract<HistoryDetail, { kind: 'flashcards' }> | null;
+export function mapSummaryDetail(raw: unknown): Extract<HistoryDetail, { kind: 'summary' }> | null;

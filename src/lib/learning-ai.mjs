@@ -178,3 +178,42 @@ export function mapSessionDetail(raw) {
   });
   return { id: raw.id.toLowerCase(), title: text(raw.title, 120) || 'New conversation', messages };
 }
+
+
+// ── Study-tool history: the caller's own saved quizzes, flashcard sets and summaries ──
+export const HISTORY_KINDS = ['quiz', 'flashcards', 'summary'];
+const plain = (s) => String(s ?? '').replace(/[#*_`>\[\]]/g, '').replace(/\s+/g, ' ').trim();
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function historyRow(kind, r) {
+  if (!isObject(r) || typeof r.id !== 'string' || !UUID.test(r.id)) return null;
+  const id = r.id.toLowerCase(); const created_at = iso(r.created_at);
+  if (kind === 'quiz') {
+    const submitted = r.status === 'submitted'; const n = Number.isInteger(r.question_count) ? r.question_count : 0;
+    const answered = Number.isInteger(r.answered_count) ? r.answered_count : 0;
+    return { id, title: plain(r.title).slice(0, 100) || 'Quiz', created_at, detail: submitted ? `${plural(n, 'question', 'questions')} · Score ${Math.round(Number(r.score) || 0)}%` : `${plural(n, 'question', 'questions')} · ${answered} answered`, completed: submitted };
+  }
+  if (kind === 'flashcards') {
+    const n = Number.isInteger(r.card_count) ? r.card_count : Array.isArray(r.cards) ? r.cards.length : 0;
+    return { id, title: plain(r.title).slice(0, 100) || 'Flashcards', created_at, detail: plural(n, 'card', 'cards'), completed: false };
+  }
+  if (typeof r.content !== 'string') return null;
+  const first = r.content.split('\n').map(plain).find(Boolean) ?? '';
+  const docs = Number(r.source_doc_count) || 0;
+  return { id, title: first.slice(0, 80) || 'Summary', created_at, detail: docs > 0 ? plural(docs, 'document', 'documents') : 'Module summary', completed: false };
+}
+/** Newest first, at most 50, with only display fields (never questions, answers or content). */
+export const mapHistoryList = (kind, raw) => (Array.isArray(raw) ? raw : []).map((r) => historyRow(kind, r)).filter(Boolean)
+  .sort((a, b) => (Date.parse(b.created_at ?? '') || 0) - (Date.parse(a.created_at ?? '') || 0)).slice(0, 50);
+/** An opened quiz. Correct answers and explanations are included ONLY once the quiz has been submitted. */
+export function mapQuizDetail(raw) {
+  const quiz = mapQuizGenerated(raw); if (!quiz) return null;
+  const answers = {};
+  for (const q of raw.questions) if (isObject(q) && typeof q.id === 'string' && typeof q.student_answer === 'string') answers[q.id] = q.student_answer.slice(0, LIMITS.answer);
+  const created_at = iso(raw.created_at);
+  if (raw.status !== 'submitted') return { kind: 'quiz', status: 'in_progress', created_at, quiz, answers, result: null };
+  const qs = raw.questions.filter(isObject);
+  const result = mapQuizResult({ attempt_id: raw.id, score: raw.score, total: qs.length, correct: qs.filter((q) => q.is_correct === true).length, questions: qs });
+  return result ? { kind: 'quiz', status: 'submitted', created_at, quiz, answers, result } : null;
+}
+export const mapFlashcardDetail = (raw) => { const d = mapFlashcards(raw); return d ? { kind: 'flashcards', created_at: iso(raw.created_at), deck: d } : null; };
+export const mapSummaryDetail = (raw) => { const s = mapSummary(raw); return s ? { kind: 'summary', created_at: s.created_at, summary: s } : null; };

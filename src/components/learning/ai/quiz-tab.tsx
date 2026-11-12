@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Lock, XCircle } fro
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { QuizGenerated, QuizResult } from '@/lib/learning-ai.mjs';
 import { ErrorBox } from '@/components/learning/states';
-import { GenerateState, TopicField, errorText } from './shared';
+import { GenerateState, TopicField, errorText, when } from './shared';
+import { HistoryRail, useHistory } from './history-rail';
 import { GridLegend, NumberGrid, ProgressBar, SideCard, ToolLayout, ToolPanel, btnOutline, btnPrimary, type CellState } from './layout';
 import { cn } from '@/lib/utils';
 
@@ -16,7 +17,9 @@ const LETTERS = 'ABCDEFGHIJ';
  */
 export function QuizTab({ moduleId }: { moduleId: string }) {
   const [topic, setTopic] = useState('');
-  const [usedTopic, setUsedTopic] = useState('');
+  const [note, setNote] = useState('');
+  const [opening, setOpening] = useState<string | null>(null);
+  const hist = useHistory(moduleId, 'quiz');
   const [quiz, setQuiz] = useState<QuizGenerated | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [current, setCurrent] = useState(0);
@@ -29,38 +32,55 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
     setLoading(true); setError(null);
     try {
       setQuiz(await studyMindAiService.generateQuiz(moduleId, { topic: topic.trim() || undefined }));
-      setUsedTopic(topic.trim()); setAnswers({}); setResult(null); setCurrent(0);
+      setNote(topic.trim() ? `Topic: ${topic.trim()}` : ''); setAnswers({}); setResult(null); setCurrent(0); void hist.refresh();
     } catch (e) { setError(errorText(e, 'Unable to generate a quiz')); }
     finally { setLoading(false); }
   }
   async function submit() {
     if (!quiz) return;
     setSubmitting(true); setError(null);
-    try { setResult(await studyMindAiService.submitQuiz(moduleId, quiz.attempt_id, Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer })))); }
+    try { setResult(await studyMindAiService.submitQuiz(moduleId, quiz.attempt_id, Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer })))); void hist.refresh(); }
     catch (e) { setError(errorText(e, 'Unable to submit the quiz')); }
     finally { setSubmitting(false); }
   }
   const reset = () => { setQuiz(null); setResult(null); setAnswers({}); setCurrent(0); setError(null); };
+  async function open(id: string) {
+    if (id === quiz?.attempt_id) return;
+    setOpening(id); setError(null);
+    try {
+      const d = await studyMindAiService.openHistory(moduleId, 'quiz', id);
+      if (d.kind !== 'quiz') throw new Error('Unable to open this quiz');
+      setQuiz(d.quiz); setAnswers(d.answers); setResult(d.result); setNote(d.created_at ? `Created ${when(d.created_at)}` : '');
+      setCurrent(Math.max(0, d.quiz.questions.findIndex(q => !d.answers[q.id])));
+    } catch (e) { setError(errorText(e, 'Unable to open this quiz')); }
+    finally { setOpening(null); }
+  }
+  async function remove(id: string) {
+    await studyMindAiService.deleteHistory(moduleId, 'quiz', id);
+    if (id === quiz?.attempt_id) reset();
+    await hist.refresh();
+  }
+  const rail = <HistoryRail kind="quiz" icon={<ClipboardList />} rows={hist.rows} error={hist.error} activeId={quiz?.attempt_id ?? null} opening={opening} busy={loading || submitting} onNew={reset} onOpen={id => void open(id)} onDelete={remove} />;
 
-  if (!quiz || !quiz.questions.length) return <ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle="Test your understanding with questions built from this module's material.">
+  if (!quiz || !quiz.questions.length) return <ToolLayout rail={rail} main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle="Test your understanding with questions built from this module's material.">
     <GenerateState icon={<ClipboardList className="size-8" />} text="Generate a multiple-choice quiz. You will see your score and an explanation for every question once you submit."
       buttonLabel="Generate quiz" loadingLabel="Generating quiz…" loading={loading} error={error} onGenerate={generate}>
       <TopicField id="quiz-topic" value={topic} onChange={setTopic} disabled={loading} />
       {quiz && !quiz.questions.length && <div className="mt-3"><ErrorBox message="No questions could be generated from the current material." /></div>}
     </GenerateState>
-  </ToolPanel>;
+  </ToolPanel>} />;
 
   const questions = quiz.questions;
   const total = questions.length;
   const answered = questions.filter(q => answers[q.id]).length;
   const allAnswered = answered === total;
-  const meta = `${total} ${total === 1 ? 'question' : 'questions'} · ${usedTopic ? `Topic: ${usedTopic}` : 'All material'}`;
+  const meta = `${total} ${total === 1 ? 'question' : 'questions'} · ${note || 'All material'}`;
 
   // ── Results ──
   if (result) {
     const review = new Map(result.questions.map(q => [q.id, q]));
     const states: CellState[] = questions.map(q => (review.get(q.id)?.is_correct ? 'correct' : 'wrong'));
-    return <ToolLayout
+    return <ToolLayout rail={rail}
       main={<ToolPanel icon={<CheckCircle2 className="size-5" />} title="Quiz results" subtitle={meta}>
         <div role="status" data-testid="quiz-score" className="mb-6 rounded-2xl border border-violet-200 bg-violet-50 p-5">
           <p className="text-2xl font-extrabold text-violet-800">Score: {Math.round(result.score)}%</p>
@@ -102,7 +122,7 @@ export function QuizTab({ moduleId }: { moduleId: string }) {
   const q = questions[current];
   const states: CellState[] = questions.map((x, i) => (i === current ? 'current' : answers[x.id] ? 'done' : 'idle'));
   const last = current === total - 1;
-  return <ToolLayout
+  return <ToolLayout rail={rail}
     main={<ToolPanel icon={<ClipboardList className="size-5" />} title="Module quiz" subtitle={meta}>
       <div className="flex items-center gap-4">
         <p className="shrink-0 text-sm font-bold text-[#111034]">Question {current + 1} of {total}</p>

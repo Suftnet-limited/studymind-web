@@ -1,5 +1,5 @@
 import { ApiError } from '@/services/studymind-modules.service';
-import type { ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
+import type { HistoryDetail, HistoryKind, HistoryRow, ChatResult, ChatSessionDetail, ChatSessionSummary, Complexity, FlashcardDeck, QuizGenerated, QuizResult, Scope, SummaryResult } from '@/lib/learning-ai.mjs';
 
 async function data<T>(response: Response, fallback: string): Promise<T> {
   const body = await response.json().catch(() => ({}));
@@ -22,6 +22,14 @@ export const studyMindAiService = {
   deleteChat: async (moduleId: string, sessionId: string) => {
     const response = await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE', credentials: 'same-origin' });
     if (!response.ok) { const body = await response.json().catch(() => ({})); throw new ApiError(typeof body.error === 'string' ? body.error : 'Unable to delete this chat', response.status); }
+  },
+  listHistory: async (moduleId: string, kind: HistoryKind) =>
+    data<HistoryRow[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/history/${kind}`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to load your saved items'),
+  openHistory: async (moduleId: string, kind: HistoryKind, itemId: string) =>
+    data<HistoryDetail>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/history/${kind}/${encodeURIComponent(itemId)}`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to open this item'),
+  deleteHistory: async (moduleId: string, kind: HistoryKind, itemId: string) => {
+    const response = await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/history/${kind}/${encodeURIComponent(itemId)}`, { method: 'DELETE', credentials: 'same-origin' });
+    if (!response.ok) { const body = await response.json().catch(() => ({})); throw new ApiError(typeof body.error === 'string' ? body.error : 'Unable to delete this item', response.status); }
   },
   generateQuiz: async (moduleId: string, input: { topic?: string; question_count?: number }) =>
     data<QuizGenerated>(await post(moduleId, 'quiz', input), 'Unable to generate a quiz'),
