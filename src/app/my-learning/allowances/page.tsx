@@ -26,7 +26,7 @@ export default function AllowancesPage() {
 
   return <div className="mx-auto max-w-6xl space-y-9 px-5 py-8 sm:py-10">
     <header className="relative min-h-40 lg:min-h-48">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 h-56 bg-gradient-to-b from-violet-100/50 via-violet-50/30 to-transparent [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+      <div aria-hidden className="pointer-events-none absolute -inset-x-16 -top-10 h-64" style={{ background: 'radial-gradient(ellipse 55% 100% at 62% 0%, rgba(237,233,254,.85), rgba(237,233,254,0) 72%)' }} />
       <div className="relative max-w-2xl">
         <p className="text-base font-semibold text-violet-600">Your Usage</p>
         <h1 className="mt-1 text-4xl font-extrabold tracking-tight text-[#111034] sm:text-5xl">Allowances</h1>
