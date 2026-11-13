@@ -53,7 +53,9 @@ export function parseChatInput(body) {
   if (!COMPLEXITIES.includes(complexity)) return { ok: false, error: 'Invalid complexity' };
   const scope_mode = body.scope_mode ?? 'everything';
   if (!SCOPES.includes(scope_mode)) return { ok: false, error: 'Invalid source selection' };
-  return { ok: true, value: { message, session_id: body.session_id ?? undefined, complexity, scope_mode } };
+  const topic = parseTopic(body.topic); if (!topic.ok) return topic;
+  const focus = parseFocus(body); if (!focus.ok) return focus;
+  return { ok: true, value: { message, session_id: body.session_id ?? undefined, complexity, scope_mode, ...(topic.value ? { topic: topic.value } : {}), ...focus.value } };
 }
 export function parseQuizInput(body) {
   if (body !== undefined && body !== null && !isObject(body)) return { ok: false, error: 'Invalid request' };
@@ -90,7 +92,7 @@ export function parseQuizSubmit(body) {
 }
 
 // ── Requests to the AI backend: module_id is ALWAYS the validated URL id; nothing user-identifying comes from the browser ──
-export const toChatRequest = (moduleId, v) => ({ module_id: moduleId, message: v.message, complexity: v.complexity, scope_mode: v.scope_mode ?? 'everything', ...(v.session_id ? { session_id: v.session_id } : {}) });
+export const toChatRequest = (moduleId, v) => ({ module_id: moduleId, message: v.message, complexity: v.complexity, scope_mode: v.scope_mode ?? 'everything', ...(v.session_id ? { session_id: v.session_id } : {}), ...(v.topic ? { topic: v.topic } : {}), ...toFocus(v) });
 const toFocus = (v) => ({ ...(v.sections?.length ? { sections: v.sections } : {}), ...(v.balanced ? { balanced: true } : {}) });
 export const toQuizRequest = (moduleId, v) => ({ module_id: moduleId, question_count: v.question_count, question_type: 'mcq', ...(v.topic ? { topic: v.topic } : {}), ...toFocus(v), ...(v.sections?.length && v.label ? { title: `Quiz: ${v.label}`.slice(0, 255) } : {}) });
 export const toFlashcardRequest = (moduleId, v) => ({ module_id: moduleId, max_cards: v.max_cards, ...(v.topic ? { title: `Flashcards: ${v.topic}`.slice(0, 255), topic: v.topic } : {}), ...toFocus(v), ...(v.sections?.length && v.label ? { title: `Flashcards: ${v.label}`.slice(0, 255) } : {}) });

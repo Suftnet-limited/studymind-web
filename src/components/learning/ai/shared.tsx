@@ -33,6 +33,12 @@ export function focusRequest(f: Focus, outline: Outline | null): { topic?: strin
   if (f.mode === 'chapters' && f.sections.length) return { sections: f.sections, label: f.titles.join(' + ').slice(0, 120) };
   return hasChapters(outline) ? { balanced: true } : {};
 }
+/** Chat only: a topic or chosen chapters narrow what the answer is drawn from. "Whole module" sends nothing (a question already finds its own passages). */
+export function chatFocus(f: Focus): { topic?: string; sections?: string[] } {
+  if (f.mode === 'topic' && f.topic.trim()) return { topic: f.topic.trim() };
+  if (f.mode === 'chapters' && f.sections.length) return { sections: f.sections };
+  return {};
+}
 /** A short note saying what a result was generated for, e.g. "Topic: Osmosis" or "Chapters: Cells, Genetics". */
 export function focusNote(f: Focus, outline: Outline | null): string {
   if (f.mode === 'topic' && f.topic.trim()) return `Topic: ${f.topic.trim()}`;
@@ -45,8 +51,8 @@ export function focusNote(f: Focus, outline: Outline | null): string {
  * across every chapter) or a ticked selection of chapters; it also offers the module's weeks, its documents and a free-text topic.
  * With nothing detected it is the plain free-text field it has always been.
  */
-export function TopicPicker({ id, value, onChange, disabled, outline, label = 'Focus on a topic (optional)' }: {
-  id: string; value: Focus; onChange: (f: Focus) => void; disabled?: boolean; outline: Outline | null; label?: string;
+export function TopicPicker({ id, value, onChange, disabled, outline, label = 'Focus on a topic (optional)', whole }: {
+  id: string; value: Focus; onChange: (f: Focus) => void; disabled?: boolean; outline: Outline | null; label?: string; whole?: string;
 }) {
   const weeks = outline?.weeks ?? []; const documents = outline?.documents ?? []; const groups = outline?.chapters ?? [];
   const [custom, setCustom] = useState(false);
@@ -70,7 +76,7 @@ export function TopicPicker({ id, value, onChange, disabled, outline, label = 'F
   return <div className="space-y-2">
     <label htmlFor={id} className="block text-sm font-semibold text-zinc-700">{label}</label>
     <select id={id} value={selected} disabled={disabled} className={select} onChange={e => pick(e.target.value)}>
-      <option value="">{groups.length ? 'Whole module (spread across all chapters)' : 'All material'}</option>
+      <option value="">{whole ?? (groups.length ? 'Whole module (spread across all chapters)' : 'All material')}</option>
       {groups.length > 0 && <option value={CHAPTERS}>Choose chapters…</option>}
       {weeks.length > 0 && <optgroup label="Weeks">{weeks.map(o => <option key={`w-${o.value}`} value={o.value}>{o.label}</option>)}</optgroup>}
       {groups.length === 0 && documents.length > 0 && <optgroup label="Documents">{documents.map(o => <option key={`d-${o.value}`} value={o.value}>{o.label}</option>)}</optgroup>}

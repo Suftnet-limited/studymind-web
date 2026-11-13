@@ -115,3 +115,13 @@ test('security: every AI route goes through the shared guard (auth, module acces
   assert.match(identity, /LEARNING_PATH/); assert.match(identity, /chat\$/); assert.match(identity, /summarise\$/);
   assert.doesNotMatch(identity, /\\\/api\\\/\(\.\*\)/, 'the allow-list must not be a wildcard');
 });
+
+test('chat input: optional topic and chapters are validated and forwarded only when present', () => {
+  const ref = '11111111-1111-4111-8111-111111111111:2';
+  const ok = parseChatInput({ message: 'q', topic: ' Osmosis ', sections: [ref] });
+  assert.deepEqual(ok.value.topic, 'Osmosis'); assert.deepEqual(ok.value.sections, [ref]);
+  assert.deepEqual(toChatRequest('m', ok.value), { module_id: 'm', message: 'q', complexity: 'normal', scope_mode: 'everything', topic: 'Osmosis', sections: [ref] });
+  assert.equal(parseChatInput({ message: 'q', sections: ['bad'] }).ok, false);
+  assert.equal(parseChatInput({ message: 'q', topic: 'x'.repeat(201) }).ok, false);
+  assert.equal('topic' in toChatRequest('m', parseChatInput({ message: 'q' }).value), false);
+});

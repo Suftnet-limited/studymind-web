@@ -122,7 +122,7 @@ test('privacy: chats belong to their owner AND their module; other users, other 
   expect((await alice.ctx.get(`/api/studymind/modules/${modA.id}/ai/sessions/${sidA}`)).status()).toBe(404);
 });
 
-test('sources selector: "Using module materials" by default; the choice is sent to the AI and only the three public scopes are accepted', async ({ page, baseURL }) => {
+test('sources picker (right-hand card): all module materials by default; the choice is sent to the AI and only the three public scopes are accepted', async ({ page, baseURL }) => {
   const { modA, alice } = await world(baseURL!);
   await open(page, alice.email, modA.id);
   const bodies: { scope_mode?: string; complexity?: string }[] = [];
@@ -131,18 +131,15 @@ test('sources selector: "Using module materials" by default; the choice is sent 
   await expect(page.getByRole('log', { name: 'Conversation' }).getByTestId('citation')).toHaveCount(1);
   expect(bodies[0]).toMatchObject({ scope_mode: 'everything', complexity: 'normal' });
 
-  const trigger = page.getByRole('button', { name: /^Using / });                         // its label changes with the choice
-  await expect(trigger).toHaveText('Using module materials');
-  await trigger.click();
-  await expect(page.getByRole('menuitemradio', { name: /All module materials/ })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('menuitemradio', { name: /My notes only/ }).click();
-  await page.keyboard.press('Escape');
-  await expect(trigger).toBeFocused();
+  const sources = page.getByRole('radiogroup', { name: 'Answer sources' });                // in the right-hand card
+  await expect(sources.getByRole('radio', { name: /All module materials/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(sources.getByRole('radio')).toHaveCount(3);
+  await sources.getByRole('radio', { name: /My notes only/ }).click();
+  await expect(sources.getByRole('radio', { name: /My notes only/ })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('radio', { name: 'Normal' })).toHaveAttribute('aria-checked', 'true');   // the answer level is a separate control, default Normal
   await page.getByRole('radio', { name: 'Expert' }).click();
   await expect(page.getByRole('radio', { name: 'Expert' })).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByRole('menuitemradio', { name: 'Expert' })).toHaveCount(0);                   // and no longer part of the Sources menu
-  await expect(page.getByRole('button', { name: 'Using my notes only' })).toBeVisible();   // the button states what the next answer will use
+  await expect(sources.getByRole('radio', { name: 'Expert' })).toHaveCount(0);                         // and not part of the sources
   await page.getByLabel('Ask a question').fill('second question'); await page.keyboard.press('Enter');
   await expect(page.getByRole('log', { name: 'Conversation' }).getByText('second question')).toBeVisible();
   await expect.poll(() => bodies.length).toBe(2);
@@ -194,4 +191,32 @@ test('mobile: Recent Chats is a collapsible section above the conversation and n
   await recent(page).getByRole('button', { name: /^A saved mobile chat/ }).click();
   await expect(page.getByRole('log', { name: 'Conversation' }).getByText('A saved mobile chat')).toBeVisible();
   await expectNoHorizontalScroll(page);
+});
+
+test('topic picker in the right-hand card: whole module sends nothing extra; a topic or chosen chapters are sent', async ({ page, baseURL }) => {
+  const { modA, alice } = await world(baseURL!);
+  const doc = '11111111-1111-4111-8111-111111111111';
+  await page.route('**/ai/outline', (route) => route.fulfill({ json: { weeks: [], documents: [{ value: 'Cells notes', label: 'Cells notes' }], chapters: [{ document: 'Cells notes', sections: [
+    { ref: `${doc}:0`, title: 'Cells', level: 1, page: 1 }, { ref: `${doc}:1`, title: 'Genetics', level: 1, page: 5 }] }] } }));
+  await open(page, alice.email, modA.id);
+  const bodies: Record<string, unknown>[] = [];
+  await page.route('**/ai/chat', async (route) => { bodies.push(route.request().postDataJSON()); await route.continue(); });
+  const panel = page.getByRole('tabpanel', { name: 'Chat' });
+  const picker = panel.getByLabel('Topic', { exact: true });
+  await expect(picker).toBeVisible();
+  await expect(picker.locator('option').first()).toHaveText('All topics');
+  const send = async (q: string) => { await panel.getByLabel('Ask a question').fill(q); await page.keyboard.press('Enter'); await expect.poll(() => bodies.length).toBeGreaterThan(0); };
+  await send('whole');
+  expect(bodies[0]).not.toHaveProperty('topic'); expect(bodies[0]).not.toHaveProperty('sections'); expect(bodies[0]).not.toHaveProperty('balanced');
+  await picker.selectOption({ label: 'Choose chapters…' });
+  await panel.getByRole('checkbox', { name: 'Genetics' }).check();
+  await panel.getByLabel('Ask a question').fill('chapters'); await page.keyboard.press('Enter');
+  await expect.poll(() => bodies.length).toBe(2);
+  expect(bodies[1]).toMatchObject({ sections: [`${doc}:1`] });
+  await picker.selectOption({ label: 'Type my own topic…' });
+  await panel.getByLabel('Your own topic').fill('Osmosis');
+  await panel.getByLabel('Ask a question').fill('topic'); await page.keyboard.press('Enter');
+  await expect.poll(() => bodies.length).toBe(3);
+  expect(bodies[2]).toMatchObject({ topic: 'Osmosis' }); expect(bodies[2]).not.toHaveProperty('sections');
+  expect((await ask(alice.ctx, modA.id, 'q', { sections: ['not-a-ref'] })).status()).toBe(400);
 });

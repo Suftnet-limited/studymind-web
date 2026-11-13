@@ -5,8 +5,9 @@ import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { ChatSessionSummary, Citation, Complexity, Scope } from '@/lib/learning-ai.mjs';
 import { initialsOf } from '@/lib/initials';
 import { MarkdownRenderer } from './markdown';
-import { clock, errorText, iconTone, when } from './shared';
-import { btnOutline } from './layout';
+import { NO_FOCUS, TopicPicker, chatFocus, clock, errorText, iconTone, when, type Focus } from './shared';
+import type { Outline } from '@/lib/learning-ai.mjs';
+import { SideCard, ToolLayout, btnOutline } from './layout';
 import { cn } from '@/lib/utils';
 
 type Message = { id: number; role: 'user' | 'assistant'; content: string; at: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; isError?: boolean };
@@ -31,32 +32,15 @@ function CopyAnswer({ text }: { text: string }) {
   </button>;
 }
 
-/** "Using module materials" selector: which sources the answer may use, and how simple or expert it should be. */
-function SourcesMenu({ scope, setScope, disabled }: { scope: Scope; setScope: (s: Scope) => void; disabled: boolean }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); trigger.current?.focus(); } };
-    document.addEventListener('mousedown', away); document.addEventListener('keydown', key);
-    box.current?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus();
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key); };
-  }, [open]);
-  const current = SOURCES.find(s => s.value === scope)!;
-  const row = (checked: boolean) => cn('flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-zinc-50 focus-visible:bg-zinc-50 focus-visible:outline-none', checked && 'bg-violet-50/70');
-  return <div ref={box} className="relative">
-    <button ref={trigger} type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}
-      className="inline-flex h-11 items-center gap-2.5 rounded-2xl border border-zinc-200 bg-white px-4 text-sm! font-semibold! text-zinc-700 shadow-sm transition hover:border-violet-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-60">
-      <FileText className="size-5 text-violet-600" aria-hidden />{current.button}<ChevronDown className={cn('size-4 text-zinc-500 transition-transform', open && 'rotate-180')} aria-hidden />
-    </button>
-    {open && <div role="menu" aria-label="Answer sources" className="absolute right-0 top-full z-30 mt-2 w-72 rounded-2xl border border-zinc-200 bg-white p-2 shadow-[0_18px_50px_rgba(76,29,149,0.12)]">
-      <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-zinc-500">Sources</p>
-      {SOURCES.map(o => <button key={o.value} type="button" role="menuitemradio" aria-checked={scope === o.value} onClick={() => setScope(o.value)} className={row(scope === o.value)}>
-        <Check className={cn('mt-0.5 size-4 shrink-0', scope === o.value ? 'text-violet-600' : 'text-transparent')} aria-hidden />
-        <span><span className="block text-sm font-semibold text-[#111034]">{o.label}</span><span className="block text-xs text-zinc-500">{o.hint}</span></span>
-      </button>)}
-    </div>}
+/** Which sources an answer may use: everything, the lecturer's material, or only the student's own notes. */
+function SourcePicker({ scope, setScope, disabled }: { scope: Scope; setScope: (s: Scope) => void; disabled: boolean }) {
+  return <div role="radiogroup" aria-label="Answer sources" className="space-y-1.5">
+    {SOURCES.map(o => <button key={o.value} type="button" role="radio" aria-checked={scope === o.value} disabled={disabled} onClick={() => setScope(o.value)}
+      className={cn('flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:opacity-60',
+        scope === o.value ? 'border-violet-300 bg-violet-50/70' : 'border-zinc-200 bg-white hover:bg-zinc-50')}>
+      <Check className={cn('mt-0.5 size-4 shrink-0', scope === o.value ? 'text-violet-600' : 'text-transparent')} aria-hidden />
+      <span><span className="block text-sm font-semibold text-[#111034]">{o.label}</span><span className="block text-xs font-normal text-zinc-500">{o.hint}</span></span>
+    </button>)}
   </div>;
 }
 
@@ -64,13 +48,14 @@ function SourcesMenu({ scope, setScope, disabled }: { scope: Scope; setScope: (s
  * Chat: a conversation grounded in the module's materials (with citations), plus the caller's own recent chats for this module.
  * History is private to the signed-in user and scoped to this module (the server enforces both).
  */
-export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { moduleId: string; hasMaterials: boolean; userName: string; onOpenTool: (tool: OpenTool) => void }) {
+export function ChatTab({ moduleId, hasMaterials, userName, outline, onOpenTool }: { moduleId: string; hasMaterials: boolean; userName: string; outline: Outline | null; onOpenTool: (tool: OpenTool) => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [complexity, setComplexity] = useState<Complexity>('normal');
   const [scope, setScope] = useState<Scope>('everything');
+  const [focus, setFocus] = useState<Focus>(NO_FOCUS);
   const [chats, setChats] = useState<ChatSessionSummary[] | null>(null);
   const [chatsError, setChatsError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -101,7 +86,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
     setInput(''); requestAnimationFrame(grow); setSending(true);
     setMessages(m => [...m, { id: ++nextId, role: 'user', content: text, at: nowIso() }]);
     try {
-      const res = await studyMindAiService.chat(moduleId, { message: text, session_id: sessionId, complexity, scope_mode: scope });
+      const res = await studyMindAiService.chat(moduleId, { message: text, session_id: sessionId, complexity, scope_mode: scope, ...chatFocus(focus) });
       if (res.session_id) setSessionId(res.session_id);
       setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: res.answer, at: nowIso(), sources: res.sources, grounded: res.grounded, noContent: res.no_content_found, suggestions: res.suggestions }]);
       void refreshChats();
@@ -157,8 +142,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
     {chats && chats.length > 5 && <button type="button" onClick={() => setShowAll(a => !a)} className="mt-3 w-full text-center text-sm! font-semibold! text-violet-700 hover:underline">{showAll ? 'Show fewer chats' : <>View all chats <span aria-hidden>→</span></>}</button>}
   </>;
 
-  return <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-    <aside aria-label="Chats" className="min-w-0 rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.05)] lg:self-start">
+  const rail = <aside aria-label="Chats" className="min-w-0 rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.05)] lg:self-start">
       <div className="flex items-center gap-3.5">
         <span aria-hidden className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-600"><Sparkles className="size-6" /></span>
         <div className="min-w-0"><h2 className="text-lg font-bold leading-tight text-[#111034]">AI Tutor</h2><p className="text-sm text-zinc-500">Module-focused study assistant</p></div>
@@ -169,11 +153,9 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
         <span>Recent{chats && chats.length > 0 ? ` (${chats.length})` : ''}</span><ChevronDown className={cn('size-4 text-zinc-500 transition-transform', recentOpen && 'rotate-180')} aria-hidden />
       </button>
       <div className={cn('mt-3', recentOpen ? 'block' : 'hidden lg:block')}>{recentList}</div>
-    </aside>
+    </aside>;
 
-    <section aria-label="Conversation panel" className="flex min-w-0 flex-col gap-4 rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.05)] sm:p-6">
-      <div className="flex justify-end"><SourcesMenu scope={scope} setScope={setScope} disabled={sending} /></div>
-
+  const main = <section aria-label="Conversation panel" className="flex min-w-0 flex-col gap-4 rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.05)] sm:p-6">
       <div ref={listRef} role="log" aria-live="polite" aria-label="Conversation" className="max-h-[32rem] min-h-72 space-y-5 overflow-y-auto pr-1">
         {messages.length === 0 && <div className="flex min-h-64 flex-col items-center justify-center text-center text-sm text-zinc-500">
           <span aria-hidden className="mb-3 flex size-14 items-center justify-center rounded-3xl bg-violet-50 text-violet-600"><MessageCircle className="size-7" /></span>
@@ -229,6 +211,14 @@ export function ChatTab({ moduleId, hasMaterials, userName, onOpenTool }: { modu
         <button type="submit" aria-label="Send question" disabled={sending || !input.trim()}
           className="flex size-11 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-sm transition hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"><Send className="size-5" aria-hidden /></button>
       </form>
-    </section>
-  </div>;
+    </section>;
+
+  const side = <SideCard title="Sources and topic" icon={<FileText className="size-[18px]" />}>
+    <div className="space-y-5">
+      <div><p className="mb-2 text-sm font-semibold text-zinc-700">Answer from</p><SourcePicker scope={scope} setScope={setScope} disabled={sending} /></div>
+      <TopicPicker id="chat-topic" outline={outline} value={focus} onChange={setFocus} disabled={sending} whole="All topics" label="Topic" />
+    </div>
+  </SideCard>;
+
+  return <ToolLayout rail={rail} main={main} side={side} />;
 }

@@ -23,7 +23,7 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName }: { mo
   // Topic suggestions (the module's weeks and indexed documents), shared by Quiz, Flashcards and Summary. Reloaded when one of those tabs opens, so new uploads show up.
   const [outline, setOutline] = useState<Outline | null>(null);
   const loadOutline = useCallback(async () => { try { setOutline(await studyMindAiService.outline(moduleId)); } catch { /* suggestions are optional: the free-text topic still works */ } }, [moduleId]);
-  useEffect(() => { if (tab === 'quiz' || tab === 'flashcards' || tab === 'summary') void loadOutline(); }, [tab, loadOutline]);
+  useEffect(() => { if (tab === 'chat' || tab === 'quiz' || tab === 'flashcards' || tab === 'summary') void loadOutline(); }, [tab, loadOutline]);
   const move = (e: KeyboardEvent, i: number) => {
     const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
     if (next === null) return;
@@ -39,7 +39,7 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName }: { mo
           tab === t.id ? 'bg-violet-50 text-violet-700 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-600' : 'text-zinc-600 hover:bg-zinc-50 hover:text-violet-700')}>{t.label}</button>)}
     </div>
     <div id="ai-panel-documents" role="tabpanel" aria-labelledby="ai-tab-documents" hidden={tab !== 'documents'}>{documents}</div>
-    <div id="ai-panel-chat" role="tabpanel" aria-labelledby="ai-tab-chat" hidden={tab !== 'chat'}><ChatTab moduleId={moduleId} hasMaterials={hasMaterials} userName={userName}
+    <div id="ai-panel-chat" role="tabpanel" aria-labelledby="ai-tab-chat" hidden={tab !== 'chat'}><ChatTab moduleId={moduleId} hasMaterials={hasMaterials} userName={userName} outline={outline}
       onOpenTool={(t) => { setPicked(t); document.getElementById(`ai-tab-${t}`)?.focus(); }} /></div>
     <div id="ai-panel-quiz" role="tabpanel" aria-labelledby="ai-tab-quiz" hidden={tab !== 'quiz'}><QuizTab moduleId={moduleId} outline={outline} /></div>
     <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} outline={outline} /></div>

@@ -15,7 +15,7 @@ const post = (moduleId: string, path: string, body: unknown) =>
 
 /** Browser client for the AI study tools. Identity and module access are decided server-side from the session cookie. */
 export const studyMindAiService = {
-  chat: async (moduleId: string, input: { message: string; session_id?: string | null; complexity: Complexity; scope_mode?: Scope }) =>
+  chat: async (moduleId: string, input: { message: string; session_id?: string | null; complexity: Complexity; scope_mode?: Scope; topic?: string; sections?: string[] }) =>
     data<ChatResult>(await post(moduleId, 'chat', { ...input, session_id: input.session_id ?? undefined }), 'The AI Tutor could not answer'),
   listChats: async (moduleId: string) =>
     data<ChatSessionSummary[]>(await fetch(`/api/studymind/modules/${encodeURIComponent(moduleId)}/ai/sessions`, { credentials: 'same-origin', cache: 'no-store' }), 'Unable to load your chats'),
