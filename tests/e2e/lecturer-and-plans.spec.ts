@@ -8,9 +8,13 @@ test('lecturer: creates a class, copies the Course ID, and cannot join', async (
   await signIn(page, lecturer.email);
   await expect(page.getByRole('button', { name: 'Join course' })).toHaveCount(0);
 
-  await page.getByLabel('Module title').fill('Physics 201 (E2E)');
-  await page.getByLabel('Access type').selectOption('class');
-  await page.getByRole('button', { name: 'Create module' }).click();
+  await expect(page.getByRole('heading', { name: 'Create a module' }), 'no Create card for lecturers').toHaveCount(0);
+  await page.getByRole('button', { name: 'Create module' }).click();                                      // no modules yet: the empty state offers it
+  const dialog = page.getByRole('dialog', { name: 'Create a module' });
+  await dialog.getByLabel('Module title').fill('Physics 201 (E2E)');
+  await dialog.getByLabel('Access type').selectOption('class');
+  await dialog.getByRole('button', { name: 'Create module' }).click();
+  await expect(dialog).toHaveCount(0);
   await page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /Physics 201/ }).click();
 
   const courseId = await page.getByTestId('course-id').innerText();

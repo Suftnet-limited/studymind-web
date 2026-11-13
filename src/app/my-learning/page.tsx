@@ -6,7 +6,7 @@ import { studyMindIdentityService } from '@/services/studymind-identity.service'
 import { ApiError, studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { roleCapabilities } from '@/lib/studymind-validation.mjs';
 import { ErrorBox, LoadingBlock } from '@/components/learning/states';
-import { CreateModule, JoinCourse, ModuleTable, StatTiles, statIcons, type Stat } from '@/components/learning/dashboard';
+import { CreateModule, CreateModuleDialog, JoinCourse, ModuleTable, StatTiles, statIcons, type Stat } from '@/components/learning/dashboard';
 import { dashboardStats } from '@/lib/dashboard.mjs';
 import { Mail, Lock } from 'lucide-react';
 import { AuthShell } from '@/components/auth/auth-shell';
@@ -41,6 +41,7 @@ function SignIn() {
 }
 
 export default function MyLearningPage() {
+  const [createOpen, setCreateOpen] = useState(false);
   const overview = useQuery({
     queryKey: ['canonical', 'overview'], queryFn: studyMindIdentityService.overview,
     retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 1,
@@ -74,15 +75,17 @@ export default function MyLearningPage() {
     {overview.data && user && <>
       {modules.data && <StatTiles stats={tiles} />}
 
-      {(caps.canCreatePersonal || caps.canJoin) && <div className="grid gap-5 lg:grid-cols-2">
-        {caps.canCreatePersonal && <CreateModule canCreateClass={caps.canCreateClass} />}
+      {/* lecturers create from a dialog opened by the "Create module" badge in the table; everyone else keeps the cards */}
+      {((caps.canCreatePersonal && !caps.canCreateClass) || caps.canJoin) && <div className="grid gap-5 lg:grid-cols-2">
+        {caps.canCreatePersonal && !caps.canCreateClass && <CreateModule canCreateClass={false} />}
         {caps.canJoin && <JoinCourse />}
       </div>}
 
       {modules.isLoading && <LoadingBlock label="Loading modules…" rows={2} />}
       {modules.isError && <ErrorBox message={message(modules.error)} onRetry={() => modules.refetch()} />}
-      {modules.data && <ModuleTable id="my-modules" title="My modules" searchLabel="Search modules…" modules={all} userOwnsClass={caps.canCreateClass}
+      {modules.data && <ModuleTable id="my-modules" title="My modules" searchLabel="Search modules…" modules={all} userOwnsClass={caps.canCreateClass} onCreate={caps.canCreateClass ? () => setCreateOpen(true) : undefined}
         empty={caps.canJoin ? 'Use Create a module above to start one, or paste a Course ID to join a class.' : 'Modules you create appear here. Use Create a module above to start one.'} />}
+      {caps.canCreateClass && <CreateModuleDialog open={createOpen} onClose={() => setCreateOpen(false)} canCreateClass />}
     </>}
   </div>;
 }

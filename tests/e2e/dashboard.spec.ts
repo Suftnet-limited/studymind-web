@@ -169,6 +169,79 @@ test('dashboard: creating and joining still work from the cards, and the new mod
   await expect(tile(page, 'Enrolled modules')).toContainText('3');
 });
 
+test('lecturer: a "Create module" badge after Class opens a dialog; the Create card is gone', async ({ page, baseURL }, info) => {
+  const lecturer = await apiAccount(baseURL!, 'dash-create', 'lecturer');
+  await apiCreateClass(lecturer.ctx, 'Physics 201 (E2E)');
+  await page.goto('/my-learning'); await signIn(page, lecturer.email);
+  await expect(page.getByRole('heading', { name: 'Learning Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create a module' }), 'the card is gone').toHaveCount(0);
+  await expect(page.getByLabel('Module title')).toHaveCount(0);
+
+  const badge = table(page).getByRole('button', { name: 'Create module' });
+  await expect(badge).toHaveAttribute('aria-haspopup', 'dialog');
+  const cls = typeBadge(page, 'Class'); const [c, b] = [(await cls.boundingBox())!, (await badge.boundingBox())!];
+  if (info.project.name === 'desktop') {                                                                 // phones wrap it onto the next line
+    expect(b.x, 'the badge sits just after Class').toBeGreaterThan(c.x + c.width - 1);
+    expect(Math.abs(b.y - c.y), 'on the same row').toBeLessThan(6);
+    expect(b.x - (c.x + c.width), 'right next to it').toBeLessThan(24);
+  }
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await badge.click();
+  const dialog = page.getByRole('dialog', { name: 'Create a module' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('aria-modal', 'true');
+  await expect(dialog.getByLabel('Module title')).toBeFocused();                                          // type straight away
+  await expect(dialog.getByRole('button', { name: 'Create module' })).toBeDisabled();
+  await dialog.getByLabel('Module title').fill('A');
+  await expect(dialog.getByRole('button', { name: 'Create module' })).toBeDisabled();                     // needs 2 characters
+  for (let i = 0; i < 8; i++) { await page.keyboard.press('Tab'); expect(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')), 'focus stays inside').toBe(true); }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(badge, 'focus returns to the badge').toBeFocused();
+
+  await badge.click(); await page.mouse.click(5, 5);                                                      // the dimmed background closes it too
+  await expect(dialog).toHaveCount(0);
+  await badge.click(); await dialog.getByRole('button', { name: 'Cancel' }).click(); await expect(dialog).toHaveCount(0);
+  await badge.click(); await dialog.getByRole('button', { name: 'Close' }).click(); await expect(dialog).toHaveCount(0);
+
+  await badge.click();
+  await dialog.getByLabel('Module title').fill('Chemistry 301 (E2E)');
+  await dialog.getByLabel('Access type').selectOption('class');
+  await page.screenshot({ path: info.outputPath(`create-dialog-${info.project.name}.png`) });
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow), 'the page behind does not scroll').toBe('hidden');
+  const box = (await dialog.boundingBox())!; const vp = page.viewportSize()!;
+  expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 1);
+  await dialog.getByRole('button', { name: 'Create module' }).click();
+  await expect(dialog).toHaveCount(0);                                                                    // closes on success
+  await expect(table(page).getByRole('link', { name: 'Chemistry 301 (E2E)' })).toBeVisible();
+  await expect(tile(page, 'Owned modules')).toContainText('2');
+  await expect(tile(page, 'Class modules')).toContainText('2');
+  await expect(typeBadge(page, 'Class')).toContainText('2');
+  await expect(page.getByRole('heading', { name: 'Learning Workspace' })).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflow), 'scrolling is back').not.toBe('hidden');
+  await expectNoHorizontalScroll(page);
+});
+
+test('lecturer: a failed create keeps the dialog open with a readable message', async ({ page, baseURL }) => {
+  const lecturer = await apiAccount(baseURL!, 'dash-create-err', 'lecturer');
+  await page.goto('/my-learning'); await signIn(page, lecturer.email);
+  await page.route('**/api/studymind/modules', (route) => route.request().method() === 'POST' ? route.fulfill({ status: 400, json: { error: 'A module with that title already exists.' } }) : route.continue());
+  await page.getByRole('button', { name: 'Create module' }).click();                                       // empty state offers it
+  const dialog = page.getByRole('dialog', { name: 'Create a module' });
+  await dialog.getByLabel('Module title').fill('Duplicate');
+  await dialog.getByRole('button', { name: 'Create module' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('already exists');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Module title')).toHaveValue('Duplicate');
+});
+
+test('learners without a lecturer role keep the Create card and get no dialog badge', async ({ page, baseURL }) => {
+  await learner(baseURL!, page, []);
+  await expect(page.getByRole('heading', { name: 'Create a module' })).toBeVisible();
+  await expect(page.locator('button[aria-haspopup="dialog"]')).toHaveCount(0);
+});
+
 test('dashboard on a phone: modules become cards with the type badges, nothing scrolls sideways', async ({ page, baseURL }, info) => {
   test.skip(info.project.name !== 'mobile', 'phone layout');
   await learner(baseURL!, page, ['Year 5 Mathematics Curriculum (England)']);

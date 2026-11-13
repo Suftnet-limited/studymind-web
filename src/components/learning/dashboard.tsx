@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpDown, Atom, BookOpen, Calculator, Check, CheckCircle2, ChevronLeft, ChevronRight, Code2, Copy, FileText, FlaskConical, GraduationCap, Landmark, Languages, Layers, Leaf, MoreHorizontal, Play, Search, SquarePlus, Users } from 'lucide-react';
+import { ArrowUpDown, Atom, BookOpen, Calculator, Check, CheckCircle2, ChevronLeft, ChevronRight, Code2, Copy, FileText, FlaskConical, GraduationCap, Landmark, Languages, Layers, Leaf, MoreHorizontal, Play, Plus, Search, SquarePlus, Users } from 'lucide-react';
 import { studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { ErrorBox } from '@/components/learning/states';
 import { iconTone } from '@/components/learning/ai/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Modal } from '@/components/ui/modal';
 import { TYPES, addedAt, formatDate, matchesSearch, matchesType, moduleIconKind, paginate, sortModules, statusOf, typeCounts, type IconKind, type Sort, type TypeFilter } from '@/lib/dashboard.mjs';
 import { cn } from '@/lib/utils';
 
@@ -44,25 +45,57 @@ function ActionCard({ icon, title, description, tint, children }: { icon: ReactN
   </section>;
 }
 
-export function CreateModule({ canCreateClass }: { canCreateClass: boolean }) {
+/** The create-module form. `stacked` (in the dialog) shows labelled fields and Cancel; the card version is one compact row. */
+function CreateModuleForm({ canCreateClass, onCreated, onCancel, stacked }: { canCreateClass: boolean; onCreated?: () => void; onCancel?: () => void; stacked?: boolean }) {
   const cache = useQueryClient();
   const [title, setTitle] = useState('');
   const [accessType, setAccessType] = useState<'personal' | 'class'>('personal');
   const create = useMutation({
     mutationFn: () => studyMindModulesService.create(title.trim(), canCreateClass ? accessType : 'personal'),
-    onSuccess: async () => { setTitle(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
+    onSuccess: async () => { setTitle(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); onCreated?.(); },
   });
-  return <ActionCard tint icon={<SquarePlus className="size-6" />} title="Create a module"
-    description={canCreateClass ? 'Create a class module for your students, or a personal one for your own notes.' : 'Start a personal space for your own notes and materials.'}>
+  const selectCls = 'h-11 w-full rounded-lg border border-zinc-200 bg-white px-3 text-base';
+  if (stacked) return <form className="space-y-4" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
+    <label className="block space-y-1.5 text-sm font-semibold text-zinc-700">Module title
+      <Input aria-label="Module title" className="font-normal!" placeholder="e.g. Organic Chemistry" minLength={2} maxLength={255} required value={title} onChange={e => setTitle(e.target.value)} />
+    </label>
+    {canCreateClass && <label className="block space-y-1.5 text-sm font-semibold text-zinc-700">Access type
+      <select aria-label="Access type" className={cn(selectCls, 'font-normal')} value={accessType} onChange={e => setAccessType(e.target.value as 'personal' | 'class')}>
+        <option value="personal">Personal: only you can see it</option><option value="class">Class: your students join with a Course ID</option>
+      </select>
+    </label>}
+    {create.isError && <ErrorBox message={message(create.error)} />}
+    <div className="flex flex-wrap justify-end gap-3 pt-1">
+      <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+      <Button disabled={create.isPending || title.trim().length < 2}>{create.isPending ? 'Creating…' : 'Create module'}</Button>
+    </div>
+  </form>;
+  return <>
     <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); create.mutate(); }}>
       <Input aria-label="Module title" className="min-w-48 flex-1" placeholder="e.g. Organic Chemistry" minLength={2} maxLength={255} required value={title} onChange={e => setTitle(e.target.value)} />
-      {canCreateClass && <select aria-label="Access type" className="h-11 rounded-lg border border-zinc-200 bg-white px-3 text-base" value={accessType} onChange={e => setAccessType(e.target.value as 'personal' | 'class')}>
+      {canCreateClass && <select aria-label="Access type" className={cn(selectCls, 'w-auto')} value={accessType} onChange={e => setAccessType(e.target.value as 'personal' | 'class')}>
         <option value="personal">Personal</option><option value="class">Class</option>
       </select>}
       <Button disabled={create.isPending || title.trim().length < 2}>{create.isPending ? 'Creating…' : 'Create module'}</Button>
     </form>
     {create.isError && <div className="mt-3"><ErrorBox message={message(create.error)} /></div>}
+  </>;
+}
+
+/** The card learners without a lecturer role see on the dashboard. */
+export function CreateModule({ canCreateClass }: { canCreateClass: boolean }) {
+  return <ActionCard tint icon={<SquarePlus className="size-6" />} title="Create a module"
+    description={canCreateClass ? 'Create a class module for your students, or a personal one for your own notes.' : 'Start a personal space for your own notes and materials.'}>
+    <CreateModuleForm canCreateClass={canCreateClass} />
   </ActionCard>;
+}
+
+/** Lecturers create modules from a dialog opened by the "Create module" badge beside the type filters. */
+export function CreateModuleDialog({ open, onClose, canCreateClass }: { open: boolean; onClose: () => void; canCreateClass: boolean }) {
+  return <Modal open={open} onClose={onClose} title="Create a module"
+    description={canCreateClass ? 'Create a class module for your students, or a personal one for your own notes.' : 'Start a personal space for your own notes and materials.'}>
+    <CreateModuleForm stacked canCreateClass={canCreateClass} onCreated={onClose} onCancel={onClose} />
+  </Modal>;
 }
 
 export function JoinCourse() {
@@ -133,8 +166,8 @@ export type ModuleRow = CanonicalModule & { owned: boolean };
 const TYPE_LABEL: Record<TypeFilter, string> = { all: 'All', personal: 'Personal', class: 'Class' };
 
 /** One table for every module the learner owns or is enrolled in, with type badges to filter it. */
-export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, empty }: {
-  id: string; title: string; searchLabel: string; modules: ModuleRow[]; userOwnsClass: boolean; empty: string;
+export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, empty, onCreate }: {
+  id: string; title: string; searchLabel: string; modules: ModuleRow[]; userOwnsClass: boolean; empty: string; onCreate?: () => void;
 }) {
   const [query, setQuery] = useState(''); const [type, setType] = useState<TypeFilter>('all'); const [sort, setSort] = useState<Sort>(null); const [page, setPage] = useState(1);
   const counts = useMemo(() => typeCounts(modules), [modules]);
@@ -156,14 +189,17 @@ export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, em
     <h2 id={id} className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#111034]">{title}<span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700" aria-label={`${modules.length} modules`}>{modules.length}</span></h2>
 
     {modules.length === 0
-      ? <div className="rounded-3xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center"><p className="font-semibold text-[#111034]">No modules yet</p><p className="mt-1 text-sm text-zinc-500">{empty}</p></div>
+      ? <div className="rounded-3xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center"><p className="font-semibold text-[#111034]">No modules yet</p><p className="mt-1 text-sm text-zinc-500">{empty}</p>{onCreate && <button type="button" aria-haspopup="dialog" onClick={onCreate} className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm! font-semibold! text-white shadow-sm hover:bg-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"><Plus className="size-4" aria-hidden /> Create module</button>}</div>
       : <>
         <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
           <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2">
             {TYPES.map(t => <button key={t} type="button" aria-pressed={type === t} onClick={() => { setType(t); setPage(1); }}
               className={cn('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm! font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500',
                 type === t ? 'border-violet-600 bg-violet-600 text-white shadow-sm' : 'border-violet-200 bg-white text-violet-700 hover:bg-violet-50')}>
               {TYPE_LABEL[t]}<span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', type === t ? 'bg-white/25 text-white' : 'bg-violet-50 text-violet-700')}>{counts[t]}</span></button>)}
+          </div>
+          {onCreate && <button type="button" aria-haspopup="dialog" onClick={onCreate} className="inline-flex h-10 items-center gap-2 rounded-full border border-dashed border-violet-400 bg-violet-50 px-4 text-sm! font-semibold! text-violet-700 transition hover:bg-violet-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><Plus className="size-4" aria-hidden /> Create module</button>}
           </div>
           <label className="relative block w-full sm:w-80"><span className="sr-only">{searchLabel}</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" aria-hidden />
