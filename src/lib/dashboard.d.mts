@@ -1,0 +1,13 @@
+export const PAGE_SIZE: number;
+type M = { id?: string; title?: string; status?: string; access_type?: string; progress?: number; document_count?: number; student_count?: number; created_at?: string; enrolled_at?: string | null };
+export function progressState(progress: unknown): 'completed' | 'in_progress' | 'not_started';
+export function statusOf(module: M, owned: boolean): { key: string; label: string; tone: 'green' | 'amber' | 'muted' };
+export function dashboardStats(owned: M[], enrolled: M[]): { owned: number; enrolled: number; inProgress: number; completed: number; classModules: number; students: number; materials: number };
+export function matchesSearch(module: M, query: unknown): boolean;
+export type Sort = { by: 'name' | 'date' | 'status'; dir: 'asc' | 'desc' } | null;
+export function sortModules<T extends M>(list: T[], sort: Sort, opts?: { dateKey?: 'created_at' | 'enrolled_at'; owned?: boolean }): T[];
+export function paginate<T>(list: T[], page: number, size?: number): { page: number; pages: number; items: T[] };
+export function firstName(full: unknown): string;
+export function formatDate(iso: unknown): string;
+export type IconKind = 'maths' | 'biology' | 'chemistry' | 'physics' | 'code' | 'humanities' | 'language' | 'document' | 'book';
+export function moduleIconKind(title: unknown): IconKind;
