@@ -31,17 +31,25 @@ export function dashboardStats(owned, enrolled) {
 
 export const matchesSearch = (module, query) => { const q = String(query ?? '').trim().toLowerCase(); return !q || String(module.title ?? '').toLowerCase().includes(q); };
 
+/** A module row in the merged table carries `owned` (false = enrolled). Its date is when it was created (owned) or when the learner enrolled. */
+export const isOwned = (module) => module.owned !== false;
+export const addedAt = (module) => (isOwned(module) ? module.created_at : (module.enrolled_at ?? module.created_at));
+
+export const TYPES = ['all', 'personal', 'class'];
+export const matchesType = (module, type) => type === 'all' || !type || (type === 'class' ? module.access_type === 'class' : module.access_type !== 'class');
+export const typeCounts = (list) => ({ all: list.length, personal: list.filter((m) => m.access_type !== 'class').length, class: list.filter((m) => m.access_type === 'class').length });
+
 const SORTERS = {
   name: (a, b) => String(a.title ?? '').localeCompare(String(b.title ?? ''), undefined, { sensitivity: 'base' }),
-  date: (a, b, key) => (Date.parse(a[key] ?? '') || 0) - (Date.parse(b[key] ?? '') || 0),
-  status: (a, b, key, owned) => statusOf(a, owned).label.localeCompare(statusOf(b, owned).label),
+  date: (a, b) => (Date.parse(addedAt(a) ?? '') || 0) - (Date.parse(addedAt(b) ?? '') || 0),
+  status: (a, b) => statusOf(a, isOwned(a)).label.localeCompare(statusOf(b, isOwned(b)).label),
 };
-/** `sort` is null (the server's order) or { by: 'name' | 'date' | 'status', dir: 'asc' | 'desc' }. `dateKey` is created_at or enrolled_at. */
-export function sortModules(list, sort, { dateKey = 'created_at', owned = true } = {}) {
+/** `sort` is null (the server's order) or { by: 'name' | 'date' | 'status', dir: 'asc' | 'desc' }. */
+export function sortModules(list, sort) {
   if (!sort) return list;
   const f = SORTERS[sort.by]; if (!f) return list;
   const sign = sort.dir === 'desc' ? -1 : 1;
-  return [...list].sort((a, b) => sign * f(a, b, dateKey, owned));
+  return [...list].sort((a, b) => sign * f(a, b));
 }
 
 export function paginate(list, page, size = PAGE_SIZE) {

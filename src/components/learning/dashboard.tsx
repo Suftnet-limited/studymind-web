@@ -8,7 +8,7 @@ import { studyMindModulesService, type CanonicalModule } from '@/services/studym
 import { ErrorBox } from '@/components/learning/states';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatDate, matchesSearch, moduleIconKind, paginate, sortModules, statusOf, type IconKind, type Sort } from '@/lib/dashboard.mjs';
+import { TYPES, addedAt, formatDate, matchesSearch, matchesType, moduleIconKind, paginate, sortModules, statusOf, typeCounts, type IconKind, type Sort, type TypeFilter } from '@/lib/dashboard.mjs';
 import { cn } from '@/lib/utils';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -78,7 +78,7 @@ export function JoinCourse() {
       <Button variant="secondary" disabled={join.isPending || courseId.trim().length < 3}>{join.isPending ? 'Joining…' : 'Join course'}</Button>
     </form>
     {join.isError && <div className="mt-3"><ErrorBox message={message(join.error)} /></div>}
-    {join.isSuccess && <p role="status" className="mt-3 text-sm text-green-700">You have joined the course. It now appears under Enrolled modules.</p>}
+    {join.isSuccess && <p role="status" className="mt-3 text-sm text-green-700">You have joined the course. It now appears in My modules.</p>}
   </ActionCard>;
 }
 
@@ -128,43 +128,60 @@ function SortHead({ label, by, sort, onSort, className }: { label: string; by: '
   </th>;
 }
 
-export function ModuleTable({ id, title, searchLabel, modules, owned, userOwnsClass, empty }: {
-  id: string; title: string; searchLabel: string; modules: CanonicalModule[]; owned: boolean; userOwnsClass: boolean; empty: string;
+export type ModuleRow = CanonicalModule & { owned: boolean };
+const TYPE_LABEL: Record<TypeFilter, string> = { all: 'All', personal: 'Personal', class: 'Class' };
+
+/** One table for every module the learner owns or is enrolled in, with type badges to filter it. */
+export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, empty }: {
+  id: string; title: string; searchLabel: string; modules: ModuleRow[]; userOwnsClass: boolean; empty: string;
 }) {
-  const [query, setQuery] = useState(''); const [sort, setSort] = useState<Sort>(null); const [page, setPage] = useState(1);
-  const rows = useMemo(() => sortModules(modules.filter(m => matchesSearch(m, query)), sort, { dateKey: owned ? 'created_at' : 'enrolled_at', owned }), [modules, query, sort, owned]);
+  const [query, setQuery] = useState(''); const [type, setType] = useState<TypeFilter>('all'); const [sort, setSort] = useState<Sort>(null); const [page, setPage] = useState(1);
+  const counts = useMemo(() => typeCounts(modules), [modules]);
+  const rows = useMemo(() => sortModules(modules.filter(m => matchesType(m, type) && matchesSearch(m, query)), sort), [modules, type, query, sort]);
   const view = paginate(rows, page);
   const onSort = (by: 'name' | 'date' | 'status') => { setSort(s => (s?.by === by ? (s.dir === 'asc' ? { by, dir: 'desc' } : null) : { by, dir: 'asc' })); setPage(1); };
-  const dateOf = (m: CanonicalModule) => formatDate(owned ? m.created_at : (m.enrolled_at ?? m.created_at));
-  const canCopy = (m: CanonicalModule) => owned && userOwnsClass && m.access_type === 'class';
-  const pager = view.pages >= 1 && rows.length > 0 && <nav aria-label={`${title} pages`} className="flex items-center justify-center gap-2 border-t border-zinc-100 px-4 py-4">
+  const canCopy = (m: ModuleRow) => m.owned && userOwnsClass && m.access_type === 'class';
+  const pct = (m: ModuleRow) => Math.min(100, Math.max(0, Number(m.progress) || 0));
+  const filtered = type !== 'all' || query.trim() !== '';
+  const pager = rows.length > 0 && <nav aria-label={`${title} pages`} className="flex items-center justify-center gap-2 border-t border-zinc-100 px-4 py-4">
     <button type="button" aria-label="Previous page" disabled={view.page === 1} onClick={() => setPage(view.page - 1)} className="flex size-10 items-center justify-center rounded-xl text-zinc-600 hover:bg-violet-50 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><ChevronLeft className="size-5" aria-hidden /></button>
     {Array.from({ length: view.pages }, (_, i) => i + 1).map(n => <button key={n} type="button" aria-label={`Page ${n}`} aria-current={n === view.page ? 'page' : undefined} onClick={() => setPage(n)}
       className={cn('flex size-10 items-center justify-center rounded-full text-sm! font-bold! focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500', n === view.page ? 'bg-violet-600 text-white' : 'text-zinc-600 hover:bg-violet-50')}>{n}</button>)}
     <button type="button" aria-label="Next page" disabled={view.page === view.pages} onClick={() => setPage(view.page + 1)} className="flex size-10 items-center justify-center rounded-xl text-zinc-600 hover:bg-violet-50 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><ChevronRight className="size-5" aria-hidden /></button>
   </nav>;
+  const added = (m: ModuleRow) => <><span className="whitespace-nowrap text-zinc-700">{formatDate(addedAt(m))}</span><span className="block text-xs text-zinc-400">{m.owned ? 'Created' : 'Enrolled'}</span></>;
 
   return <section aria-labelledby={id} className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 id={id} className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#111034]">{title}<span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700" aria-label={`${modules.length} modules`}>{modules.length}</span></h2>
-      {modules.length > 0 && <label className="relative block w-full sm:w-80"><span className="sr-only">{searchLabel}</span>
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" aria-hidden />
-        <input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={searchLabel} className="h-11 w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100" />
-      </label>}
-    </div>
+    <h2 id={id} className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#111034]">{title}<span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-bold text-violet-700" aria-label={`${modules.length} modules`}>{modules.length}</span></h2>
 
     {modules.length === 0
-      ? <div className="rounded-3xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center"><p className="font-semibold text-[#111034]">No {title.toLowerCase()} yet</p><p className="mt-1 text-sm text-zinc-500">{empty}</p></div>
-      : <div className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_18px_50px_rgba(76,29,149,0.05)]">
-          {rows.length === 0 && <p role="status" className="px-6 py-10 text-center text-sm text-zinc-500">No modules match “{query}”.</p>}
+      ? <div className="rounded-3xl border border-dashed border-zinc-300 bg-white px-6 py-10 text-center"><p className="font-semibold text-[#111034]">No modules yet</p><p className="mt-1 text-sm text-zinc-500">{empty}</p></div>
+      : <>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2">
+            {TYPES.map(t => <button key={t} type="button" aria-pressed={type === t} onClick={() => { setType(t); setPage(1); }}
+              className={cn('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm! font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500',
+                type === t ? 'border-violet-600 bg-violet-600 text-white shadow-sm' : 'border-violet-200 bg-white text-violet-700 hover:bg-violet-50')}>
+              {TYPE_LABEL[t]}<span className={cn('rounded-full px-2 py-0.5 text-xs font-bold', type === t ? 'bg-white/25 text-white' : 'bg-violet-50 text-violet-700')}>{counts[t]}</span></button>)}
+          </div>
+          <label className="relative block w-full sm:w-80"><span className="sr-only">{searchLabel}</span>
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-400" aria-hidden />
+            <input type="search" value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder={searchLabel} className="h-11 w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 focus-visible:border-violet-400 focus-visible:ring-2 focus-visible:ring-violet-100" />
+          </label>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-[0_18px_50px_rgba(76,29,149,0.05)]">
+          {rows.length === 0 && <div role="status" className="px-6 py-10 text-center text-sm text-zinc-500">No modules match{filtered ? ' your search or filter' : ''}.
+            {filtered && <button type="button" onClick={() => { setQuery(''); setType('all'); }} className="ml-2 font-semibold! text-violet-700 underline">Clear filters</button>}</div>}
           {rows.length > 0 && <>
             <table className="hidden w-full md:table">
               <caption className="sr-only">{title}</caption>
               <thead className="bg-violet-50/60"><tr>
                 <SortHead label="Module name" by="name" sort={sort} onSort={onSort} />
                 <th scope="col" className="px-5 py-4 text-left text-sm font-bold text-[#111034]">Type</th>
-                <SortHead label={owned ? 'Created on' : 'Enrolled on'} by="date" sort={sort} onSort={onSort} />
-                <th scope="col" className="px-5 py-4 text-left text-sm font-bold text-[#111034]">{owned ? 'Materials' : 'Progress'}</th>
+                <SortHead label="Date" by="date" sort={sort} onSort={onSort} />
+                <th scope="col" className="px-5 py-4 text-left text-sm font-bold text-[#111034]">Materials</th>
+                <th scope="col" className="px-5 py-4 text-left text-sm font-bold text-[#111034]">Progress</th>
                 <SortHead label="Status" by="status" sort={sort} onSort={onSort} />
                 <th scope="col" className="px-5 py-4 text-right text-sm font-bold text-[#111034]">Actions</th>
               </tr></thead>
@@ -172,11 +189,10 @@ export function ModuleTable({ id, title, searchLabel, modules, owned, userOwnsCl
                 {view.items.map(m => <tr key={m.id} className="transition hover:bg-violet-50/30">
                   <td className="px-5 py-3.5"><Link href={`/my-learning/modules/${m.id}`} className="flex items-center gap-4 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><ModuleIcon module={m} /><span className="break-words font-bold text-[#111034] hover:text-violet-700">{m.title}</span></Link></td>
                   <td className="px-5 py-3.5"><TypePill module={m} /></td>
-                  <td className="whitespace-nowrap px-5 py-3.5 text-zinc-700">{dateOf(m)}</td>
-                  <td className="px-5 py-3.5">{owned
-                    ? <span className="inline-flex items-center gap-2 text-zinc-700"><FileText className="size-5 text-zinc-400" aria-hidden />{m.document_count ?? 0}<span className="sr-only"> materials</span></span>
-                    : <Progress value={Math.min(100, Math.max(0, Number(m.progress) || 0))} />}</td>
-                  <td className="px-5 py-3.5"><StatusPill module={m} owned={owned} /></td>
+                  <td className="px-5 py-3.5">{added(m)}</td>
+                  <td className="px-5 py-3.5"><span className="inline-flex items-center gap-2 text-zinc-700"><FileText className="size-5 text-zinc-400" aria-hidden />{m.document_count ?? 0}<span className="sr-only"> materials</span></span></td>
+                  <td className="px-5 py-3.5"><Progress value={pct(m)} /></td>
+                  <td className="px-5 py-3.5"><StatusPill module={m} owned={m.owned} /></td>
                   <td className="px-5 py-3.5 text-right"><RowActions module={m} canCopy={canCopy(m)} /></td>
                 </tr>)}
               </tbody>
@@ -188,13 +204,14 @@ export function ModuleTable({ id, title, searchLabel, modules, owned, userOwnsCl
                   <Link href={`/my-learning/modules/${m.id}`} className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><ModuleIcon module={m} /><span className="break-words font-bold text-[#111034]">{m.title}</span></Link>
                   <RowActions module={m} canCopy={canCopy(m)} />
                 </div>
-                <div className="flex flex-wrap items-center gap-2"><TypePill module={m} /><StatusPill module={m} owned={owned} /></div>
-                <p className="text-sm text-zinc-600">{owned ? 'Created' : 'Enrolled'} {dateOf(m)}{owned && <> · <FileText className="mb-0.5 inline size-4 text-zinc-400" aria-hidden /> {m.document_count ?? 0} materials</>}</p>
-                {!owned && <Progress value={Math.min(100, Math.max(0, Number(m.progress) || 0))} />}
+                <div className="flex flex-wrap items-center gap-2"><TypePill module={m} /><StatusPill module={m} owned={m.owned} /></div>
+                <p className="text-sm text-zinc-600">{m.owned ? 'Created' : 'Enrolled'} {formatDate(addedAt(m))} · <FileText className="mb-0.5 inline size-4 text-zinc-400" aria-hidden /> {m.document_count ?? 0} materials</p>
+                <Progress value={pct(m)} />
               </li>)}
             </ul>
             {pager}
           </>}
-        </div>}
+        </div>
+      </>}
   </section>;
 }

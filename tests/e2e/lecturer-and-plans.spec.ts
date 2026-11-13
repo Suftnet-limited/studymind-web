@@ -11,7 +11,7 @@ test('lecturer: creates a class, copies the Course ID, and cannot join', async (
   await page.getByLabel('Module title').fill('Physics 201 (E2E)');
   await page.getByLabel('Access type').selectOption('class');
   await page.getByRole('button', { name: 'Create module' }).click();
-  await page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /Physics 201/ }).click();
+  await page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /Physics 201/ }).click();
 
   const courseId = await page.getByTestId('course-id').innerText();
   expect(courseId).toMatch(/^[0-9a-f-]{36}$/);

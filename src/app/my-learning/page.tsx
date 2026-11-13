@@ -52,6 +52,7 @@ export default function MyLearningPage() {
   const owned = (modules.data ?? []).filter(m => m.owner_id === user?.id);
   const enrolled = (modules.data ?? []).filter(m => m.owner_id !== user?.id);
 
+  const all = (modules.data ?? []).map(m => ({ ...m, owned: m.owner_id === user?.id }));
   const stats = dashboardStats(owned, enrolled);
   const tiles: Stat[] = caps.canJoin
     ? [{ label: 'Owned modules', value: stats.owned, tone: 'violet', icon: statIcons.layers }, { label: 'Enrolled modules', value: stats.enrolled, tone: 'blue', icon: statIcons.cap },
@@ -80,12 +81,8 @@ export default function MyLearningPage() {
 
       {modules.isLoading && <LoadingBlock label="Loading modules…" rows={2} />}
       {modules.isError && <ErrorBox message={message(modules.error)} onRetry={() => modules.refetch()} />}
-      {modules.data && <>
-        {(caps.canCreatePersonal || owned.length > 0) && <ModuleTable id="owned-modules" title="Owned modules" searchLabel="Search modules…" modules={owned} owned userOwnsClass={caps.canCreateClass}
-          empty="Modules you create appear here. Use Create a module above to start one." />}
-        {(caps.canJoin || enrolled.length > 0) && <ModuleTable id="enrolled-modules" title="Enrolled modules" searchLabel="Search enrolled modules…" modules={enrolled} owned={false} userOwnsClass={false}
-          empty="Courses you join appear here. Paste a Course ID above to join one." />}
-      </>}
+      {modules.data && <ModuleTable id="my-modules" title="My modules" searchLabel="Search modules…" modules={all} userOwnsClass={caps.canCreateClass}
+        empty={caps.canJoin ? 'Use Create a module above to start one, or paste a Course ID to join a class.' : 'Modules you create appear here. Use Create a module above to start one.'} />}
     </>}
   </div>;
 }
