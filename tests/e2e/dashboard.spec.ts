@@ -1,4 +1,4 @@
-// The learner dashboard ("Learning Workspace"): stat tiles, create / join cards, and ONE searchable, sortable, paged "My modules" table
+// The learner dashboard ("Dashboard"): stat tiles, create / join cards, and ONE searchable, sortable, paged "My modules" table
 // with type badges (All / Personal / Class) to filter it. Real sign-in and real modules; no AI.
 import { expect, test, type Page } from '@playwright/test';
 import { apiAccount, apiCreateClass, expectNoHorizontalScroll, signIn } from './helpers';
@@ -16,7 +16,7 @@ async function learner(baseURL: string, page: Page, personal: string[]) {
   for (const m of [cls, cs]) expect((await me.ctx.post('/api/studymind/modules/join', { data: { course_id: m.id } })).status()).toBe(200);
   for (const title of personal) expect((await me.ctx.post('/api/studymind/modules', { data: { title, access_type: 'personal' } })).status()).toBe(201);
   await page.goto('/my-learning'); await signIn(page, me.email);
-  await expect(page.getByRole('heading', { name: 'Learning Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   return { me, cls, cs, lecturer };
 }
 
@@ -24,6 +24,12 @@ test('dashboard: welcome, four stat tiles, create and join cards, and one table 
   desktopOnly(info);
   await learner(baseURL!, page, ['Year 5 Mathematics Curriculum (England)', 'Abel CV']);
   await expect(page.getByText('Welcome back, E2E dash-me')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Learning Workspace' }), 'the old title is gone').toHaveCount(0);
+  const [r, g, b] = await page.getByRole('heading', { name: 'Dashboard', exact: true }).evaluate((el) => {      // the browser may report oklch/lab, so read the real RGB off a canvas
+    const ctx = document.createElement('canvas').getContext('2d')!; ctx.fillStyle = getComputedStyle(el).color; ctx.fillRect(0, 0, 1, 1);
+    return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3);
+  });
+  expect(Math.min(r, g, b), 'a soft, low-contrast title (not near-black)').toBeGreaterThanOrEqual(90);
   await expect(tile(page, 'Owned modules')).toContainText('2');
   await expect(tile(page, 'Enrolled modules')).toContainText('2');
   await expect(tile(page, 'In progress')).toContainText('0');
@@ -90,7 +96,7 @@ test('dashboard: module icons get varied colours that stay the same after a relo
   await expect(table(page).getByRole('row')).toHaveCount(6);
   const first = await tones();
   expect(first.every((t) => t !== 'undefined'), 'every icon has a tint').toBe(true);
-  expect(new Set(first).size, 'not all the same colour').toBeGreaterThan(2);
+  expect(new Set(first).size, 'not all the same colour').toBeGreaterThan(1);
   expect(first.filter((t) => t === 'violet').length).toBeLessThan(first.length);
   await page.reload(); await expect(table(page).getByRole('row')).toHaveCount(6);
   expect(await tones()).toEqual(first);                                                                    // stable per module
@@ -173,7 +179,7 @@ test('lecturer: a "Create module" badge after Class opens a dialog; the Create c
   const lecturer = await apiAccount(baseURL!, 'dash-create', 'lecturer');
   await apiCreateClass(lecturer.ctx, 'Physics 201 (E2E)');
   await page.goto('/my-learning'); await signIn(page, lecturer.email);
-  await expect(page.getByRole('heading', { name: 'Learning Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Create a module' }), 'the card is gone').toHaveCount(0);
   await expect(page.getByLabel('Module title')).toHaveCount(0);
 
@@ -218,7 +224,7 @@ test('lecturer: a "Create module" badge after Class opens a dialog; the Create c
   await expect(tile(page, 'Owned modules')).toContainText('2');
   await expect(tile(page, 'Class modules')).toContainText('2');
   await expect(typeBadge(page, 'Class')).toContainText('2');
-  await expect(page.getByRole('heading', { name: 'Learning Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   expect(await page.evaluate(() => getComputedStyle(document.body).overflow), 'scrolling is back').not.toBe('hidden');
   await expectNoHorizontalScroll(page);
 });

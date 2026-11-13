@@ -64,7 +64,7 @@ export default function MyLearningPage() {
   return <div className="mx-auto max-w-[88rem] space-y-8 px-5 py-8 sm:py-10">
     <header>
       {user && <p className="text-sm font-medium text-zinc-500">Welcome back, {user.full_name}</p>}
-      <h1 className="text-3xl font-extrabold tracking-tight text-[#111034] sm:text-4xl">Learning Workspace</h1>
+      <h1 className="text-3xl font-bold tracking-tight text-zinc-500 sm:text-4xl">Dashboard</h1>
       <p className="mt-2 text-zinc-600">Your modules, shared with the StudyMind account you use on Mobile.</p>
     </header>
 

@@ -110,7 +110,7 @@ test('expired access token (cookie gone) recovers through one refresh and no re-
   await expireAccessToken(context); await clearFaults();
   await page.goto('/my-learning'); await page.waitForLoadState('networkidle');
   await noSignInForm(page);
-  await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
   expect(await refreshCalls()).toBe(1);
   expect(await cookieNames(context)).toEqual(expect.arrayContaining([ACCESS, REFRESH]));
 });
@@ -167,7 +167,7 @@ test('an injected 403 on the module list does not clear the session either', asy
   expect(await authenticated(page)).toBe(true);
   expect(await cookieNames(context)).toEqual(expect.arrayContaining([ACCESS, REFRESH]));
   expect(await refreshCalls()).toBe(0);
-  await clearFaults(); await page.reload(); await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible();
+  await clearFaults(); await page.reload(); await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 });
 
 for (const [name, rule] of [['503', { status: 503 }], ['429', { status: 429 }], ['dropped connection', { drop: true }]] as const) {
@@ -180,7 +180,7 @@ for (const [name, rule] of [['503', { status: 503 }], ['429', { status: 429 }], 
     expect(await cookieNames(context), 'refresh cookie must survive a backend blip').toContain(REFRESH);
     await clearFaults();
     await page.reload(); await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     expect(await authenticated(page)).toBe(true);
   });
 }
@@ -201,7 +201,7 @@ test('slow network: pages load, nothing is mistaken for a logout', async ({ page
   await signIn(page, 'student');
   await expireAccessToken(context); await clearFaults();
   await fault({ match: '^/api/', delayMs: 2500, times: -1 });
-  await page.goto('/my-learning'); await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible({ timeout: 30_000 });
+  await page.goto('/my-learning'); await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible({ timeout: 30_000 });
   await noSignInForm(page);
   expect(await authenticated(page)).toBe(true);
 });

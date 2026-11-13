@@ -80,7 +80,7 @@ test('self-learner journey: register, create a personal module, join a class, op
   await shot(page, info, 'self_learner-05-class-module');
   await expectNoHorizontalScroll(page);
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
-  await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 
   // Open the personal module (no Course ID) and upload
   await page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /My Chemistry Notes/ }).click();
