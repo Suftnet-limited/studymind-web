@@ -9,11 +9,11 @@ import { ErrorBox, LoadingBlock } from '@/components/learning/states';
 import { UsageIllustration } from '@/components/learning/illustrations';
 import { cn } from '@/lib/utils';
 
-const TONES: Record<AllowanceKey, { tile: string; pill: string; icon: ReactNode }> = {
-  chats: { tile: 'bg-violet-100 text-violet-600', pill: 'bg-violet-100 text-violet-700', icon: <MessageCircle className="size-7" /> },
-  quizzes: { tile: 'bg-sky-100 text-sky-600', pill: 'bg-sky-100 text-sky-700', icon: <ClipboardList className="size-7" /> },
-  flashcards: { tile: 'bg-amber-100 text-amber-600', pill: 'bg-amber-100 text-amber-700', icon: <Layers className="size-7" /> },
-  summaries: { tile: 'bg-emerald-100 text-emerald-600', pill: 'bg-emerald-100 text-emerald-700', icon: <FileText className="size-7" /> },
+const TONES: Record<AllowanceKey, { tile: string; pill: string; bar: string; icon: ReactNode }> = {
+  chats: { tile: 'bg-violet-100 text-violet-600', pill: 'bg-violet-100 text-violet-700', bar: 'bg-violet-500', icon: <MessageCircle className="size-7" /> },
+  quizzes: { tile: 'bg-sky-100 text-sky-600', pill: 'bg-sky-100 text-sky-700', bar: 'bg-sky-500', icon: <ClipboardList className="size-7" /> },
+  flashcards: { tile: 'bg-amber-100 text-amber-600', pill: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500', icon: <Layers className="size-7" /> },
+  summaries: { tile: 'bg-emerald-100 text-emerald-600', pill: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-500', icon: <FileText className="size-7" /> },
 };
 
 export default function AllowancesPage() {
@@ -24,7 +24,7 @@ export default function AllowancesPage() {
   const plus = data?.plan === 'plus';
   const resets = expires ? `Valid until ${longDate(expires)}` : 'Resets monthly';
 
-  return <div className="mx-auto max-w-5xl space-y-8 px-5 py-8 sm:py-10">
+  return <div className="mx-auto max-w-6xl space-y-8 px-5 py-8 sm:py-10">
     <header className="relative min-h-36 lg:min-h-44">
       <div className="max-w-xl">
         <p className="text-base font-semibold text-violet-700">Your Usage</p>
@@ -83,8 +83,8 @@ export default function AllowancesPage() {
                 </div>
               </div>
               {a && <>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-zinc-100" role="progressbar" aria-label={`${ALLOWANCE_LABELS[key]} remaining`} aria-valuemin={0} aria-valuemax={a.limit} aria-valuenow={a.remaining}>
-                  <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${pct}%` }} />
+                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-zinc-100" role="progressbar" aria-label={`${ALLOWANCE_LABELS[key]} remaining`} aria-valuemin={0} aria-valuemax={a.limit} aria-valuenow={a.remaining}>
+                  <div className={cn('h-full rounded-full transition-[width] duration-300', TONES[key].bar)} style={{ width: `${pct}%` }} />
                 </div>
                 <p className="mt-4 flex items-center gap-2 text-sm text-zinc-600"><CalendarDays className="size-5 text-zinc-400" aria-hidden />{resets}</p>
               </>}

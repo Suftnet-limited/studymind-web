@@ -68,6 +68,20 @@ test('allowances shows the days left for an active pass, and each page fits ever
   await expect(page.getByRole('listitem').filter({ hasText: 'Summaries' })).toContainText('93%');
   await expect(page.getByRole('listitem').filter({ hasText: 'Summaries' })).toContainText('Valid until');
   await expect(page.getByRole('link', { name: 'See the plans' }), 'Plus users are not nudged to buy').toHaveCount(0);
+  // slim bars, one colour per card, and the page lines up with the header's content edges
+  const bars = page.getByRole('progressbar');
+  expect(await bars.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).toEqual([6, 6, 6, 6]);
+  const fills = await bars.evaluateAll((els) => els.map((e) => getComputedStyle(e.firstElementChild!).backgroundColor));
+  expect(new Set(fills).size, 'a different colour for each allowance').toBe(4);
+  for (const width of [1280, 1600]) {
+    await page.setViewportSize({ width, height: 900 });
+    const logo = (await page.getByRole('banner').getByRole('link', { name: 'StudyMind' }).boundingBox())!;
+    const h1 = (await page.getByRole('heading', { name: 'Allowances', exact: true }).boundingBox())!;
+    const card = (await page.getByRole('progressbar').first().locator('xpath=ancestor::li').boundingBox())!;
+    expect(Math.abs(h1.x - logo.x), `heading lines up with the header at ${width}px`).toBeLessThanOrEqual(2);
+    expect(Math.abs(card.x - logo.x), `cards line up with the header at ${width}px`).toBeLessThanOrEqual(2);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.screenshot({ path: info.outputPath('allowances-plus-desktop.png'), fullPage: true });
   await page.goto('/my-learning/plans');
   await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
