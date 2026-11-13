@@ -1,6 +1,7 @@
 export type CanonicalModule = {
   id: string; title: string; description: string | null; course_code: string | null;
   owner_id: string; access_type: string; status: string; updated_at: string;
+  created_at?: string; document_count?: number; student_count?: number; progress?: number; emoji?: string | null; enrolled_at?: string | null;
 };
 export type CanonicalDocument = {
   id: string; filename?: string; original_filename?: string; visibility?: string;

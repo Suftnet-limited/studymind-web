@@ -1,4 +1,5 @@
 'use client';
+import { AIContentRenderer } from '@/components/shared/ai-content-renderer';
 import { useState, type KeyboardEvent } from 'react';
 import { ArrowLeft, ArrowRight, Layers, RotateCcw } from 'lucide-react';
 import type { Outline } from '@/lib/learning-ai.mjs';
@@ -78,7 +79,7 @@ export function FlashcardsTab({ moduleId, outline }: { moduleId: string; outline
         className={cn('mt-6 flex min-h-64 w-full flex-col items-center justify-center rounded-3xl border p-7 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:min-h-72',
           flipped ? 'border-violet-300 bg-gradient-to-br from-violet-50 to-indigo-50' : 'border-zinc-200 bg-white hover:border-violet-200 hover:bg-violet-50/30')}>
         <span className={cn('mb-4 rounded-full px-3 py-1 text-xs! font-bold! uppercase tracking-wider', flipped ? 'bg-violet-600 text-white' : 'bg-zinc-100 text-zinc-600')}>{flipped ? 'Answer' : 'Question'}</span>
-        <span className="break-words text-xl! font-bold! leading-snug text-[#111034] sm:text-2xl!">{flipped ? card.back : card.front}</span>
+        <span className="break-words text-xl! font-bold! leading-snug text-[#111034] sm:text-2xl!"><AIContentRenderer inline content={flipped ? card.back : card.front} className="text-xl! font-bold! leading-snug sm:text-2xl!" /></span>
         <span className="mt-5 inline-flex items-center gap-1.5 text-xs! text-zinc-400"><RotateCcw className="size-3.5" aria-hidden /> Tap to {flipped ? 'see the question' : 'reveal the answer'}</span>
       </button>
       <div className="mt-6 flex items-center justify-between gap-3">

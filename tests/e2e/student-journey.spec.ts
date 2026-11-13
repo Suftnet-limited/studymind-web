@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { PASSWORD, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
+import { PASSWORD, accountMenu, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
 
 async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
   const email = uniqueEmail(role);
@@ -15,7 +15,9 @@ async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner
   await page.getByLabel('Account type').selectOption(role);
   await shot(page, info, `${role}-02-register`);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByText(name)).toBeVisible();
+  await expectSignedIn(page);
+  await accountMenu(page).click(); await expect(page.getByRole('menu', { name: 'Account' })).toContainText(name);   // the name lives in the account menu
+  await page.keyboard.press('Escape');
   return email;
 }
 
@@ -49,8 +51,7 @@ test('self-learner journey: register, create a personal module, join a class, op
   await apiUpload(lecturer.ctx, classModule.id, 'lecturer-private.txt', 'private lecturer notes', 'personal');
 
   const email = await registerThroughUi(page, info, 'self_learner', 'Ada Learner');
-  await expect(page.getByText('No owned modules yet')).toBeVisible();
-  await expect(page.getByText('No enrolled modules yet')).toBeVisible();
+  await expect(page.getByText('No modules yet')).toBeVisible();
   await shot(page, info, 'self_learner-03-workspace-empty');
   await expectNoHorizontalScroll(page);
 
@@ -58,13 +59,13 @@ test('self-learner journey: register, create a personal module, join a class, op
   await expect(page.getByLabel('Access type')).toHaveCount(0);
   await page.getByLabel('Module title').fill('My Chemistry Notes');
   await page.getByRole('button', { name: 'Create module' }).click();
-  const owned = page.getByRole('region', { name: /Owned modules/ });
+  const owned = page.getByRole('region', { name: /My modules/ });
   await expect(owned.getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
 
   await page.getByLabel('Course ID').fill(classModule.id);
   await page.getByRole('button', { name: 'Join course' }).click();
   await expect(page.getByText('You have joined the course')).toBeVisible();
-  const enrolled = page.getByRole('region', { name: /Enrolled modules/ });
+  const enrolled = page.getByRole('region', { name: /My modules/ });
   await expect(enrolled.getByRole('link', { name: /History 110/ })).toBeVisible();
   await shot(page, info, 'self_learner-04-workspace-joined');
   await expectNoHorizontalScroll(page);
@@ -81,10 +82,10 @@ test('self-learner journey: register, create a personal module, join a class, op
   await shot(page, info, 'self_learner-05-class-module');
   await expectNoHorizontalScroll(page);
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
-  await expect(page.getByRole('heading', { name: 'Learning workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
 
   // Open the personal module (no Course ID) and upload
-  await page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /My Chemistry Notes/ }).click();
+  await page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /My Chemistry Notes/ }).click();
   await expect(page.getByRole('heading', { name: 'My Chemistry Notes', level: 1 })).toBeVisible();
   await expect(page.getByTestId('course-id')).toHaveCount(0);
   await openDocuments(page);
@@ -96,8 +97,8 @@ test('self-learner journey: register, create a personal module, join a class, op
   await signOut(page);
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await signIn(page, email);
-  await expect(page.getByRole('region', { name: /Owned modules/ }).getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
-  await expect(page.getByRole('region', { name: /Enrolled modules/ }).getByRole('link', { name: /History 110/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /History 110/ })).toBeVisible();
   await shot(page, info, 'self_learner-07-signed-back-in');
 });
 
@@ -108,14 +109,14 @@ test("student journey: register, join a lecturer's class by Course ID, view and 
 
   await expect(page.getByRole('button', { name: 'Create module' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Owned modules/ })).toHaveCount(0);
-  await expect(page.getByText('No enrolled modules yet')).toBeVisible();
+  await expect(page.getByText('No modules yet')).toBeVisible();
   await shot(page, info, 'student-03-workspace-empty');
   await expectNoHorizontalScroll(page);
 
   await page.getByLabel('Course ID').fill(classModule.id);
   await page.getByRole('button', { name: 'Join course' }).click();
   await expect(page.getByText('You have joined the course')).toBeVisible();
-  const enrolled = page.getByRole('region', { name: /Enrolled modules/ });
+  const enrolled = page.getByRole('region', { name: /My modules/ });
   await expect(enrolled.getByRole('link', { name: /Biology 101/ })).toBeVisible();
   await shot(page, info, 'student-04-joined');
   await expectNoHorizontalScroll(page);
@@ -140,7 +141,7 @@ test("student journey: register, join a lecturer's class by Course ID, view and 
   await page.getByRole('link', { name: /Back to learning workspace/ }).click();
   await signOut(page);
   await signIn(page, email);
-  await expect(page.getByRole('region', { name: /Enrolled modules/ }).getByRole('link', { name: /Biology 101/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /Biology 101/ })).toBeVisible();
   await shot(page, info, 'student-06-signed-back-in');
 });
 
@@ -174,7 +175,7 @@ test('header: Sign in and Get started use the canonical journey and are readable
 
 test('session: protected routes require sign-in and a refreshed session survives an expired access cookie', async ({ page, context, baseURL }) => {
   const account = await apiAccount(baseURL!, 'sess', 'student');
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
   await page.goto('/my-learning');
   await signIn(page, account.email);
@@ -183,6 +184,6 @@ test('session: protected routes require sign-in and a refreshed session survives
   await page.reload();
   await expectSignedIn(page);
   await signOut(page);
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
 });

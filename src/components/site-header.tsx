@@ -69,7 +69,6 @@ export function SiteHeader({ legacyUser, initialSignedIn }: { legacyUser: Legacy
   const pathname = usePathname();
   const [signedIn, setSignedIn] = useState(initialSignedIn);
   const [name, setName] = useState('');
-  const [hash, setHash] = useState('');
   useEffect(() => {
     let cancelled = false;
     const refresh = () => {
@@ -83,12 +82,6 @@ export function SiteHeader({ legacyUser, initialSignedIn }: { legacyUser: Legacy
     window.addEventListener('studymind-auth-changed', refresh);   // sign-in / sign-out without a route change
     return () => { cancelled = true; window.removeEventListener('studymind-auth-changed', refresh); };
   }, [pathname]);
-  useEffect(() => {
-    const read = () => setHash(window.location.hash);
-    read(); window.addEventListener('hashchange', read);
-    return () => window.removeEventListener('hashchange', read);
-  }, [pathname]);
-
   const at = (p: string) => pathname === p || pathname.startsWith(p + '/');
   let body: ReactNode;
   if (legacyUser) {
@@ -106,15 +99,13 @@ export function SiteHeader({ legacyUser, initialSignedIn }: { legacyUser: Legacy
       </AccountMenu>
     </>;
   } else if (signedIn) {
-    const plans = at('/my-learning/plans');
     const items: NavItem[] = [
-      { href: '/my-learning', label: 'My modules', icon: <Layers className="size-5" />, active: pathname === '/my-learning' || at('/my-learning/modules') },
-      { href: '/my-learning/plans', label: 'Plans', icon: <CreditCard className="size-5" />, active: plans && hash !== '#allowances' },
-      { href: '/my-learning/plans#allowances', label: 'AI access', icon: <Sparkles className="size-5" />, active: plans && hash === '#allowances' },
+      { href: '/my-learning', label: 'Dashboard', icon: <LayoutGrid className="size-5" />, active: pathname === '/my-learning' || at('/my-learning/modules') },
+      { href: '/my-learning/plans', label: 'Plans', icon: <CreditCard className="size-5" />, active: at('/my-learning/plans') },
+      { href: '/my-learning/allowances', label: 'AI access', icon: <Sparkles className="size-5" />, active: at('/my-learning/allowances') },
     ];
     body = <>
-      {/* a same-page #hash link changes the URL with pushState (no hashchange event), so the nav records its own clicks */}
-      <NavPills label="Learning navigation" items={items} onNavigate={href => setHash(href.includes('#') ? '#' + href.split('#')[1] : '')} />
+      <NavPills label="Learning navigation" items={items} />
       <AccountMenu name={name}>
         <button type="button" role="menuitem" className={menuItem} onClick={async () => { try { await studyMindIdentityService.logout(); } catch { /* the cookies are cleared server-side either way */ } window.location.assign('/my-learning'); }}>
           <LogOut className="size-4" aria-hidden /> Sign out

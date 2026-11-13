@@ -132,7 +132,7 @@ test('plans presentation matches the agreed pricing; the only purchase path is t
   const page = read('src/app/my-learning/plans/page.tsx');
   assert.match(page, /Pricing preview/, 'the preview wording stays whenever the backend reports checkout as unavailable');
   assert.match(page, /Coming soon — purchases are not available yet\./);
-  assert.match(page, /Get StudyMind Plus — £3\.99/);
+  assert.match(page, /Get Plus — £3\.99/);
   assert.doesNotMatch(page, /from 'stripe'|STRIPE_|prisma|stripe\.com|sk_(test|live)|pk_(test|live)/i, 'the browser page never touches Stripe or secrets');
   const writes = [...page.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]).filter((c) => /POST/.test(c));
   assert.equal(writes.length, 1, 'exactly one write from the page');
@@ -175,7 +175,7 @@ test('header links to the canonical journey and the global link reset cannot ove
   // and the header confirms it through the status route.
   assert.match(layout, /<SiteHeader[^\n]*initialSignedIn=\{hasAiSession\}\/>/);
   assert.match(layout, /studymind_ai_access/); assert.match(layout, /studymind_ai_refresh/);
-  assert.match(header, /else if \(signedIn\)/); assert.match(header, /href: '\/my-learning', label: 'My modules'/); assert.match(header, /aria-label="Account menu"/);
+  assert.match(header, /else if \(signedIn\)/); assert.match(header, /href: '\/my-learning', label: 'Dashboard'/); assert.match(header, /aria-label="Account menu"/);
   assert.match(header, /\/api\/studymind\/auth\/status/); assert.match(header, /studymind-auth-changed/);
   assert.doesNotMatch(read('src/app/api/studymind/auth/status/route.ts'), /access_token|refresh_token|email/, 'status route must not expose tokens or emails');
   assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);

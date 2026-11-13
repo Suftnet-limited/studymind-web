@@ -4,7 +4,7 @@ import { Check, ChevronDown, Copy, FileText, MessageCircle, MoreVertical, Paperc
 import { studyMindAiService } from '@/services/studymind-ai.service';
 import type { ChatSessionSummary, Citation, Complexity, Scope } from '@/lib/learning-ai.mjs';
 import { initialsOf } from '@/lib/initials';
-import { MarkdownRenderer } from './markdown';
+import { AIContentRenderer } from '@/components/shared/ai-content-renderer';
 import { NO_FOCUS, TopicPicker, chatFocus, clock, errorText, iconTone, when, type Focus } from './shared';
 import type { Outline } from '@/lib/learning-ai.mjs';
 import { SideCard, ToolLayout, btnOutline } from './layout';
@@ -177,7 +177,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, outline, onOpenTool 
                 <div className="min-w-0 max-w-[88%] space-y-2">
                   {m.grounded === false && <p data-testid="ungrounded-label" className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-900">General knowledge — not from your study materials</p>}
                   <div className={cn('rounded-2xl rounded-tl-md px-5 py-4', m.grounded === false ? 'border border-dashed border-amber-300 bg-white' : 'bg-zinc-100/80')}>
-                    <MarkdownRenderer content={m.content} />
+                    <AIContentRenderer content={m.content} />
                     <div className="-mb-1 mt-2 flex items-center"><CopyAnswer text={m.content} /></div>
                   </div>
                   <p className="pl-1 text-xs text-zinc-500">{clock(m.at)}</p>
