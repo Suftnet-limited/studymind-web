@@ -173,7 +173,7 @@ test('header: Sign in and Get started use the canonical journey and are readable
 
 test('session: protected routes require sign-in and a refreshed session survives an expired access cookie', async ({ page, context, baseURL }) => {
   const account = await apiAccount(baseURL!, 'sess', 'student');
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
   await page.goto('/my-learning');
   await signIn(page, account.email);
@@ -182,6 +182,6 @@ test('session: protected routes require sign-in and a refreshed session survives
   await page.reload();
   await expectSignedIn(page);
   await signOut(page);
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
 });

@@ -28,6 +28,7 @@ test('signed in: nav pills, active state follows the page, and the account menu 
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav(page).getByRole('link', { name: 'My modules' })).not.toHaveAttribute('aria-current', 'page');
   await nav(page).getByRole('link', { name: 'AI access' }).click();
+  await expect(page).toHaveURL(/\/my-learning\/allowances$/);
   await expect(nav(page).getByRole('link', { name: 'AI access' })).toHaveAttribute('aria-current', 'page');
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).not.toHaveAttribute('aria-current', 'page');
 

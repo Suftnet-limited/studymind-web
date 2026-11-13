@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
   if (has(LEGACY_SESSION) || !AI_COOKIES.some(has)) return NextResponse.next();
   const url = request.nextUrl.clone();
   url.search = '';
-  if (request.nextUrl.pathname === '/billing') { url.pathname = '/my-learning/plans'; url.hash = 'allowances'; }
+  if (request.nextUrl.pathname === '/billing') { url.pathname = '/my-learning/allowances'; }
   else { url.pathname = '/my-learning'; }
   return NextResponse.redirect(url);
 }

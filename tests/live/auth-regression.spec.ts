@@ -118,7 +118,7 @@ test('expired access token (cookie gone) recovers through one refresh and no re-
 test('an access token the backend rejects (expired JWT still in the cookie) recovers the same way', async ({ page, context }) => {
   await signIn(page, 'student');
   await context.addCookies([{ name: ACCESS, value: 'expired.or.invalid.jwt', url: WEB, httpOnly: true, sameSite: 'Lax' }]); await clearFaults();
-  await page.goto('/my-learning/plans'); await page.waitForLoadState('networkidle');
+  await page.goto('/my-learning/allowances'); await page.waitForLoadState('networkidle');
   await noSignInForm(page);
   await expect(page.getByText('Your remaining allowances')).toBeVisible();
   expect(await refreshCalls()).toBe(1);
@@ -156,7 +156,7 @@ test('403 is shown as a permission message and never signs the user out (real ba
   expect(await authenticated(page)).toBe(true);
   expect(await cookieNames(context)).toEqual(expect.arrayContaining([ACCESS, REFRESH]));
   expect(await refreshCalls(), 'a 403 must not trigger a refresh or logout').toBe(0);
-  await page.goto('/my-learning/plans'); await expect(page.getByText('Your remaining allowances')).toBeVisible();   // and the user can carry on
+  await page.goto('/my-learning/allowances'); await expect(page.getByText('Your remaining allowances')).toBeVisible();   // and the user can carry on
 });
 
 test('an injected 403 on the module list does not clear the session either', async ({ page, context }) => {
@@ -188,7 +188,7 @@ for (const [name, rule] of [['503', { status: 503 }], ['429', { status: 429 }], 
 test('backend completely down, then back: the session survives and the header never says signed out', async ({ page, context }) => {
   await signIn(page, 'student');
   await fault({ match: '.*', drop: true, times: -1 });
-  await page.goto('/my-learning/plans'); await page.waitForLoadState('networkidle');
+  await page.goto('/my-learning/allowances'); await page.waitForLoadState('networkidle');
   await noSignInForm(page);
   await expect(page.getByRole('link', { name: 'Get started' })).toHaveCount(0);       // header did not flip to the signed-out state
   expect(await cookieNames(context)).toEqual(expect.arrayContaining([ACCESS, REFRESH]));

@@ -50,7 +50,7 @@ test('indexing progress: the materials list refreshes from "Indexing…" to "Ind
 
 test('plans page: informational pricing, no purchase flow, free allowances from the backend', async ({ page, baseURL }, info) => {
   await page.goto('/my-learning/plans');
-  await expect(page.getByRole('heading', { name: 'Plans and allowances' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' })).toBeVisible();
   await expect(page.getByRole('note')).toContainText('Pricing preview');
   await expect(page.getByText('£3.99')).toBeVisible();
   await expect(page.getByText('for 28 days')).toBeVisible();
@@ -58,8 +58,11 @@ test('plans page: informational pricing, no purchase flow, free allowances from 
   await expect(page.getByText('Coming soon — purchases are not available yet.')).toBeVisible();
   await expect(page.getByRole('button', { name: /buy|checkout|subscribe|purchase|upgrade|pay/i })).toHaveCount(0);
   await expect(page.getByRole('link', { name: /buy|checkout|subscribe|upgrade/i })).toHaveCount(0);
-  await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
   await shot(page, info, '12-plans-signed-out');
+  await expectNoHorizontalScroll(page);
+  await page.goto('/my-learning/allowances');                                                              // the allowances have their own screen
+  await expect(page.getByRole('heading', { name: 'Allowances' })).toBeVisible();
+  await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
   await expectNoHorizontalScroll(page);
 
   // Signed in, with the entitlement API not yet available
@@ -67,14 +70,19 @@ test('plans page: informational pricing, no purchase flow, free allowances from 
   await page.goto('/my-learning');
   await signIn(page, account.email);
   await page.getByRole('link', { name: 'Plans', exact: true }).first().click();
+  await expect(page).toHaveURL(/\/my-learning\/plans$/);
+  await expect(page.getByTestId('plan-free')).toContainText('Your current plan');                        // Plans: only the plans, no usage bars
+  await expect(page.getByRole('progressbar')).toHaveCount(0);
+  await expect(page.getByText('Your current plan')).toHaveCount(1);
+  await expect(page.getByTestId('plan-plus')).not.toContainText('Your current plan');
+  await page.getByRole('navigation', { name: 'Learning navigation' }).getByRole('link', { name: 'AI access' }).click();
+  await expect(page).toHaveURL(/\/my-learning\/allowances$/);
   // Real backend data for a brand-new free account
-  await expect(page.getByText('Current plan:')).toContainText('Free');
+  await expect(page.getByTestId('current-plan')).toContainText('Free');
   await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuenow', '10');
   await expect(page.getByRole('progressbar', { name: 'Summaries remaining' })).toHaveAttribute('aria-valuemax', '1');
   await expect(page.getByTestId('enforcement-note')).toContainText('not being enforced yet');
-  await expect(page.getByText('Your current plan')).toHaveCount(1);
-  await expect(page.getByRole('region', { name: 'Plans' }).locator('div', { has: page.getByText('Your current plan') }).first()).toContainText('Free');
-  await shot(page, info, '13-plans-free-backend-data');
+  await shot(page, info, '13-allowances-free-backend-data');
 });
 
 test('plans page: shows "not available" when allowance data cannot be loaded', async ({ page, baseURL }, info) => {
@@ -82,7 +90,7 @@ test('plans page: shows "not available" when allowance data cannot be loaded', a
   await page.goto('/my-learning');
   await signIn(page, account.email);
   await page.route('**/api/studymind/entitlements', (route) => route.fulfill({ json: { available: false } }));
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByText('Allowance tracking is not available yet')).toBeVisible();
   await expect(page.getByRole('progressbar')).toHaveCount(0);
   await expect(page.getByText('Your current plan')).toHaveCount(0);
@@ -97,7 +105,7 @@ test('plans page: partially consumed free allowance from the backend', async ({ 
   aiSql(`insert into studymind_usage_counters(user_id,feature,period_start,used) values ('${id}','chat',${month},3),('${id}','quiz',${month},2)`);
   await page.goto('/my-learning');
   await signIn(page, account.email);
-  await page.goto('/my-learning/plans');
+  await page.goto('/my-learning/allowances');
   await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuenow', '7');
   await expect(page.getByRole('progressbar', { name: 'Quizzes remaining' })).toHaveAttribute('aria-valuenow', '0');
   await expect(page.getByRole('progressbar', { name: 'Flashcard generations remaining' })).toHaveAttribute('aria-valuenow', '2');
@@ -115,15 +123,21 @@ test('plans page: Plus entitlement from the backend with partial use and expiry'
   aiSql(`insert into studymind_usage_counters(user_id,feature,period_start,used) select user_id,'summary',starts_at,4 from studymind_entitlements where user_id='${id}'`);
   await page.goto('/my-learning');
   await signIn(page, account.email);
-  await page.goto('/my-learning/plans');
-  await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');
-  await expect(page.getByText(/until \d{1,2} \w+ \d{4}/)).toBeVisible();
+  await page.goto('/my-learning/allowances');
+  await expect(page.getByTestId('current-plan')).toContainText('StudyMind Plus');
+  await expect(page.getByText(/Active until/)).toBeVisible();
+  await expect(page.getByText(/\d+ days? left/)).toBeVisible();
+  await expect(page.getByText(/until \d{1,2} \w+ \d{4}/).first()).toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuemax', '200');
   await expect(page.getByRole('progressbar', { name: 'Summaries remaining' })).toHaveAttribute('aria-valuenow', '11');
+  await shot(page, info, '15-allowances-plus-backend-data');
+  await expectNoHorizontalScroll(page);
+  await page.goto('/my-learning/plans');
   await expect(page.getByText('Your current plan')).toHaveCount(1);
+  await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
   await expect(page.getByText('Coming soon — purchases are not available yet.')).toBeVisible();
   await expect(page.getByRole('button', { name: /buy|checkout|subscribe|purchase|upgrade|pay/i })).toHaveCount(0);
-  await shot(page, info, '15-plans-plus-backend-data');
+  await shot(page, info, '15b-plans-plus-current');
   await expectNoHorizontalScroll(page);
 });
 
@@ -134,6 +148,7 @@ test('layouts: no horizontal scrolling on the main pages', async ({ page, baseUR
   await expect(page.getByRole('button', { name: 'Create module' })).toBeVisible();
   await expectNoHorizontalScroll(page);
   await page.goto('/my-learning/plans'); await expectNoHorizontalScroll(page);
+  await page.goto('/my-learning/allowances'); await expectNoHorizontalScroll(page);
 });
 
 test('document privacy end to end: class material is shared, personal notes stay private to their uploader', async ({ page, browser, baseURL }, info) => {

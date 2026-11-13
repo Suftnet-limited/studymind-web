@@ -36,7 +36,13 @@ async function newStudent(page: Page): Promise<Account> {
 const entitlementRows = (id: string) => Number(sql(`select count(*) from studymind_entitlements where user_id='${id}'`));
 const entitlements = async (page: Page) => (await page.request.get('/api/studymind/entitlements')).json();
 const authenticated = async (page: Page) => (await (await page.request.get('/api/studymind/auth/status')).json()).authenticated;
-async function openPlans(page: Page) { await page.goto('/my-learning/plans'); await expect(page.getByRole('heading', { name: 'Plans and allowances' })).toBeVisible(); }
+/** The remaining-allowance bars live on their own screen (/my-learning/allowances); check one in a second tab so the current page is left where it is. */
+async function expectAllowance(page: Page, name: string, attr: 'aria-valuenow' | 'aria-valuemax', value: string) {
+  const tab = await page.context().newPage();
+  try { await tab.goto('/my-learning/allowances'); await expect(tab.getByRole('progressbar', { name: `${name} remaining` })).toHaveAttribute(attr, value); }
+  finally { await tab.close(); }
+}
+async function openPlans(page: Page) { await page.goto('/my-learning/plans'); await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' })).toBeVisible(); }
 async function startPurchase(page: Page) {
   await openPlans(page);
   await page.getByTestId('buy-plus').click();
@@ -57,8 +63,8 @@ test('free user buys StudyMind Plus: checkout, signed webhook, 28-day entitlemen
   const me = await newStudent(page);
   await openPlans(page);
   await expect(page.getByRole('note')).toContainText('Test payments only');
-  await expect(page.locator('main, body').getByText('Current plan:')).toContainText('Free');
-  await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuenow', '10');
+  await expect(page.getByTestId('plan-free')).toContainText('Free');
+  await expectAllowance(page, 'AI chats', 'aria-valuenow', '10');
   await expect(page.getByTestId('buy-plus')).toHaveText('Get StudyMind Plus — £3.99');
   await expect(page.getByText('Coming soon')).toHaveCount(0);
 
@@ -77,21 +83,21 @@ test('free user buys StudyMind Plus: checkout, signed webhook, 28-day entitlemen
   expect(e.plan).toBe('plus');
   const days = (Date.parse(e.expires_at) - Date.now()) / dayMs; expect(days).toBeGreaterThan(27.9); expect(days).toBeLessThanOrEqual(28.01);
   expect(e.allowances).toEqual({ chats: { limit: 200, remaining: 200 }, quizzes: { limit: 30, remaining: 30 }, flashcards: { limit: 30, remaining: 30 }, summaries: { limit: 15, remaining: 15 } });
-  await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');
+  await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
   await expect(page.getByTestId('plus-active')).toBeVisible();
   await expect(page.getByTestId('buy-plus')).toHaveCount(0);
-  await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuemax', '200');
+  await expectAllowance(page, 'AI chats', 'aria-valuemax', '200');
   expect(await authenticated(page), 'the purchase journey must never sign the user out').toBe(true);
   expect(await context.cookies().then((c) => c.map((x) => x.name))).toEqual(expect.arrayContaining([ACCESS, REFRESH]));
 
   await page.reload();                                                            // refresh keeps the entitlement
-  await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');
+  await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
   await page.goto('/my-learning'); await signOut(page);
   await expect(accountMenu(page)).toHaveCount(0);
   await page.getByLabel('Email').fill(me.email); await page.getByLabel('Password').fill(PASSWORD); await page.getByRole('button', { name: 'Sign in' }).click();
   await expectSignedIn(page);
   await openPlans(page);
-  await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');   // and so does signing in again
+  await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');   // and so does signing in again
 
   const again = await page.request.post('/api/studymind/checkout');                // one pass at a time: no double charge
   expect(again.status()).toBe(409);
@@ -104,7 +110,7 @@ test('cancelled checkout does not activate Plus and does not sign the user out',
   await page.getByTestId('cancel').click();
   await page.waitForURL(/\/my-learning\/plans/);
   await expect(page.getByTestId('checkout-cancelled')).toContainText('You have not been charged');
-  await expect(page.getByText('Current plan:')).toContainText('Free');
+  await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
   await expect(page.getByTestId('buy-plus')).toBeVisible();
   expect(entitlementRows(me.id)).toBe(0);
   expect(await authenticated(page)).toBe(true);
@@ -145,7 +151,7 @@ test('payment confirmation can lag: the page waits for the webhook and never tru
   await control('/__pay', { session_id: sid, deliver: false });                   // Stripe took payment but the webhook has not arrived
   await page.goto('/my-learning/plans?checkout=success');                         // the browser returns before the webhook
   await expect(page.getByTestId('checkout-confirming')).toBeVisible();
-  await expect(page.getByText('Current plan:')).toContainText('Free');
+  await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
   expect(entitlementRows(me.id), 'a redirect alone grants nothing').toBe(0);
   await control('/__deliver', { session_id: sid });                               // the webhook arrives
   await expect(page.getByTestId('checkout-confirmed')).toBeVisible({ timeout: 30_000 });
@@ -166,7 +172,7 @@ for (const status of [403, 429, 503]) {
     expect(entitlementRows(me.id)).toBe(0);
     expect(await authenticated(page), `${status} from billing must not sign the user out`).toBe(true);
     expect(await context.cookies().then((c) => c.map((x) => x.name))).toEqual(expect.arrayContaining([ACCESS, REFRESH]));
-    await openPlans(page); await expect(page.getByText('Current plan:')).toContainText('Free');
+    await openPlans(page); await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
     await fetch(`${FAULT}/__fault`, { method: 'DELETE' });
   });
 }
@@ -199,7 +205,7 @@ test('a payment for one user can never activate another user', async ({ page, br
   await control('/__pay', { session_id: sid });
   await expect.poll(() => entitlementRows(a.id), { timeout: 15_000 }).toBe(1);
   expect(entitlementRows(b.id)).toBe(0);
-  await pageB.goto('/my-learning/plans'); await expect(pageB.getByText('Current plan:')).toContainText('Free');
+  await pageB.goto('/my-learning/plans'); await expect(pageB.getByTestId('plan-free')).toContainText('Your current plan');
   await ctxB.close();
 });
 
@@ -232,8 +238,8 @@ test('an expired entitlement returns the user to Free and they can buy again', a
   await purchase(page);
   sql(`update studymind_entitlements set starts_at = now() - interval '29 days', expires_at = now() - interval '1 minute' where user_id='${me.id}'`);
   await page.goto('/my-learning/plans');
-  await expect(page.getByText('Current plan:')).toContainText('Free');
-  await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuemax', '10');
+  await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
+  await expectAllowance(page, 'AI chats', 'aria-valuemax', '10');
   await expect(page.getByTestId('buy-plus')).toBeVisible();
   expect(await authenticated(page)).toBe(true);
   await purchase(page);                                                           // a renewal creates a second, separate pass
@@ -246,7 +252,7 @@ test('refund revokes Plus and a replayed or earlier event cannot bring it back; 
   const pi = await piOf(sid);
   await control('/__refund', { payment_intent: pi });
   await expect.poll(() => sql(`select status from studymind_entitlements where user_id='${me.id}'`), { timeout: 15_000 }).toBe('revoked');
-  await page.reload(); await expect(page.getByText('Current plan:')).toContainText('Free');
+  await page.reload(); await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
   await control('/__deliver', { session_id: sid, times: 2 });                     // the original "paid" event is replayed out of order
   await control('/__deliver', { session_id: sid, type: 'charge.dispute.closed', payment_intent: pi });
   expect(sql(`select status from studymind_entitlements where user_id='${me.id}'`)).toBe('revoked');
@@ -256,7 +262,7 @@ test('refund revokes Plus and a replayed or earlier event cannot bring it back; 
   const sid2 = await purchase(page);
   await control('/__refund', { payment_intent: await piOf(sid2), amount: 100 });
   await expect.poll(() => sql(`select status from studymind_entitlements where user_id='${other.id}'`), { timeout: 15_000 }).toBe('suspended');
-  await page.reload(); await expect(page.getByText('Current plan:')).toContainText('Free');
+  await page.reload(); await expect(page.getByTestId('plan-free')).toContainText('Your current plan');
   expect(await authenticated(page)).toBe(true);
 });
 
@@ -307,7 +313,7 @@ test('Free allowances are enforced and recorded: 10 chats then a clear 429; 1 su
   expect((await use(page.request, 'summary', 2)).status()).toBe(429);
   expect(Number(sql(`select used from studymind_usage_counters where user_id='${me.id}' and feature='chat'`))).toBe(10);
   await page.goto('/my-learning/plans');
-  await expect(page.getByRole('progressbar', { name: 'AI chats remaining' })).toHaveAttribute('aria-valuenow', '0');
+  await expectAllowance(page, 'AI chats', 'aria-valuenow', '0');
   expect(await authenticated(page)).toBe(true);
   const qBefore = await remaining(page, 'quizzes'); expect(qBefore).toBe(2);
   const q = await page.request.post(`/api/studymind/modules/${moduleId}/ai/quiz`, { data: { question_count: 5 } });
@@ -328,5 +334,5 @@ test('After buying Plus the same user gets the Plus allowances: 200 chats then 4
   expect((await use(page.request, 'summary', 16)).status()).toBe(429);
   expect(Number(sql(`select used from studymind_usage_counters where user_id='${me.id}' and feature='chat' and period_start=(select starts_at from studymind_entitlements where user_id='${me.id}')`))).toBe(200);
   expect(await authenticated(page)).toBe(true);
-  await page.goto('/my-learning/plans'); await expect(page.getByText('Current plan:')).toContainText('StudyMind Plus');
+  await page.goto('/my-learning/plans'); await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
 });
