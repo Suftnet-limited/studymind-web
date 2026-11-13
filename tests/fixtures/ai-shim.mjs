@@ -44,6 +44,17 @@ const CARDS = [
   ['What is work done by a force?', 'Force multiplied by distance moved in the direction of the force, W = F d.'],
   ["What does Newton's third law say?", 'Every action force has an equal and opposite reaction force on a different body.'],
 ];
+const MATH_QUIZ = [
+  { q: String.raw`What is $\frac{2}{5}+\frac{3}{10}$?`, opts: [String.raw`$\frac{5}{15}$`, String.raw`$\frac{7}{10}$`, String.raw`\(\frac{1}{2}\)`, String.raw`$\frac{6}{50}$`], correct: 'b', why: String.raw`Convert to tenths: $\frac{4}{10}+\frac{3}{10}=\frac{7}{10}$.` },
+  { q: String.raw`Solve $x^2=144$ for positive $x$.`, opts: ['10', '11', '12', '14'], correct: 'c', why: String.raw`$\sqrt{144}=12$.` },
+  { q: 'Which is the balanced equation for water?', opts: ['H₂ + O₂ → H₂O', '2H₂ + O₂ → 2H₂O', 'H + O → HO', '2H + 2O → H₂O₂'], correct: 'b', why: 'Two hydrogen molecules react with one oxygen molecule: 2H₂ + O₂ → 2H₂O.' },
+  { q: 'In *Romeo and Juliet*, which family does Juliet belong to?', opts: ['Montague', 'Capulet', 'Tybalt', 'Escalus'], correct: 'b', why: 'Juliet is a **Capulet**.' },
+  { q: String.raw`Avogadro's number is $6.02\times10^{23}$. What does it count?`, opts: ['Atoms in a mole', 'Grams in a kilogram', 'Metres in a mile', 'Seconds in a day'], correct: 'a', why: String.raw`One mole holds $6.02\times10^{23}$ particles.` },
+];
+const MATH_CARDS = [
+  [String.raw`Add $\frac{1}{4}+\frac{1}{2}$`, String.raw`$\frac{3}{4}$`], [String.raw`Area of a circle`, String.raw`$A=\pi r^2$`], ['Formula for water', 'H₂O'],
+  [String.raw`Quadratic formula`, String.raw`$$x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}$$`], ['Who wrote *Hamlet*?', 'William **Shakespeare**'],
+];
 
 async function identity(auth) {
   const r = await fetch(`${UPSTREAM}/api/auth/me`, { headers: { Authorization: auth } }).catch(() => null);
@@ -52,8 +63,55 @@ async function identity(auth) {
   return me?.id ? { id: me.id, role: me.role } : null;
 }
 
+
+// Rich educational content for the shared renderer tests: maths in every delimiter style (including damaged ones an older lesson may hold),
+// chemistry, tables, code, ordinary prose that must stay prose, malformed maths, and hostile markup that must never become elements.
+// Triggered by "MATHSAMPLE" in a chat message or a topic.
+export const MATH_SAMPLE = String.raw`## Year 5: adding fractions
+
+Inline: $\frac{2}{5}+\frac{3}{10}=\frac{7}{10}$ and older style \(\frac{1}{2}+\frac{1}{4}=\frac{3}{4}\).
+
+Display:
+
+$$\int_0^1 x^2\,dx=\frac{1}{3}$$
+
+\[ax^2+bx+c=0\]
+
+Powers $x^2+y^2=z^2$, roots $\sqrt{144}=12$ and $6.02\times10^{23}$ molecules. Double-encoded: \\(\\frac{9}{10}\\). Damaged by JSON: $` + '\f' + String.raw`rac{3}{4}$.
+
+### Science
+- Water is H₂O, carbon dioxide is CO₂, sulfuric acid H₂SO₄, sulfate SO₄²⁻, sodium Na⁺.
+- 2H₂ + O₂ → 2H₂O and N₂ + 3H₂ ⇌ 2NH₃, at 25 °C with ΔT = 5 and λ = 500 nm, R = 8 Ω, μ = 0.3.
+- $\ce{2H2 + O2 -> 2H2O}$ and F = ma, E = mc², v = u + at, π ≈ 3.14, x ≤ y, a ∈ A, ∑, ∫, ∂, ∞.
+- Area is 5 m<sup>2</sup>.
+
+| Shape | Sides | Area formula |
+|-------|-------|--------------|
+| Square | 4 | $s^2$ |
+| Triangle | 3 | $\tfrac{1}{2}bh$ |
+
+> Remember: the denominator tells you how many equal parts make a whole.
+
+1. Find a common denominator.
+2. Convert each fraction.
+3. Add the numerators.
+
+~~~python
+def add(a, b):
+    return a + b   # costs $5 and \(x\) stay as written
+~~~
+
+It was the best of times, it was the worst of times. The book costs $5 and the pen $10 (see **Chapter 2**: "Prices").
+
+Malformed: $\frac{1$ and \(\notacommand{x}\) and $$\begin{$$
+
+<script>window.__xss = 1</script> <img src=x onerror="window.__xss = 2">
+
+[bad link](javascript:window.__xss=3) [good link](https://example.com/page)`;
+
 function chatAnswer(message) {
   const m = message.toLowerCase();
+  if (m.includes('mathsample')) return { answer: MATH_SAMPLE, sources: [{ document_id: randomUUID(), filename: 'year5-maths.docx', chunk_index: 0, content_snippet: 'Adding fractions', relevance_score: 0.9 }] };
   if (m.includes('trigger_empty')) return { answer: "I couldn't find anything about that in your module materials.", sources: [], no_content_found: true, suggestions: ['Upload a document that covers this topic', 'Rephrase your question'] };
   if (m.includes('newton') || m.includes('force')) return { answer: "**Newton's second law** says the net force on an object equals its mass times its acceleration:\n\n- F = m a\n- Force is measured in newtons (N)\n\nFor a 5 kg mass accelerating at 3 m/s^2 the force is `15 N`.",
     sources: [{ document_id: randomUUID(), filename: 'physics-notes.pdf', chunk_index: 0, content_snippet: 'Newton\'s second law states that the net force acting on an object equals its mass multiplied by its acceleration.', relevance_score: 0.93 },
@@ -105,7 +163,7 @@ async function fixture(req, res, path, body) {
     if (!['mcq', 'short_answer', 'true_false'].includes(data.question_type ?? 'mcq')) return bad(res, 'question_type invalid');
     if (topic.includes('TRIGGER_SLOW')) await sleep(1500);
     const n = Math.min(data.question_count ?? 5, PHYSICS.length);
-    const id = randomUUID(); const questions = PHYSICS.slice(0, n).map((q, i) => ({ id: randomUUID(), position: i + 1, question: q.q, options: q.opts.map((t, j) => ({ id: 'abcd'[j], text: t })), correct_answer: q.correct, explanation: q.why, source_chunk: 'physics-notes.pdf', student_answer: null, is_correct: null }));
+    const id = randomUUID(); const bank = topic.includes('MATHSAMPLE') ? MATH_QUIZ : PHYSICS; const questions = bank.slice(0, n).map((q, i) => ({ id: randomUUID(), position: i + 1, question: q.q, options: q.opts.map((t, j) => ({ id: 'abcd'[j], text: t })), correct_answer: q.correct, explanation: q.why, source_chunk: 'physics-notes.pdf', student_answer: null, is_correct: null }));
     const created = { id, module_id: data.module_id, title: topic ? `Quiz: ${topic}` : 'Quiz', question_type: 'mcq', question_count: n, status: 'generated', created_at: new Date().toISOString(), score: null, submitted_at: null };
     attempts.set(id, { owner: me.id, questions, head: created });
     return send(res, 201, { ...created, questions });
@@ -124,7 +182,7 @@ async function fixture(req, res, path, body) {
   if (path === '/api/flashcards/generate') {
     if (![data.module_id, data.week_id, data.document_id].some(Boolean) || needModule()) return bad(res, 'module_id required');
     if (!Number.isInteger(data.max_cards ?? 20) || (data.max_cards ?? 20) < 5 || (data.max_cards ?? 20) > 50) return bad(res, 'max_cards must be 5..50');
-    const cards = CARDS.slice(0, Math.min(data.max_cards ?? 20, CARDS.length)).map(([front, back], i) => ({ id: randomUUID(), position: i + 1, front, back, source_chunk: 'physics-notes.pdf', status: 'new' }));
+    const cards = (topic.includes('MATHSAMPLE') ? MATH_CARDS : CARDS).slice(0, Math.min(data.max_cards ?? 20, CARDS.length)).map(([front, back], i) => ({ id: randomUUID(), position: i + 1, front, back, source_chunk: 'physics-notes.pdf', status: 'new' }));
     const deck = { id: randomUUID(), module_id: data.module_id, title: data.title || 'Flashcards', card_count: cards.length, mastered_count: 0, created_at: new Date().toISOString(), last_studied_at: null, cards };
     decks.set(deck.id, { owner: me.id, body: deck });
     return send(res, 201, deck);
@@ -134,7 +192,7 @@ async function fixture(req, res, path, body) {
     if (!['document', 'week', 'module'].includes(data.scope ?? 'document')) return bad(res, 'scope invalid');
     if (topic.includes('TRIGGER_SLOW')) await sleep(1500);
     const summary = { id: randomUUID(), module_id: data.module_id, scope: data.scope ?? 'document', source_doc_count: 2, created_at: new Date().toISOString(),
-      content: `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws${topic.includes('TRIGGER_ADVICE') ? '\n\n## General study advice (not from your documents)\n- Use spaced repetition.\n- Test yourself regularly.' : ''}` };
+      content: topic.includes('MATHSAMPLE') ? MATH_SAMPLE : `## Summary${topic ? `: ${topic}` : ''}\n\n- **Newton's laws** relate force, mass and acceleration (F = m a).\n- Momentum is conserved in a closed system.\n\n1. Define the quantities\n2. Apply the laws${topic.includes('TRIGGER_ADVICE') ? '\n\n## General study advice (not from your documents)\n- Use spaced repetition.\n- Test yourself regularly.' : ''}` };
     summaries.set(summary.id, { owner: me.id, body: summary });
     return send(res, 201, summary);
   }

@@ -7,7 +7,7 @@ import type { SummaryResult } from '@/lib/learning-ai.mjs';
 import { Button } from '@/components/ui/button';
 import { CopyButton } from '@/components/learning/copy-button';
 import { ErrorBox } from '@/components/learning/states';
-import { MarkdownRenderer } from './markdown';
+import { AIContentRenderer } from '@/components/shared/ai-content-renderer';
 import { GenerateState, NO_FOCUS, TopicPicker, errorText, focusRequest, type Focus } from './shared';
 import { HistoryRail, useHistory } from './history-rail';
 import { ToolLayout, ToolPanel } from './layout';
@@ -52,10 +52,10 @@ export function SummaryTab({ moduleId, outline }: { moduleId: string; outline: O
     </GenerateState>
   </ToolPanel>} />;
   return <ToolLayout rail={rail} main={<ToolPanel icon={<FileText className="size-5" />} title="Summary" subtitle={summary.source_doc_count > 0 ? `Based on ${summary.source_doc_count} ${summary.source_doc_count === 1 ? 'document' : 'documents'}` : 'A clear overview of this module\'s material.'}><div className="space-y-3">
-    <article aria-label="Summary" data-testid="summary" className="rounded-2xl border border-zinc-200 bg-white p-5"><MarkdownRenderer content={summary.content} /></article>
+    <article aria-label="Summary" data-testid="summary" className="rounded-2xl border border-zinc-200 bg-white p-5"><AIContentRenderer content={summary.content} /></article>
     {summary.advice && <aside aria-label="General study advice" data-testid="study-advice" className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-5">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-900">General study advice — not from your documents</p>
-      <MarkdownRenderer content={summary.advice} />
+      <AIContentRenderer content={summary.advice} />
     </aside>}
     {error && <ErrorBox message={error} />}
     <div className="flex flex-wrap items-center gap-2">

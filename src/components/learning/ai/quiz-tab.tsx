@@ -1,4 +1,5 @@
 'use client';
+import { AIContentRenderer } from '@/components/shared/ai-content-renderer';
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Lock, XCircle } from 'lucide-react';
 import type { Outline } from '@/lib/learning-ai.mjs';
@@ -92,7 +93,7 @@ export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outl
             const r = review.get(q.id);
             return <li key={q.id} id={`quiz-q-${q.id}`} className="scroll-mt-24 rounded-2xl border border-zinc-200 p-4 sm:p-5">
               <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Question {i + 1}</p>
-              <p className="mt-1 text-base font-semibold leading-snug text-[#111034]">{q.question}</p>
+              <p className="mt-1 text-base font-semibold leading-snug text-[#111034]"><AIContentRenderer inline content={q.question} /></p>
               <ul className="mt-3 space-y-2">
                 {q.options.map((o, k) => {
                   const chosen = answers[q.id] === o.id;
@@ -100,13 +101,13 @@ export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outl
                   const isWrongPick = !!r && chosen && !r.is_correct;
                   return <li key={o.id} className={cn('flex items-start gap-3 rounded-xl border px-4 py-3 text-sm',
                     isCorrect ? 'border-emerald-300 bg-emerald-50' : isWrongPick ? 'border-red-300 bg-red-50' : chosen ? 'border-violet-300 bg-violet-50' : 'border-zinc-200 bg-white')}>
-                    <span className="min-w-0 flex-1 break-words"><span className="mr-2 font-bold text-violet-700">{LETTERS[k]}.</span>{o.text}{chosen && !isWrongPick && !isCorrect && <span className="ml-2 text-xs text-zinc-500">(your answer)</span>}</span>
+                    <span className="min-w-0 flex-1 break-words"><span className="mr-2 font-bold text-violet-700">{LETTERS[k]}.</span><AIContentRenderer inline content={o.text} />{chosen && !isWrongPick && !isCorrect && <span className="ml-2 text-xs text-zinc-500">(your answer)</span>}</span>
                     {isCorrect && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-label="Correct answer" />}
                     {isWrongPick && <XCircle className="mt-0.5 size-4 shrink-0 text-red-600" aria-label="Your answer was incorrect" />}
                   </li>;
                 })}
               </ul>
-              {r?.explanation && <p className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm leading-6 text-zinc-700"><span className="font-semibold">Explanation:</span> {r.explanation}</p>}
+              {r?.explanation && <p className="mt-3 rounded-xl bg-zinc-50 px-4 py-3 text-sm leading-6 text-zinc-700"><span className="font-semibold">Explanation:</span> <AIContentRenderer inline content={r.explanation} /></p>}
             </li>;
           })}
         </ol>
@@ -130,14 +131,14 @@ export function QuizTab({ moduleId, outline }: { moduleId: string; outline: Outl
         <ProgressBar value={current + 1} max={total} label="Position in the quiz" className="flex-1" />
       </div>
       <fieldset key={q.id} className="mt-6 min-w-0">
-        <legend className="text-xl font-bold leading-snug text-[#111034]">{q.question}</legend>
+        <legend className="text-xl font-bold leading-snug text-[#111034]"><AIContentRenderer inline content={q.question} className="text-xl! font-bold!" /></legend>
         <div className="mt-5 space-y-3">
           {q.options.map((o, k) => {
             const chosen = answers[q.id] === o.id;
             return <label key={o.id} className={cn('flex cursor-pointer items-center gap-4 rounded-xl border px-4 py-3.5 text-[15px] leading-6 transition focus-within:ring-2 focus-within:ring-violet-300',
               chosen ? 'border-violet-400 bg-violet-50 ring-1 ring-violet-200' : 'border-zinc-200 bg-white hover:border-violet-200 hover:bg-violet-50/40')}>
               <input type="radio" name={q.id} value={o.id} checked={chosen} className="size-5 shrink-0 accent-violet-600" onChange={() => setAnswers(a => ({ ...a, [q.id]: o.id }))} />
-              <span className="min-w-0 flex-1 break-words"><span className="mr-2 font-bold text-violet-700">{LETTERS[k]}.</span>{o.text}</span>
+              <span className="min-w-0 flex-1 break-words"><span className="mr-2 font-bold text-violet-700">{LETTERS[k]}.</span><AIContentRenderer inline content={o.text} /></span>
             </label>;
           })}
         </div>
