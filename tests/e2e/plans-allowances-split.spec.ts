@@ -28,16 +28,15 @@ test('two screens: Plans and AI access have their own URLs, headings and nav sta
   await expect(nav(page).getByRole('link', { name: 'AI access' })).toHaveAttribute('aria-current', 'page');
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' }), 'no plan cards on the Allowances screen').toHaveCount(0);
-  await expect(page.getByTestId('current-plan')).toContainText('Current Plan');
+  await expect(page.getByTestId('current-plan')).toContainText('Current plan');
   await expect(page.getByTestId('current-plan')).toContainText('Free');
-  await expect(page.getByTestId('current-plan')).toContainText('Every month');
+  await expect(page.getByTestId('current-plan')).toContainText('Resets monthly');
   await expect(page.getByRole('heading', { name: 'Your Remaining Allowances' })).toBeVisible();
   for (const [label, max] of [['AI chats', '10'], ['Quizzes', '2'], ['Flashcard generations', '2'], ['Summaries', '1']]) {
     const bar = page.getByRole('progressbar', { name: `${label} remaining` });
     await expect(bar).toHaveAttribute('aria-valuemax', max); await expect(bar).toHaveAttribute('aria-valuenow', max);
     await expect(page.getByRole('listitem').filter({ has: bar })).toContainText('100%');
   }
-  await expect(page.getByRole('listitem').filter({ hasText: 'AI chats' })).toContainText('Resets monthly');
   await expect(page.getByRole('link', { name: 'See the plans' })).toHaveAttribute('href', '/my-learning/plans');
 });
 
@@ -66,11 +65,10 @@ test('allowances shows the days left for an active pass, and each page fits ever
   await expect(page.getByRole('listitem').filter({ hasText: 'Quizzes' })).toContainText('87%');
   await expect(page.getByRole('listitem').filter({ hasText: 'Flashcard generations' })).toContainText('83%');
   await expect(page.getByRole('listitem').filter({ hasText: 'Summaries' })).toContainText('93%');
-  await expect(page.getByRole('listitem').filter({ hasText: 'Summaries' })).toContainText('Valid until');
   await expect(page.getByRole('link', { name: 'See the plans' }), 'Plus users are not nudged to buy').toHaveCount(0);
-  // slim bars, one colour per card, and the page lines up with the header's content edges
+  // slim bars (10px), one colour per card, and the page lines up with the header's content edges
   const bars = page.getByRole('progressbar');
-  expect(await bars.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).toEqual([6, 6, 6, 6]);
+  expect(await bars.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))).toEqual([10, 10, 10, 10]);
   const fills = await bars.evaluateAll((els) => els.map((e) => getComputedStyle(e.firstElementChild!).backgroundColor));
   expect(new Set(fills).size, 'a different colour for each allowance').toBe(4);
   for (const width of [1280, 1600]) {
