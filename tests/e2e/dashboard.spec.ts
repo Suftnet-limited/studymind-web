@@ -83,6 +83,19 @@ test('dashboard: type badges filter the table, show counts, combine with search,
   await expect(t.getByRole('row').nth(1)).toContainText('Introduction to Computer Science');
 });
 
+test('dashboard: module icons get varied colours that stay the same after a reload', async ({ page, baseURL }, info) => {
+  desktopOnly(info);
+  await learner(baseURL!, page, ['Zoology', 'Algebra', 'Chemistry', 'History']);
+  const tones = async () => table(page).getByRole('row').locator('[data-testid="module-icon"]').evaluateAll((els) => els.map((e) => `${e.getAttribute('class')?.match(/bg-(\w+)-50/)?.[1]}`));
+  await expect(table(page).getByRole('row')).toHaveCount(6);
+  const first = await tones();
+  expect(first.every((t) => t !== 'undefined'), 'every icon has a tint').toBe(true);
+  expect(new Set(first).size, 'not all the same colour').toBeGreaterThan(2);
+  expect(first.filter((t) => t === 'violet').length).toBeLessThan(first.length);
+  await page.reload(); await expect(table(page).getByRole('row')).toHaveCount(6);
+  expect(await tones()).toEqual(first);                                                                    // stable per module
+});
+
 test('dashboard: opening a module and the actions menu', async ({ page, baseURL }, info) => {
   desktopOnly(info);
   const { cls } = await learner(baseURL!, page, ['Notes']);

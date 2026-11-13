@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowUpDown, Atom, BookOpen, Calculator, Check, CheckCircle2, ChevronLeft, ChevronRight, Code2, Copy, FileText, FlaskConical, GraduationCap, Landmark, Languages, Layers, Leaf, MoreHorizontal, Play, Search, SquarePlus, Users } from 'lucide-react';
 import { studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { ErrorBox } from '@/components/learning/states';
+import { iconTone } from '@/components/learning/ai/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TYPES, addedAt, formatDate, matchesSearch, matchesType, moduleIconKind, paginate, sortModules, statusOf, typeCounts, type IconKind, type Sort, type TypeFilter } from '@/lib/dashboard.mjs';
@@ -88,7 +89,7 @@ const ICONS: Record<IconKind, ReactNode> = {
   code: <Code2 className="size-5" />, humanities: <Landmark className="size-5" />, language: <Languages className="size-5" />, document: <FileText className="size-5" />, book: <BookOpen className="size-5" />,
 };
 function ModuleIcon({ module }: { module: CanonicalModule }) {
-  return <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-xl text-violet-600 ring-1 ring-violet-100">{module.emoji || ICONS[moduleIconKind(module.title) as IconKind]}</span>;
+  return <span aria-hidden data-testid="module-icon" className={cn('flex size-11 shrink-0 items-center justify-center rounded-xl text-xl', iconTone(module.id))}>{module.emoji || ICONS[moduleIconKind(module.title) as IconKind]}</span>;
 }
 const PILL = { green: 'bg-emerald-50 text-emerald-700', amber: 'bg-amber-50 text-amber-700', muted: 'bg-zinc-100 text-zinc-600' } as const;
 const StatusPill = ({ module, owned }: { module: CanonicalModule; owned: boolean }) => { const s = statusOf(module, owned); return <span className={cn('inline-flex rounded-lg px-3 py-1 text-sm font-semibold', PILL[s.tone as keyof typeof PILL])}>{s.label}</span>; };
