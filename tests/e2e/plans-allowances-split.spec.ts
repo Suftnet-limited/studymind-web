@@ -11,7 +11,7 @@ test('two screens: Plans and AI access have their own URLs, headings and nav sta
   await nav(page).getByRole('link', { name: 'Plans', exact: true }).click();
   await expect(page).toHaveURL(/\/my-learning\/plans$/);
   await expect(page.getByText('Subscription Plans')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your plan' })).toBeVisible();
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).toHaveAttribute('aria-current', 'page');
   await expect(nav(page).getByRole('link', { name: 'AI access' })).not.toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('heading', { name: 'Your Remaining Allowances' }), 'no usage on the Plans screen').toHaveCount(0);
@@ -27,7 +27,7 @@ test('two screens: Plans and AI access have their own URLs, headings and nav sta
   await expect(page.getByRole('heading', { name: 'Allowances', exact: true })).toBeVisible();
   await expect(nav(page).getByRole('link', { name: 'AI access' })).toHaveAttribute('aria-current', 'page');
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).not.toHaveAttribute('aria-current', 'page');
-  await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' }), 'no plan cards on the Allowances screen').toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Choose your plan' }), 'no plan cards on the Allowances screen').toHaveCount(0);
   await expect(page.getByTestId('current-plan')).toContainText('Current plan');
   await expect(page.getByTestId('current-plan')).toContainText('Free');
   await expect(page.getByTestId('current-plan')).toContainText('Resets monthly');
@@ -83,7 +83,7 @@ test('allowances shows the days left for an active pass, and each page fits ever
   await page.screenshot({ path: info.outputPath('allowances-plus-desktop.png'), fullPage: true });
   await page.goto('/my-learning/plans');
   await expect(page.getByTestId('plan-plus')).toContainText('Your current plan');
-  await expect(page.getByTestId('plan-plus')).toContainText('StudyMind Plus is active');
+  await expect(page.getByTestId('plan-plus')).toContainText('Plus is active');
   await expect(page.getByRole('link', { name: 'View my allowances' })).toHaveAttribute('href', '/my-learning/allowances');
   await expect(page.getByTestId('plan-free')).toContainText('Included with every account');
   await page.screenshot({ path: info.outputPath('plans-plus-desktop.png'), fullPage: true });

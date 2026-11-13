@@ -132,7 +132,7 @@ test('plans presentation matches the agreed pricing; the only purchase path is t
   const page = read('src/app/my-learning/plans/page.tsx');
   assert.match(page, /Pricing preview/, 'the preview wording stays whenever the backend reports checkout as unavailable');
   assert.match(page, /Coming soon — purchases are not available yet\./);
-  assert.match(page, /Get StudyMind Plus — £3\.99/);
+  assert.match(page, /Get Plus — £3\.99/);
   assert.doesNotMatch(page, /from 'stripe'|STRIPE_|prisma|stripe\.com|sk_(test|live)|pk_(test|live)/i, 'the browser page never touches Stripe or secrets');
   const writes = [...page.matchAll(/fetch\(([^)]*)\)/g)].map((m) => m[1]).filter((c) => /POST/.test(c));
   assert.equal(writes.length, 1, 'exactly one write from the page');

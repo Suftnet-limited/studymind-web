@@ -50,7 +50,7 @@ test('indexing progress: the materials list refreshes from "Indexing…" to "Ind
 
 test('plans page: informational pricing, no purchase flow, free allowances from the backend', async ({ page, baseURL }, info) => {
   await page.goto('/my-learning/plans');
-  await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Choose your plan' })).toBeVisible();
   await expect(page.getByRole('note')).toContainText('Pricing preview');
   await expect(page.getByText('£3.99')).toBeVisible();
   await expect(page.getByText('for 28 days')).toBeVisible();

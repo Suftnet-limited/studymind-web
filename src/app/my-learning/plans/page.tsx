@@ -58,13 +58,13 @@ export default function PlansPage() {
   return <div className="mx-auto max-w-5xl space-y-7 px-5 py-8 sm:py-10">
     <header className="text-center">
       <span className="inline-flex rounded-xl bg-violet-100 px-4 py-1.5 text-sm font-bold text-violet-700">Subscription Plans</span>
-      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-[#111034] sm:text-5xl">Choose your StudyMind plan</h1>
+      <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-[#111034] sm:text-5xl">Choose your plan</h1>
       <p className="mx-auto mt-3 max-w-2xl text-base text-zinc-600">Get more from your learning with AI-powered tools, quizzes and study resources.</p>
       <PlansIllustration className="mx-auto mt-4 h-32 w-auto sm:h-40" />
     </header>
 
     {returned === 'cancelled' && <p role="status" data-testid="checkout-cancelled" className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-800">Checkout cancelled. You have not been charged and your plan has not changed.</p>}
-    {returned === 'success' && currentPlan === 'plus' && <p role="status" data-testid="checkout-confirmed" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Payment confirmed. StudyMind Plus is active{expires ? ` until ${expires}` : ''}.</p>}
+    {returned === 'success' && currentPlan === 'plus' && <p role="status" data-testid="checkout-confirmed" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">Payment confirmed. Plus is active{expires ? ` until ${expires}` : ''}.</p>}
     {returned === 'success' && currentPlan !== 'plus' && confirming && <p role="status" data-testid="checkout-confirming" className="rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-900">Confirming your payment… this usually takes a few seconds. Please keep this page open.</p>}
     {returned === 'success' && currentPlan !== 'plus' && timedOut && <p role="status" data-testid="checkout-timeout" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">We have not received confirmation of your payment yet. It can take a minute: refresh this page shortly. You will not be charged twice, and access is only added once the payment is confirmed.</p>}
 
@@ -75,7 +75,7 @@ export default function PlansPage() {
         </div>
       : <div role="note" className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:p-5">
           <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
-          <p><strong>Pricing preview.</strong> This page is for information only. Purchasing StudyMind Plus is not open yet, and nothing here will charge you.</p>
+          <p><strong>Pricing preview.</strong> This page is for information only. Purchasing Plus is not open yet, and nothing here will charge you.</p>
         </div>}
 
     <section aria-label="Plans" className="grid items-start gap-6 md:grid-cols-2">
@@ -104,19 +104,19 @@ export default function PlansPage() {
               : <p className="rounded-2xl border border-violet-200 bg-white px-5 py-3.5 text-center text-base font-semibold text-violet-700">Included with every account</p>)}
             {plus && !purchaseAvailable && <p className="rounded-xl bg-violet-50 px-4 py-3 text-center text-sm font-semibold text-violet-800">Coming soon — purchases are not available yet.</p>}
             {plus && purchaseAvailable && currentPlan === 'plus' && <>
-              <p data-testid="plus-active" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">StudyMind Plus is active{expires ? ` until ${expires}` : ''}.</p>
+              <p data-testid="plus-active" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">Plus is active{expires ? ` until ${expires}` : ''}.</p>
               <Link href="/my-learning/allowances" className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-violet-700 px-5 py-3.5 text-base font-bold text-white shadow-sm hover:bg-violet-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"><Settings className="size-5" aria-hidden /> View my allowances</Link>
             </>}
             {plus && purchaseAvailable && currentPlan === 'free' && <>
               <button type="button" data-testid="buy-plus" onClick={() => checkout.mutate()} disabled={checkout.isPending || checkout.isSuccess}
                 className="w-full rounded-2xl bg-violet-700 px-5 py-3.5 text-base font-bold text-white shadow-sm hover:bg-violet-800 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2">
-                {checkout.isPending || checkout.isSuccess ? 'Opening secure checkout…' : 'Get StudyMind Plus — £3.99'}
+                {checkout.isPending || checkout.isSuccess ? 'Opening secure checkout…' : 'Get Plus — £3.99'}
               </button>
               {checkoutError && <p role="alert" data-testid="checkout-error" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
                 {checkoutError.status === 401 ? <>Your session needs refreshing. <Link href="/my-learning" className="font-semibold underline">Sign in again</Link> to continue.</> : checkoutError.message}
               </p>}
             </>}
-            {plus && purchaseAvailable && signedOut && <p className="text-sm"><Link href="/my-learning" className="font-semibold text-violet-700 underline">Sign in</Link> to get StudyMind Plus.</p>}
+            {plus && purchaseAvailable && signedOut && <p className="text-sm"><Link href="/my-learning" className="font-semibold text-violet-700 underline">Sign in</Link> to get Plus.</p>}
           </div>
         </div>;
       })}

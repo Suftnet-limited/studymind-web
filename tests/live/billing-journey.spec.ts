@@ -42,7 +42,7 @@ async function expectAllowance(page: Page, name: string, attr: 'aria-valuenow' |
   try { await tab.goto('/my-learning/allowances'); await expect(tab.getByRole('progressbar', { name: `${name} remaining` })).toHaveAttribute(attr, value); }
   finally { await tab.close(); }
 }
-async function openPlans(page: Page) { await page.goto('/my-learning/plans'); await expect(page.getByRole('heading', { name: 'Choose your StudyMind plan' })).toBeVisible(); }
+async function openPlans(page: Page) { await page.goto('/my-learning/plans'); await expect(page.getByRole('heading', { name: 'Choose your plan' })).toBeVisible(); }
 async function startPurchase(page: Page) {
   await openPlans(page);
   await page.getByTestId('buy-plus').click();
@@ -65,7 +65,7 @@ test('free user buys StudyMind Plus: checkout, signed webhook, 28-day entitlemen
   await expect(page.getByRole('note')).toContainText('Test payments only');
   await expect(page.getByTestId('plan-free')).toContainText('Free');
   await expectAllowance(page, 'AI chats', 'aria-valuenow', '10');
-  await expect(page.getByTestId('buy-plus')).toHaveText('Get StudyMind Plus — £3.99');
+  await expect(page.getByTestId('buy-plus')).toHaveText('Get Plus — £3.99');
   await expect(page.getByText('Coming soon')).toHaveCount(0);
 
   const sid = await startPurchase(page);
