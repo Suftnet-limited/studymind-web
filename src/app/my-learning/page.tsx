@@ -61,9 +61,8 @@ export default function MyLearningPage() {
     : [{ label: 'Owned modules', value: stats.owned, tone: 'violet', icon: statIcons.layers }, { label: 'Class modules', value: stats.classModules, tone: 'blue', icon: statIcons.cap },
        { label: 'Students', value: stats.students, tone: 'amber', icon: statIcons.users }, { label: 'Materials', value: stats.materials, tone: 'green', icon: statIcons.file }];
 
-  return <div className="mx-auto max-w-[88rem] space-y-8 px-5 py-8 sm:py-10">
+  return <div className="mx-auto max-w-[88rem] space-y-8 px-5 pb-8 pt-3 sm:pb-10 sm:pt-4">
     <header>
-      {user && <p className="text-sm font-medium text-zinc-500">Welcome back, {user.full_name}</p>}
       <h1 className="text-3xl font-bold tracking-tight text-zinc-500 sm:text-4xl">Dashboard</h1>
       <p className="mt-2 text-zinc-600">Your modules, shared with the StudyMind account you use on Mobile.</p>
     </header>

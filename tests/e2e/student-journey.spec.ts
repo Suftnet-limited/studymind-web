@@ -1,6 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
-import { PASSWORD, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
+import { PASSWORD, accountMenu, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
 
 async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
   const email = uniqueEmail(role);
@@ -15,7 +15,9 @@ async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner
   await page.getByLabel('Account type').selectOption(role);
   await shot(page, info, `${role}-02-register`);
   await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByText(name)).toBeVisible();
+  await expectSignedIn(page);
+  await accountMenu(page).click(); await expect(page.getByRole('menu', { name: 'Account' })).toContainText(name);   // the name lives in the account menu
+  await page.keyboard.press('Escape');
   return email;
 }
 

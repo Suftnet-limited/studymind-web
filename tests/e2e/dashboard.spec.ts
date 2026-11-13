@@ -23,7 +23,9 @@ async function learner(baseURL: string, page: Page, personal: string[]) {
 test('dashboard: welcome, four stat tiles, create and join cards, and one table with every column', async ({ page, baseURL }, info) => {
   desktopOnly(info);
   await learner(baseURL!, page, ['Year 5 Mathematics Curriculum (England)', 'Abel CV']);
-  await expect(page.getByText('Welcome back, E2E dash-me')).toBeVisible();
+  await expect(page.getByText(/Welcome back/), 'no welcome line').toHaveCount(0);
+  const heading = (await page.getByRole('heading', { name: 'Dashboard', exact: true }).boundingBox())!;
+  expect(heading.y, 'the title sits high on the page, just under the header').toBeLessThan(110);
   await expect(page.getByRole('heading', { name: 'Learning Workspace' }), 'the old title is gone').toHaveCount(0);
   const [r, g, b] = await page.getByRole('heading', { name: 'Dashboard', exact: true }).evaluate((el) => {      // the browser may report oklch/lab, so read the real RGB off a canvas
     const ctx = document.createElement('canvas').getContext('2d')!; ctx.fillStyle = getComputedStyle(el).color; ctx.fillRect(0, 0, 1, 1);
