@@ -1,0 +1,16 @@
+export const MAX_UPLOAD_BYTES: number;
+export const ACCESS_TYPES: readonly ['personal', 'class'];
+export type DocumentStatus = 'indexed' | 'processing' | 'failed' | 'unknown';
+export function isUuid(value: unknown): value is string;
+export function parseModuleInput(body: unknown): { ok: true; value: { title: string; access_type: 'personal' | 'class' } } | { ok: false; error: string };
+export function parseJoinInput(body: unknown): { ok: true; value: { course_id: string } } | { ok: false; error: string };
+export const ALLOWED_EXTENSIONS: readonly string[];
+export function validateUpload(file: { size?: number; name?: string } | null | undefined): { ok: true } | { ok: false; error: string };
+export function documentStatus(doc: unknown): DocumentStatus;
+export function hasPendingDocuments(docs: unknown): boolean;
+export function roleCapabilities(role: string): { canCreatePersonal: boolean; canCreateClass: boolean; canJoin: boolean; canUploadClass: boolean };
+export function apiDetail(data: unknown, fallback: string): string;
+export type AllowanceKey = 'chats' | 'quizzes' | 'flashcards' | 'summaries';
+export type Entitlements = { plan: 'free' | 'plus'; expires_at: string | null; enforcement_enabled: boolean | null; purchase_available: boolean; allowances: Partial<Record<AllowanceKey, { limit: number; remaining: number }>> };
+export function parseEntitlements(data: unknown): Entitlements | null;
+export function parseUploadVisibility(value: unknown): 'personal' | 'class' | null;

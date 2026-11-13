@@ -1,0 +1,162 @@
+#!/bin/zsh
+# Local UAT stack for StudyMind:  scripts/local-uat.sh start|stop|status
+#   Postgres (existing local server) + Typesense (own container) + FastAPI backend + Next.js Web,
+#   with all OpenAI traffic going through the budget proxy ($5 ceiling, concurrency 1, persisted ledger).
+#
+# Required environment (nothing secret lives in the repo):
+#   BACKEND_DIR   studymind-ai checkout (default: ~/dev/studymind-final, must be on feat/web-integration-overview)
+#   BACKEND_PY    python with the backend requirements (default: $BACKEND_DIR/.venv/bin/python)
+# Postgres (own data dir ~/.studymind-uat/pgdata, port 55432) and Docker (Colima) are started automatically if needed.
+# Optional:
+#   PG_BIN        directory with psql (default /usr/local/opt/postgresql@18/bin), PG_PORT (55432), PG_USER (sm_test)
+# Stripe (TEST mode only):  STRIPE_MODE=standin|test scripts/local-uat.sh start        (default: off = billing disabled)
+#   standin  a local stand-in server (NOT Stripe) with generated test-shaped keys: exercises the whole purchase flow offline
+#   test     real Stripe TEST mode: needs a real STRIPE_SECRET_KEY=sk_test_... in the Web app's .env.local; verified first
+#            (live keys are refused); the webhook secret comes from `stripe listen --print-secret`, and `stripe listen` forwards events
+#   Both enable STUDYMIND_BILLING_ENABLED and STUDYMIND_QUOTA_ENABLED for THIS local backend only.
+# OpenAI stand-in: OPENAI_STANDIN=1 points the budget proxy at the free recording stand-in (tests/fixtures/openai-stub.mjs) instead of
+#   OpenAI, so allowance/billing tests can make many AI calls at no cost. Answers are stand-in echoes, NOT real AI.
+# State and secrets: ~/.studymind-uat/  (env = generated JWT/Typesense secrets, openai.key = YOUR dev key, both mode 600)
+#   Real AI needs the key in ~/.studymind-uat/openai.key (or PROXY_OPENAI_API_KEY in the environment). It is given only to
+#   the budget proxy; the backend holds a dummy key. Without it the stack starts but every AI call fails closed (HTTP 502).
+set -u
+WEB=${0:A:h:h}
+HOME_DIR=$HOME/.studymind-uat; mkdir -p $HOME_DIR/ts $HOME_DIR/run $HOME_DIR/log; chmod 700 $HOME_DIR
+BACKEND_DIR=${BACKEND_DIR:-$HOME/dev/studymind-final}
+BACKEND_PY=${BACKEND_PY:-$BACKEND_DIR/.venv/bin/python}
+PGDATA=$HOME_DIR/pgdata
+export PATH=${PG_BIN:-/usr/local/opt/postgresql@18/bin}:$PATH
+PGP=${PG_PORT:-55432}; PGU=${PG_USER:-sm_test}; DB=studymind_uat
+TS_NAME=studymind-uat-typesense; TS_PORT=18109; PROXY_PORT=18301; API_PORT=8000; WEB_PORT=3100
+
+http() { curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$1"; }
+stop_pid() { f=$HOME_DIR/run/$1.pid; [ -f $f ] && kill $(cat $f) 2>/dev/null; rm -f $f; }
+
+case ${1:-} in
+stop)
+  stop_pid web; stop_pid backend; stop_pid proxy; stop_pid fault; stop_pid stripe; stop_pid standin; stop_pid openai_standin
+  [ -f $PGDATA/postmaster.pid ] && pg_ctl -D $PGDATA stop -m fast >/dev/null 2>&1
+  pkill -f "next dev -p $WEB_PORT" 2>/dev/null
+  docker stop $TS_NAME >/dev/null 2>&1
+  echo "stopped web, backend, proxy and $TS_NAME. Data is kept (database $DB, ~/.studymind-uat/ts, ledger). Postgres stopped."
+  ;;
+status)
+  echo "web      $(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)  http://localhost:$WEB_PORT"
+  echo "backend  $(http http://127.0.0.1:$API_PORT/api/health)  http://127.0.0.1:$API_PORT/api/health"
+  echo "proxy    $(http http://127.0.0.1:$PROXY_PORT/__ledger)  (ledger, localhost only)"
+  echo "typesense $(http http://127.0.0.1:$TS_PORT/health)"
+  curl -s --max-time 5 http://127.0.0.1:$PROXY_PORT/__ledger | head -c 600; echo
+  ;;
+start)
+  if grep -Eq '^[A-Za-z_]*=[\"'"'"']?(sk|pk|rk)_live_' $WEB/.env.local 2>/dev/null ; then
+    echo "REFUSING TO START: a LIVE Stripe credential was found in a local env file. Local UAT is Stripe TEST mode only." >&2; exit 3
+  fi
+  [ -x $BACKEND_PY ] || { echo "BACKEND_PY not found: $BACKEND_PY" >&2; exit 2; }
+  [ -d $BACKEND_DIR/app ] || { echo "BACKEND_DIR is not a studymind-ai checkout: $BACKEND_DIR" >&2; exit 2; }
+  if ! pg_isready -h 127.0.0.1 -p $PGP >/dev/null; then
+    [ -d $PGDATA ] || initdb -D $PGDATA -U $PGU --auth=trust >/dev/null || exit 2
+    pg_ctl -D $PGDATA -o "-p $PGP -h 127.0.0.1" -l $HOME_DIR/log/postgres.log start >/dev/null || exit 2
+    sleep 2
+  fi
+  pg_isready -h 127.0.0.1 -p $PGP >/dev/null || { echo "PostgreSQL is not accepting connections on $PGP" >&2; exit 2; }
+  docker info >/dev/null 2>&1 || { command -v colima >/dev/null && colima start >/dev/null 2>&1; }
+  docker info >/dev/null 2>&1 || { echo "Docker is not running (start Docker Desktop)" >&2; exit 2; }
+  BR=$(git -C $BACKEND_DIR branch --show-current 2>/dev/null)
+  [ "$BR" = feat/web-integration-overview ] || echo "WARNING: backend is on '$BR', tested branch is feat/web-integration-overview"
+  if [ ! -f $HOME_DIR/env ]; then
+    umask 077; printf 'JWT=%s\nTSKEY=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -hex 24)" > $HOME_DIR/env
+  fi
+  source $HOME_DIR/env
+  KEY=${PROXY_OPENAI_API_KEY:-}
+  [ -z "$KEY" ] && [ -f $HOME_DIR/openai.key ] && KEY=$(tr -d '[:space:]' < $HOME_DIR/openai.key)
+  AI=disabled; [ -n "$KEY" ] && AI=enabled
+  # STRIPE_MODE and UAT_MAX_USD may be typed before the command OR set in the Web app's .env.local (the command line wins).
+  fromenv() { grep -E "^$1=" $WEB/.env.local 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' "; }
+  [ -z "${STRIPE_MODE:-}" ] && STRIPE_MODE=$(fromenv STRIPE_MODE)
+  [ -z "${UAT_MAX_USD:-}" ] && UAT_MAX_USD=$(fromenv UAT_MAX_USD)
+
+  psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "select 1 from pg_database where datname='$DB'" | grep -q 1 \
+    || psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "create database $DB" >/dev/null
+  # the Web app's own (legacy /sign-in, billing) Prisma tables live in a separate database from the AI backend's
+  WEBDB=${DB}_web
+  psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "select 1 from pg_database where datname='$WEBDB'" | grep -q 1 \
+    || { psql -h 127.0.0.1 -p $PGP -U $PGU -d postgres -Atc "create database $WEBDB" >/dev/null; \
+         (cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB npx prisma db push --skip-generate >/dev/null 2>&1); }
+  if [ "$(docker inspect -f '{{.State.Running}}' $TS_NAME 2>/dev/null)" != true ]; then
+    docker rm -f $TS_NAME >/dev/null 2>&1
+    docker run -d --name $TS_NAME -p 127.0.0.1:$TS_PORT:8108 -v $HOME_DIR/ts:/data typesense/typesense:0.25.2 \
+      --data-dir /data --api-key "$TSKEY" >/dev/null
+  fi
+  for i in $(seq 1 20); do [ "$(http http://127.0.0.1:$TS_PORT/health)" = 200 ] && break; sleep 1; done
+
+  stop_pid proxy; stop_pid openai_standin
+  PROXY_EXTRA=(); LEDGER=$HOME_DIR/ledger.json   # fake (stand-in) calls must never count against the real spend ledger
+  if [ "${OPENAI_STANDIN:-}" = 1 ]; then
+    ( cd $WEB && PORT=18200 nohup node tests/fixtures/openai-stub.mjs > $HOME_DIR/log/openai-standin.log 2>&1 & echo $! > $HOME_DIR/run/openai_standin.pid )
+    PROXY_EXTRA=(UPSTREAM_URL=http://127.0.0.1:18200 MAX_CHAT_CALLS=20000 MAX_EMBED_CALLS=50000); LEDGER=$HOME_DIR/ledger-standin.json; AI=standin; sleep 1
+  fi
+  ( cd $WEB && export PROXY_OPENAI_API_KEY="$KEY" && env MAX_CHAT_CALLS=${MAX_CHAT_CALLS:-200} MAX_EMBED_CALLS=${MAX_EMBED_CALLS:-400} MAX_USD=${UAT_MAX_USD:-5} "${PROXY_EXTRA[@]}" \
+    PORT=$PROXY_PORT LEDGER_FILE=$LEDGER nohup node tests/fixtures/openai-budget-proxy.mjs \
+    > $HOME_DIR/log/proxy.log 2>&1 & echo $! > $HOME_DIR/run/proxy.pid )
+  # ---- Stripe test mode (opt-in) ----
+  STRIPE_ENV=(); WEB_ORIGIN=${UAT_WEB_ORIGIN:-http://localhost:$WEB_PORT}; stop_pid stripe; stop_pid standin
+  case ${STRIPE_MODE:-off} in
+    standin)
+      [ -f $HOME_DIR/stripe-standin.env ] || { umask 077; printf 'SK=sk_test_standin_%s\nWH=whsec_%s\n' "$(openssl rand -hex 24)" "$(openssl rand -hex 24)" > $HOME_DIR/stripe-standin.env; }
+      source $HOME_DIR/stripe-standin.env
+      ( cd $WEB && PORT=18400 WEBHOOK_URL=http://127.0.0.1:$API_PORT/api/billing/stripe/webhook WEBHOOK_SECRET=$WH SECRET_KEY=$SK nohup node tests/fixtures/stripe-standin.mjs > $HOME_DIR/log/stripe-standin.log 2>&1 & echo $! > $HOME_DIR/run/standin.pid )
+      STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$SK STUDYMIND_STRIPE_WEBHOOK_SECRET=$WH STUDYMIND_STRIPE_API_BASE=http://127.0.0.1:18400
+        "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
+      echo "Stripe: LOCAL STAND-IN (not Stripe) on 127.0.0.1:18400" ;;
+    test)
+      # The TEST key lives in the Web app's .env.local (STRIPE_SECRET_KEY, optional STRIPE_PUBLISHABLE_KEY): one place, already git-ignored.
+      envval() { grep -E "^$1=" $WEB/.env.local 2>/dev/null | tail -1 | cut -d= -f2- | tr -d "\"' "; }
+      export STRIPE_SECRET_KEY=$(envval STRIPE_SECRET_KEY) STRIPE_PUBLISHABLE_KEY=$(envval STRIPE_PUBLISHABLE_KEY)
+      ( cd $WEB && node scripts/stripe-verify.mjs ) || { echo "Stripe verification FAILED (is a real sk_test_ key in .env.local?): billing stays OFF, nothing changed" >&2; exit 2; }
+      # The webhook secret for LOCAL forwarding always comes from the Stripe CLI (the one in .env.local is for a dashboard endpoint).
+      # The CLI must listen on the SAME Stripe account as the key (its own login may be a different account): STRIPE_API_KEY makes it use the key.
+      export STRIPE_API_KEY=$STRIPE_SECRET_KEY
+      STRIPE_WEBHOOK_SECRET=$(stripe listen --print-secret 2>/dev/null | tr -d '[:space:]')
+      case $STRIPE_WEBHOOK_SECRET in whsec_*) ;; *) echo "could not obtain a webhook secret from the Stripe CLI (run 'stripe login')" >&2; exit 2;; esac
+      ( nohup stripe listen --forward-to http://127.0.0.1:$API_PORT/api/billing/stripe/webhook --events checkout.session.completed,charge.refunded,charge.dispute.created,charge.dispute.updated,charge.dispute.closed > $HOME_DIR/log/stripe-listen.log 2>&1 & echo $! > $HOME_DIR/run/stripe.pid )
+      # Accounts with Managed Payments need a product tax code on the inline price. For LOCAL TEST MODE we opt the session out
+      # (STRIPE_MANAGED_PAYMENTS=on to keep it); a real tax decision (STUDYMIND_STRIPE_TAX_CODE) is the owner's, for staging/production.
+      STRIPE_ENV=(STUDYMIND_BILLING_ENABLED=true STUDYMIND_QUOTA_ENABLED=true STUDYMIND_STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY STUDYMIND_STRIPE_WEBHOOK_SECRET=$STRIPE_WEBHOOK_SECRET
+        STUDYMIND_STRIPE_MANAGED_PAYMENTS=$([ "${STRIPE_MANAGED_PAYMENTS:-off}" = on ] && echo true || echo false) STUDYMIND_STRIPE_TAX_CODE=${STRIPE_TAX_CODE:-}
+        "STUDYMIND_CHECKOUT_SUCCESS_URL=$WEB_ORIGIN/my-learning/plans?checkout=success" "STUDYMIND_CHECKOUT_CANCEL_URL=$WEB_ORIGIN/my-learning/plans?checkout=cancelled")
+      unset STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_PUBLISHABLE_KEY STRIPE_API_KEY
+      echo "Stripe: REAL STRIPE TEST MODE (verified), forwarding webhooks with the Stripe CLI" ;;
+    off) ;;
+    *) echo "unknown STRIPE_MODE" >&2; exit 2 ;;
+  esac
+  stop_pid backend
+  ( cd $BACKEND_DIR && nohup env -i PATH="$PATH" HOME="$HOME" APP_ENV=development OPENAI_API_KEY=dummy-backend-key-not-real \
+    OPENAI_API_BASE=http://127.0.0.1:$PROXY_PORT/v1 OPENAI_BASE_URL=http://127.0.0.1:$PROXY_PORT/v1 \
+    OPENAI_CHAT_MODEL=gpt-4.1-mini SIMILARITY_THRESHOLD=0.20 RETRIEVAL_VECTOR_K=100 OPENAI_LLM_MAX_RETRIES=1 OPENAI_EMBED_MAX_RETRIES=0 OPENAI_TIMEOUT_SECONDS=60 \
+    JWT_SECRET_KEY=$JWT POSTGRES_HOST=127.0.0.1 POSTGRES_PORT=$PGP POSTGRES_DB=$DB POSTGRES_USER=$PGU POSTGRES_PASSWORD=x \
+    ENABLED_ROLES=student,lecturer,self_learner TYPESENSE_HOST=127.0.0.1 TYPESENSE_PORT=$TS_PORT TYPESENSE_API_KEY=$TSKEY \
+    "${STRIPE_ENV[@]}" \
+    $BACKEND_PY -m uvicorn app.api.main:app --host 127.0.0.1 --port $API_PORT > $HOME_DIR/log/backend.log 2>&1 & echo $! > $HOME_DIR/run/backend.pid )
+  for i in $(seq 1 40); do [ "$(http http://127.0.0.1:$API_PORT/api/health)" = 200 ] && break; sleep 2; done
+  stop_pid fault; AI_URL=http://127.0.0.1:$API_PORT
+  if [ "${FAULT_PROXY:-}" = 1 ]; then   # regression tests only: fault-injecting proxy between Web and the real backend
+    ( cd $WEB && UPSTREAM=http://127.0.0.1:$API_PORT PORT=8002 nohup node tests/fixtures/fault-proxy.mjs > $HOME_DIR/log/fault.log 2>&1 & echo $! > $HOME_DIR/run/fault.pid )
+    AI_URL=http://127.0.0.1:8002; sleep 1
+  fi
+  stop_pid web
+  ( cd $WEB && DATABASE_URL=postgresql://$PGU@127.0.0.1:$PGP/$WEBDB STUDYMIND_AI_BASE_URL=$AI_URL \
+    SESSION_SECRET=$(openssl rand -hex 16) STRIPE_SECRET_KEY= STRIPE_WEBHOOK_SECRET= STRIPE_ACCESS_PRICE_ID= \
+    nohup npx next dev -p $WEB_PORT > $HOME_DIR/log/web.log 2>&1 & echo $! > $HOME_DIR/run/web.pid )
+  for i in $(seq 1 60); do [ "$(http http://127.0.0.1:$WEB_PORT/api/studymind/auth/status)" = 200 ] && break; sleep 2; done
+  if [ $AI = standin ]; then echo "AI: OPENAI STAND-IN (free, NOT real AI)"; else echo "real AI: $AI   (model gpt-4.1-mini, threshold 0.20, \$5 ceiling, concurrency 1)"; fi
+  [ $AI = disabled ] && echo "  -> put your development key in $HOME_DIR/openai.key (chmod 600) and re-run 'start' to enable paid AI"
+  (cd $WEB && node scripts/uat-seed.mjs | head -1)
+  $0 status
+  ;;
+docs)
+  # builds the synthetic course files and uploads them through the app (real embeddings: needs the key, spends from the $5 ceiling)
+  D=$HOME_DIR/docs; $BACKEND_PY $WEB/tests/fixtures/retrieval/build_docs.py $D --realistic || exit 2
+  cd $WEB && DOCS_DIR=$D node scripts/uat-seed.mjs --documents
+  ;;
+*) echo "usage: $0 start|stop|status|docs" >&2; exit 2 ;;
+esac
