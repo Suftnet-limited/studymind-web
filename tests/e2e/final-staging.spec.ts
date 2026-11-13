@@ -24,17 +24,17 @@ test('header: signed-out visitors see Sign in / Get started; a signed-in user se
   await expect(header(page).getByRole('link', { name: 'Sign in' })).toBeVisible();
 
   await signIn(page, learner.email);
-  await expect(header(page).getByRole('link', { name: 'My modules' })).toBeVisible();
+  await expect(header(page).getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(header(page).getByRole('link', { name: 'Get started' })).toHaveCount(0);
   await expect(header(page).getByRole('link', { name: 'Sign in' })).toHaveCount(0);
 
   await page.reload();                                                       // server hint: no flash of the signed-out header
-  await expect(header(page).getByRole('link', { name: 'My modules' })).toBeVisible();
+  await expect(header(page).getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(header(page).getByRole('link', { name: 'Get started' })).toHaveCount(0);
 
   await signOut(page);              // the account menu signs out and returns to the sign-in screen
   await expect(header(page).getByRole('link', { name: 'Get started' })).toBeVisible();
-  await expect(header(page).getByRole('link', { name: 'My modules' })).toHaveCount(0);
+  await expect(header(page).getByRole('link', { name: 'Dashboard' })).toHaveCount(0);
 });
 
 test('header: a stale or invalid session cookie does not make the header claim the user is signed in', async ({ page, context }) => {

@@ -19,14 +19,14 @@ test('signed in: nav pills, active state follows the page, and the account menu 
   const learner = await apiAccount(baseURL!, 'hdr', 'student');
   await page.goto('/my-learning'); await signIn(page, learner.email);
   await expectSignedIn(page);
-  for (const name of ['My modules', 'Plans', 'AI access']) await expect(nav(page).getByRole('link', { name, exact: true })).toBeVisible();
-  await expect(nav(page).getByRole('link', { name: 'My modules' })).toHaveAttribute('aria-current', 'page');
+  for (const name of ['Dashboard', 'Plans', 'AI access']) await expect(nav(page).getByRole('link', { name, exact: true })).toBeVisible();
+  await expect(nav(page).getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByRole('button', { name: 'Sign out' }), 'Sign out is no longer a page button').toHaveCount(0);
 
   await nav(page).getByRole('link', { name: 'Plans', exact: true }).click();
   await expect(page).toHaveURL(/\/my-learning\/plans$/);
   await expect(nav(page).getByRole('link', { name: 'Plans', exact: true })).toHaveAttribute('aria-current', 'page');
-  await expect(nav(page).getByRole('link', { name: 'My modules' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(nav(page).getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page');
   await nav(page).getByRole('link', { name: 'AI access' }).click();
   await expect(page).toHaveURL(/\/my-learning\/allowances$/);
   await expect(nav(page).getByRole('link', { name: 'AI access' })).toHaveAttribute('aria-current', 'page');
@@ -62,7 +62,7 @@ for (const width of [320, 360, 393, 768, 1280]) {
     const learner = await apiAccount(baseURL!, `hdr-${width}`, 'student');
     await page.goto('/my-learning'); await signIn(page, learner.email);
     await expectNoHorizontalScroll(page);
-    for (const name of ['My modules', 'Plans', 'AI access']) {
+    for (const name of ['Dashboard', 'Plans', 'AI access']) {
       const link = nav(page).getByRole('link', { name, exact: true });                  // labels may be icon-only on small screens but keep their names
       await expect(link).toBeVisible();
       const b = (await link.boundingBox())!;

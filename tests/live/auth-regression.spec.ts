@@ -59,7 +59,7 @@ test.afterEach(clearFaults);
 for (const who of ['student', 'lecturer'] as const) {
   test(`${who}: Modules, Plans and AI access navigation keeps the user signed in`, async ({ page, context }) => {
     await signIn(page, who);
-    for (const label of ['Plans', 'AI access', 'My modules', 'Plans', 'My modules']) {
+    for (const label of ['Plans', 'AI access', 'Dashboard', 'Plans', 'Dashboard']) {
       await page.getByRole('navigation', { name: 'Learning navigation' }).getByRole('link', { name: label, exact: true }).click();
       await page.waitForLoadState('networkidle');
       expect(new URL(page.url()).pathname, `${label} must stay in the StudyMind area`).toMatch(/^\/my-learning/);
@@ -269,7 +269,7 @@ test('direct navigation to protected StudyMind URLs while signed out shows the s
 test('mobile viewport: the three navigation links keep the user signed in', async ({ page }, info) => {
   test.skip(info.project.name !== 'mobile');
   await signIn(page, 'student');
-  for (const label of ['Plans', 'AI access', 'My modules']) {
+  for (const label of ['Plans', 'AI access', 'Dashboard']) {
     await page.getByRole('navigation', { name: 'Learning navigation' }).getByRole('link', { name: label, exact: true }).click();
     await page.waitForLoadState('networkidle');
     expect(new URL(page.url()).pathname).toMatch(/^\/my-learning/);

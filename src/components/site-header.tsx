@@ -100,7 +100,7 @@ export function SiteHeader({ legacyUser, initialSignedIn }: { legacyUser: Legacy
     </>;
   } else if (signedIn) {
     const items: NavItem[] = [
-      { href: '/my-learning', label: 'My modules', icon: <Layers className="size-5" />, active: pathname === '/my-learning' || at('/my-learning/modules') },
+      { href: '/my-learning', label: 'Dashboard', icon: <LayoutGrid className="size-5" />, active: pathname === '/my-learning' || at('/my-learning/modules') },
       { href: '/my-learning/plans', label: 'Plans', icon: <CreditCard className="size-5" />, active: at('/my-learning/plans') },
       { href: '/my-learning/allowances', label: 'AI access', icon: <Sparkles className="size-5" />, active: at('/my-learning/allowances') },
     ];

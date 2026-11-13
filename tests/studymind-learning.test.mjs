@@ -175,7 +175,7 @@ test('header links to the canonical journey and the global link reset cannot ove
   // and the header confirms it through the status route.
   assert.match(layout, /<SiteHeader[^\n]*initialSignedIn=\{hasAiSession\}\/>/);
   assert.match(layout, /studymind_ai_access/); assert.match(layout, /studymind_ai_refresh/);
-  assert.match(header, /else if \(signedIn\)/); assert.match(header, /href: '\/my-learning', label: 'My modules'/); assert.match(header, /aria-label="Account menu"/);
+  assert.match(header, /else if \(signedIn\)/); assert.match(header, /href: '\/my-learning', label: 'Dashboard'/); assert.match(header, /aria-label="Account menu"/);
   assert.match(header, /\/api\/studymind\/auth\/status/); assert.match(header, /studymind-auth-changed/);
   assert.doesNotMatch(read('src/app/api/studymind/auth/status/route.ts'), /access_token|refresh_token|email/, 'status route must not expose tokens or emails');
   assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);
