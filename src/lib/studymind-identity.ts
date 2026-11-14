@@ -10,7 +10,7 @@ export type LearningOverview = { user: CanonicalUser; modules: { owned: number; 
 type TokenResponse = { access_token: string; refresh_token: string; expires_in: number };
 
 /** Routes Web may call on the canonical AI backend. Anything else is refused before a request is made. */
-const IDENTITY_PATH = /^\/api\/auth\//;
+const IDENTITY_PATH = /^\/api\/auth\//;  // covers /api/auth/magic-verify and all other auth routes
 const LEARNING_PATH = /^\/api\/(billing\/checkout$|sessions(\?module_id=[0-9a-f-]{36})?$|sessions\/[0-9a-f-]{36}$|modules(\/|$)|chat$|quiz\/[0-9a-f-]{36}\/submit$|quiz\/generate$|quiz\/history\/list\?module_id=[0-9a-f-]{36}$|quiz\/[0-9a-f-]{36}$|flashcards\/generate$|flashcards\?module_id=[0-9a-f-]{36}$|flashcards\/[0-9a-f-]{36}$|summarise$|summarise\?module_id=[0-9a-f-]{36}$|summarise\/[0-9a-f-]{36}$)/i;
 
 export async function aiIdentityRequest(path: string, init: RequestInit = {}) {
