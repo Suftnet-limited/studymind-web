@@ -25,7 +25,7 @@ function SignIn() {
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
   return <AuthShell>
     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h1>
-    <p className="mt-1.5 text-sm text-slate-500">Sign in to your StudyMind account. It is the same account you use on Mobile.</p>
+    <p className="mt-1.5 text-sm text-slate-500">Sign in to your Revvo account — the same one you use on the mobile app.</p>
     <form onSubmit={submit} className="mt-7" noValidate={false}>
       {login.isError && <AuthError message={message(login.error)} />}
       <div className="space-y-3">
@@ -36,8 +36,8 @@ function SignIn() {
       <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
     </form>
     <div className="mt-6 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-100" /><span className="text-xs text-slate-400">or</span><div className="h-px flex-1 bg-zinc-100" /></div>
-    <p className="mt-5 text-center text-sm text-slate-500">New to StudyMind?{' '}<Link href="/my-learning/register" className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
-    <p className="mt-6 text-center text-xs text-slate-400">Have an older StudyMind Web account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
+    <p className="mt-5 text-center text-sm text-slate-500">New to Revvo?{' '}<Link href="/my-learning/register" className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
+    <p className="mt-6 text-center text-xs text-slate-400">Have an older account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
   </AuthShell>;
 }
 
@@ -65,7 +65,7 @@ export default function MyLearningPage() {
   return <div className="mx-auto max-w-[88rem] space-y-8 px-5 pb-8 pt-3 sm:pb-10 sm:pt-4">
     <header>
       <h1 className="text-3xl font-bold tracking-tight text-zinc-500 sm:text-4xl">Dashboard</h1>
-      <p className="mt-2 text-zinc-600">Your modules, shared with the StudyMind account you use on Mobile.</p>
+      <p className="mt-2 text-zinc-600">Your modules, shared with the Revvo account you use on Mobile.</p>
     </header>
 
     {overview.isLoading && <LoadingBlock label="Loading your learning workspace…" />}
