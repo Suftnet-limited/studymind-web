@@ -119,8 +119,7 @@ export default function Home() {
       {/* ── Features grid ────────────────────────────────────────────────── */}
       <section id="features" className="sm-landing mx-auto max-w-6xl px-5 py-20">
         <div className="mb-12 max-w-2xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-violet-600">Study tools</p>
-          <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+          <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
             Everything you need to make progress
           </h2>
           <p className="mt-4 text-lg leading-7 text-zinc-600">
@@ -145,8 +144,7 @@ export default function Home() {
       <section id="how-it-works" className="border-y border-violet-100 bg-violet-50/60">
         <div className="mx-auto max-w-6xl px-5 py-20">
           <div className="mb-12 max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-widest text-violet-600">Getting started</p>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
               Up and studying in three steps
             </h2>
           </div>
@@ -166,8 +164,7 @@ export default function Home() {
       <section id="for-lecturers" className="mx-auto max-w-6xl px-5 py-20">
         <div className="grid gap-12 md:grid-cols-2 md:items-center">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-violet-600">For lecturers</p>
-            <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
               Share your materials. Let AI do the tutoring.
             </h2>
             <p className="mt-4 leading-7 text-zinc-600">
