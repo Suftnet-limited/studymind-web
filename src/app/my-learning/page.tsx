@@ -32,6 +32,7 @@ function SignIn() {
         <AuthField label="Email" type="email" icon={<Mail className="size-4" />} placeholder="name@example.com" autoComplete="email" required autoFocus value={email} onChange={e => setEmail(e.target.value)} />
         <AuthField label="Password" type="password" icon={<Lock className="size-4" />} placeholder="Enter your password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} />
       </div>
+      <p className="mt-2 text-right text-sm"><Link href="/my-learning/forgot-password" className="font-semibold text-violet-700 hover:underline">Forgot password?</Link></p>
       <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
     </form>
     <div className="mt-6 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-100" /><span className="text-xs text-slate-400">or</span><div className="h-px flex-1 bg-zinc-100" /></div>
