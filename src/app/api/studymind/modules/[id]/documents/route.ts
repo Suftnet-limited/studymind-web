@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
 import { apiDetail, isUuid, parseUploadVisibility, validateUpload } from '@/lib/studymind-validation.mjs';
 export const runtime = 'nodejs';
+// Large files (semester booklets, full course PDFs) take time to upload and index.
+export const maxDuration = 300; // 5 minutes
 type Context = { params: Promise<{ id: string }> };
 const valid = isUuid;
 export async function GET(_request: Request, context: Context) {
@@ -41,8 +43,8 @@ export async function POST(request: Request, context: Context) {
   if (isUuid(week)) query.set('week_id', week as string);
   const qs = query.toString() ? `?${query}` : '';
   try {
-    // File uploads + indexing can take well over 12 s — use a generous timeout.
-    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents${qs}`, { method: 'POST', body: payload, signal: AbortSignal.timeout(90_000) });
+    // Large files (semester booklets, full course PDFs) can take several minutes to upload + index.
+    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents${qs}`, { method: 'POST', body: payload, signal: AbortSignal.timeout(270_000) }); // 4.5 min
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) return NextResponse.json({ error: apiDetail(data, 'Unable to upload document') }, { status: upstream.status < 500 ? upstream.status : 502 });
