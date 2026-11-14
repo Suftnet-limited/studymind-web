@@ -6,9 +6,9 @@ import { ChevronDown, Lock, Mail, User } from 'lucide-react';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit, PasswordChecks } from '@/components/auth/auth-field';
 
-const ROLE_LABELS: Record<string, string> = { self_learner: 'Independent learner', student: 'Student', lecturer: 'Lecturer' };
+// This release is for students and lecturers only. Independent learners are not offered, whatever the backend allows.
+const ROLE_LABELS: Record<string, string> = { student: 'Student', lecturer: 'Lecturer' };
 const ROLE_HELP: Record<string, string> = {
-  self_learner: 'Study on your own: upload your notes and practise with them.',
   student: 'Join your lecturer\'s modules and keep your own private notes.',
   lecturer: 'Create class modules, share materials with your students and use the study tools yourself.',
 };
@@ -18,16 +18,16 @@ export default function RegisterLearning() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [roles, setRoles] = useState<string[]>(['self_learner', 'student', 'lecturer']);
+  const [roles, setRoles] = useState<string[]>(['student', 'lecturer']);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('self_learner');
+  const [role, setRole] = useState('student');
   useEffect(() => {
     fetch('/api/studymind/auth/config').then(r => r.json()).then(c => {
       if (Array.isArray(c.enabled_roles) && c.enabled_roles.length) {
         const allowed = Object.keys(ROLE_LABELS).filter(r => c.enabled_roles.includes(r));
-        setRoles(allowed); setRole(current => allowed.includes(current) ? current : allowed[0]);
+        if (allowed.length) { setRoles(allowed); setRole(current => allowed.includes(current) ? current : allowed[0]); }
       }
     }).catch(() => {});
   }, []);

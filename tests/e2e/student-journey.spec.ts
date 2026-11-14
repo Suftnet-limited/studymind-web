@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
 import { PASSWORD, accountMenu, apiAccount, apiCreateClass, apiUpload, expectNoHorizontalScroll, expectSignedIn, openDocuments, shot, signIn, signOut, submitSignIn, uniqueEmail } from './helpers';
 
-async function registerThroughUi(page: Page, info: TestInfo, role: 'self_learner' | 'student', name: string) {
+async function registerThroughUi(page: Page, info: TestInfo, role: 'student' | 'lecturer', name: string) {
   const email = uniqueEmail(role);
   await page.goto('/my-learning');
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
@@ -44,13 +44,14 @@ async function uploadAndCheckStatus(page: Page, info: TestInfo, prefix: string) 
   await expectNoHorizontalScroll(page);
 }
 
-test('self-learner journey: register, create a personal module, join a class, open it, upload, sign out and back in', async ({ page, baseURL }, info) => {
+test('self-learner journey (API-registered; the form no longer offers this role): create a personal module, join a class, open it, upload, sign out and back in', async ({ page, baseURL }, info) => {
   const lecturer = await apiAccount(baseURL!, 'lecturer', 'lecturer');
   const classModule = await apiCreateClass(lecturer.ctx, 'History 110 (E2E)');
   await apiUpload(lecturer.ctx, classModule.id, 'reading-list.txt', 'Chapter 1 to 3', 'class');
   await apiUpload(lecturer.ctx, classModule.id, 'lecturer-private.txt', 'private lecturer notes', 'personal');
 
-  const email = await registerThroughUi(page, info, 'self_learner', 'Ada Learner');
+  const learner = await apiAccount(baseURL!, 'selflearner', 'self_learner'); const email = learner.email;
+  await page.goto('/my-learning'); await signIn(page, email);
   await expect(page.getByText('No modules yet')).toBeVisible();
   await shot(page, info, 'self_learner-03-workspace-empty');
   await expectNoHorizontalScroll(page);
@@ -186,4 +187,16 @@ test('session: protected routes require sign-in and a refreshed session survives
   await signOut(page);
   await page.goto('/my-learning/allowances');
   await expect(page.getByText(/Sign in.*to see your remaining allowances/)).toBeVisible();
+});
+
+test('register form offers only Student and Lecturer (no Independent learner), Student first', async ({ page }) => {
+  await page.goto('/my-learning/register');
+  const type = page.getByLabel('Account type');
+  await expect(type.locator('option')).toHaveText(['Student', 'Lecturer']);
+  await expect(type).toHaveValue('student');
+  await expect(page.getByText('Independent learner')).toHaveCount(0);
+});
+
+test('a lecturer can register through the form', async ({ page }, info) => {
+  await registerThroughUi(page, info, 'lecturer', 'Lena Lecturer');
 });
