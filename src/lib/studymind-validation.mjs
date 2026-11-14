@@ -58,7 +58,7 @@ export const hasPendingDocuments = (docs) => Array.isArray(docs) && docs.some((d
 /** Which actions the AI backend permits per role (it enforces these too; the UI just avoids offering them). */
 export function roleCapabilities(role) {
   return {
-    canCreatePersonal: role === 'lecturer' || role === 'self_learner' || role === 'admin',
+    canCreatePersonal: role === 'lecturer' || role === 'student' || role === 'self_learner' || role === 'admin',
     canCreateClass: role === 'lecturer' || role === 'admin',
     // Students and self-learners join class modules (the AI backend enforces enrolment on both). Lecturers do not.
     canJoin: role === 'student' || role === 'self_learner',

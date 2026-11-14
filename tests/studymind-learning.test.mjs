@@ -49,7 +49,7 @@ test('uploads: only formats the AI ingestor accepts (PDF, DOCX, TXT, MD, CSV)', 
 });
 
 test('roleCapabilities mirrors AI backend rules', () => {
-  assert.deepEqual(roleCapabilities('student'), { canCreatePersonal: false, canCreateClass: false, canJoin: true, canUploadClass: false });
+  assert.deepEqual(roleCapabilities('student'), { canCreatePersonal: true, canCreateClass: false, canJoin: true, canUploadClass: false });
   assert.deepEqual(roleCapabilities('self_learner'), { canCreatePersonal: true, canCreateClass: false, canJoin: true, canUploadClass: false });
   assert.deepEqual(roleCapabilities('lecturer'), { canCreatePersonal: true, canCreateClass: true, canJoin: false, canUploadClass: true });
   assert.equal(roleCapabilities('').canJoin, false);

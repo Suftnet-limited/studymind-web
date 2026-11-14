@@ -108,11 +108,15 @@ test("student journey: register, join a lecturer's class by Course ID, view and 
   const classModule = await apiCreateClass(lecturer.ctx, 'Biology 101 (E2E)');
   const email = await registerThroughUi(page, info, 'student', 'Sam Student');
 
-  await expect(page.getByRole('button', { name: 'Create module' })).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: /Owned modules/ })).toHaveCount(0);
   await expect(page.getByText('No modules yet')).toBeVisible();
   await shot(page, info, 'student-03-workspace-empty');
   await expectNoHorizontalScroll(page);
+
+  // Students create personal modules only (no access-type choice), like self-learners
+  await expect(page.getByLabel('Access type')).toHaveCount(0);
+  await page.getByLabel('Module title').fill('Sam personal notes');
+  await page.getByRole('button', { name: 'Create module' }).click();
+  await expect(page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /Sam personal notes/ })).toBeVisible();
 
   await page.getByLabel('Course ID').fill(classModule.id);
   await page.getByRole('button', { name: 'Join course' }).click();
