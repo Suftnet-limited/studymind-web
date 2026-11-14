@@ -7,6 +7,11 @@ import './landing.css';
 
 const VARIANTS = [
   {
+    line1: 'Ask anything.',
+    line2: 'Master everything.',
+    sub: 'An AI-powered workspace to study, practise and stay organised.',
+  },
+  {
     line1: 'Learn smarter.',
     line2: 'Achieve more.',
     sub: 'An AI-powered workspace to study, practise and stay organised.',
@@ -19,11 +24,6 @@ const VARIANTS = [
   {
     line1: 'Revise faster.',
     line2: 'Remember longer.',
-    sub: 'An AI-powered workspace to study, practise and stay organised.',
-  },
-  {
-    line1: 'Ask anything.',
-    line2: 'Master everything.',
     sub: 'An AI-powered workspace to study, practise and stay organised.',
   },
 ];
