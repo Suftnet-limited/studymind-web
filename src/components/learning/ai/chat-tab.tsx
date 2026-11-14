@@ -10,7 +10,7 @@ import type { Outline } from '@/lib/learning-ai.mjs';
 import { SideCard, ToolLayout, btnOutline } from './layout';
 import { cn } from '@/lib/utils';
 
-type Message = { id: number; role: 'user' | 'assistant'; content: string; at: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; isError?: boolean };
+type Message = { id: number; role: 'user' | 'assistant'; content: string; at: string; sources?: Citation[]; grounded?: boolean; noContent?: boolean; suggestions?: string[]; isError?: boolean; retryText?: string };
 type OpenTool = 'documents' | 'quiz' | 'flashcards' | 'summary';
 
 const SOURCES: { value: Scope; label: string; hint: string; button: string }[] = [
@@ -80,8 +80,8 @@ export function ChatTab({ moduleId, hasMaterials, userName, outline, onOpenTool 
   useEffect(() => { void refreshChats(); }, [refreshChats]);
 
   const grow = () => { const el = inputRef.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 128)}px`; } };
-  async function send() {
-    const text = input.trim();
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
     if (!text || sending) return;
     setInput(''); requestAnimationFrame(grow); setSending(true);
     setMessages(m => [...m, { id: ++nextId, role: 'user', content: text, at: nowIso() }]);
@@ -91,7 +91,7 @@ export function ChatTab({ moduleId, hasMaterials, userName, outline, onOpenTool 
       setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: res.answer, at: nowIso(), sources: res.sources, grounded: res.grounded, noContent: res.no_content_found, suggestions: res.suggestions }]);
       void refreshChats();
     } catch (e) {
-      setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: errorText(e, 'The AI Tutor could not answer. Please try again.'), at: nowIso(), isError: true }]);
+      setMessages(m => [...m, { id: ++nextId, role: 'assistant', content: errorText(e, 'The AI service is unavailable right now. Please try again in a moment.'), at: nowIso(), isError: true, retryText: text }]);
     } finally { setSending(false); }
   }
   const newChat = () => { if (sending) return; setMessages([]); setSessionId(null); setInput(''); setMenuFor(null); inputRef.current?.focus(); };
@@ -171,7 +171,10 @@ export function ChatTab({ moduleId, hasMaterials, userName, outline, onOpenTool 
               <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-full bg-violet-600 text-sm! font-bold! text-white">{initials || 'You'}</span>
             </div>
           : m.isError
-            ? <div key={m.id} role="alert" className="max-w-[90%] rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">{m.content}</div>
+            ? <div key={m.id} role="alert" className="max-w-[90%] rounded-2xl border border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
+                <p>{m.content}</p>
+                {m.retryText && <button type="button" onClick={() => { setMessages(msgs => msgs.filter(x => x.id !== m.id)); void send(m.retryText); }} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 transition">↺ Retry</button>}
+              </div>
             : <div key={m.id} className="flex items-start gap-3">
                 <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-600"><Sparkles className="size-5" /></span>
                 <div className="min-w-0 max-w-[88%] space-y-2">
