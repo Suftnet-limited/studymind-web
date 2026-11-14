@@ -41,10 +41,16 @@ export async function POST(request: Request, context: Context) {
   if (isUuid(week)) query.set('week_id', week as string);
   const qs = query.toString() ? `?${query}` : '';
   try {
-    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents${qs}`, { method: 'POST', body: payload });
+    // File uploads + indexing can take well over 12 s — use a generous timeout.
+    const upstream = await authenticatedAiFetch(`/api/modules/${id}/documents${qs}`, { method: 'POST', body: payload, signal: AbortSignal.timeout(90_000) });
     if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     const data = await upstream.json().catch(() => ({}));
     if (!upstream.ok) return NextResponse.json({ error: apiDetail(data, 'Unable to upload document') }, { status: upstream.status < 500 ? upstream.status : 502 });
     return NextResponse.json(data, { status: 201, headers: { 'Cache-Control': 'no-store' } });
-  } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[documents POST] upstream error:', msg);
+    const isTimeout = msg.includes('timed out') || msg.includes('abort') || msg.includes('TimeoutError');
+    return NextResponse.json({ error: isTimeout ? 'Upload timed out — try a smaller file or try again.' : 'Learning service unavailable' }, { status: 502 });
+  }
 }
