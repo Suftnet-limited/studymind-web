@@ -1,12 +1,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  experimental: {
-    // Allow large file uploads (semester booklets can be 100 MB+).
-    // Next.js defaults to 4 MB for API route bodies; lecturers uploading
-    // full course PDFs or DOCX files need far more headroom.
-    serverBodySizeLimit: '200mb',
-  },
+  // serverBodySizeLimit is not needed: uploads now go browser → backend directly,
+  // bypassing Render entirely. next.config.ts is kept for future server-side config.
 };
 
 export default nextConfig;

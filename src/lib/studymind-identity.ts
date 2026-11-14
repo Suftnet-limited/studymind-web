@@ -96,6 +96,28 @@ export async function authenticatedAiFetch(path: string, init: RequestInit = {})
   return callWithRecovery(path, init);
 }
 
+/** Returns a valid access token for the current session (refreshing if needed), or null if there is no session.
+ *  Used by the direct-upload flow: the browser uploads large files straight to the AI backend,
+ *  bypassing Render's 30-second request timeout. The token is short-lived and read-once. */
+export async function getAccessToken(): Promise<string | null> {
+  const jar = await cookies();
+  const access = jar.get(accessCookie)?.value;
+  const refresh = jar.get(refreshCookie)?.value;
+  if (!access && !refresh) return null;
+  if (access) {
+    // Quick check: try to use it. If it's still valid return it immediately.
+    // We don't want to burn a network round-trip just to verify — the browser will get a 401
+    // on the direct upload and can retry after calling this endpoint again.
+    return access;
+  }
+  if (!refresh) { await clearAiTokens(); return null; }
+  const outcome = await refreshTokens(refresh);
+  if (outcome.kind === 'unavailable') return null;
+  if (outcome.kind === 'invalid') { await clearAiTokens(); return null; }
+  await setAiTokens(outcome.tokens);
+  return outcome.tokens.access_token;
+}
+
 /** Sign out: revoke the refresh token on the backend (best effort, so a copied cookie cannot be replayed), forget any
  *  cached refresh result for it, and clear the cookies whatever the backend says. */
 export async function revokeAiSession() {
