@@ -12,14 +12,19 @@ const VARIANTS = [
     sub: 'An AI-powered workspace to study, practise and stay organised.',
   },
   {
-    line1: 'Study less.',
-    line2: 'Remember more.',
-    sub: 'Turn your course materials into quizzes, summaries and an AI tutor — in seconds.',
+    line1: 'Study better.',
+    line2: 'Score higher.',
+    sub: 'An AI-powered workspace to study, practise and stay organised.',
   },
   {
-    line1: 'Your notes.',
-    line2: 'Your AI tutor.',
-    sub: 'Ask questions, generate flashcards and get smart summaries from the content you already have.',
+    line1: 'Revise faster.',
+    line2: 'Remember longer.',
+    sub: 'An AI-powered workspace to study, practise and stay organised.',
+  },
+  {
+    line1: 'Ask anything.',
+    line2: 'Master everything.',
+    sub: 'An AI-powered workspace to study, practise and stay organised.',
   },
 ];
 
