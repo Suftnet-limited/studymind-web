@@ -48,36 +48,42 @@ const FEATURES = [
   {
     Icon: MessageCircle,
     title: 'AI Tutor',
+    color: { bg: 'bg-violet-50', icon: 'text-violet-600', border: 'border-violet-100', hover: 'hover:border-violet-200' },
     description:
       'Ask anything about your course. Revvo answers from your module documents and cites the source — so you know exactly where to look.',
   },
   {
     Icon: Layers,
     title: 'Quizzes & Flashcards',
+    color: { bg: 'bg-sky-50', icon: 'text-sky-600', border: 'border-sky-100', hover: 'hover:border-sky-200' },
     description:
       'Generate practice questions and revision cards from any uploaded material in seconds. Covers MCQ, short answer and more.',
   },
   {
     Icon: BookOpen,
     title: 'Smart Summaries',
+    color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-100', hover: 'hover:border-emerald-200' },
     description:
       'Get clear, structured summaries of a document, a week\'s content, or an entire module — ready to read and revise from.',
   },
   {
     Icon: FileText,
     title: 'AI Writing Assistant',
+    color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-100', hover: 'hover:border-amber-200' },
     description:
       'Draft essays, structure arguments and improve your writing with an AI that understands academic style and your course context.',
   },
   {
     Icon: Zap,
     title: 'Instant Answers',
+    color: { bg: 'bg-rose-50', icon: 'text-rose-600', border: 'border-rose-100', hover: 'hover:border-rose-200' },
     description:
       'No more scrolling through lecture slides. Ask a question in plain English and get a precise answer with a page reference.',
   },
   {
     Icon: Smartphone,
     title: 'Study Anywhere',
+    color: { bg: 'bg-indigo-50', icon: 'text-indigo-600', border: 'border-indigo-100', hover: 'hover:border-indigo-200' },
     description:
       'Access Revvo on the web or on your phone. Your modules, chats and study history stay in sync across every device.',
   },
@@ -127,10 +133,10 @@ export default function Home() {
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map(({ Icon, title, description }) => (
+          {FEATURES.map(({ Icon, title, description, color }) => (
             <div key={title}
-              className="rounded-2xl border border-violet-100 bg-white p-6 shadow-sm transition hover:shadow-md hover:border-violet-200">
-              <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+              className={`rounded-2xl border ${color.border} bg-white p-6 shadow-sm transition hover:shadow-md ${color.hover}`}>
+              <div className={`mb-4 flex size-11 items-center justify-center rounded-xl ${color.bg} ${color.icon}`}>
                 <Icon className="size-5" aria-hidden />
               </div>
               <h3 className="mb-2 text-base font-bold text-zinc-950">{title}</h3>
