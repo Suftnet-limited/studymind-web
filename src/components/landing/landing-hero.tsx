@@ -1,28 +1,55 @@
+'use client';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, PlayCircle } from 'lucide-react';
+import { useState } from 'react';
 import './landing.css';
 
-/**
- * Landing hero: headline and calls to action as real text, the student composition as an optimised image.
- * The three feature cards (AI Tutor, Quizzes & Flashcards, Smart Summaries) are part of that image, so they are
- * described in its alt text and deliberately NOT repeated in HTML. Header and navigation come from the site layout.
- */
+const VARIANTS = [
+  {
+    line1: 'Learn smarter.',
+    line2: 'Achieve more.',
+    sub: 'An AI-powered workspace to study, practise and stay organised.',
+  },
+  {
+    line1: 'Study less.',
+    line2: 'Remember more.',
+    sub: 'Turn your course materials into quizzes, summaries and an AI tutor — in seconds.',
+  },
+  {
+    line1: 'Your notes.',
+    line2: 'Your AI tutor.',
+    sub: 'Ask questions, generate flashcards and get smart summaries from the content you already have.',
+  },
+];
+
 export function LandingHero() {
+  const [idx, setIdx] = useState(0);
+  const v = VARIANTS[idx];
+
   return <section aria-labelledby="landing-title" className="sm-landing relative overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)]">
     <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 pt-10 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-8 lg:pb-24 lg:pt-16">
       <div className="relative z-10">
         <h1 id="landing-title" className="text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.03em] text-[var(--sm-ink)] sm:text-6xl lg:text-[3.75rem]">
-          Learn smarter.
+          {v.line1}
           <span className="relative mt-1 block w-fit text-[var(--sm-purple)]">
-            Achieve more.
+            {v.line2}
             <svg aria-hidden viewBox="0 0 260 14" preserveAspectRatio="none" className="absolute -bottom-2.5 left-1 h-3 w-[88%] text-[var(--sm-purple)]">
               <path d="M3 9C62 2 158 2 257 8" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
             </svg>
           </span>
         </h1>
-        <p className="mt-8 max-w-[24.5rem] text-lg leading-8 text-[var(--sm-muted)]">An AI-powered workspace to study, practise and stay organised.</p>
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+        <p className="mt-8 max-w-[24.5rem] text-lg leading-8 text-[var(--sm-muted)]">{v.sub}</p>
+
+        {/* Variant switcher dots */}
+        <div className="mt-5 flex items-center gap-2" role="group" aria-label="Headline alternatives">
+          {VARIANTS.map((_, i) => (
+            <button key={i} onClick={() => setIdx(i)} aria-label={`Headline option ${i + 1}`}
+              className={`h-2 rounded-full transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sm-purple)] ${i === idx ? 'w-6 bg-[var(--sm-purple)]' : 'w-2 bg-zinc-300 hover:bg-zinc-400'}`} />
+          ))}
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/my-learning/register"
             className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-[var(--sm-purple)] px-7 text-base font-semibold text-white shadow-[0_12px_28px_rgba(109,40,217,0.28)] transition hover:bg-[var(--sm-purple-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sm-purple)]">
             Get started free <ArrowRight className="size-5" aria-hidden />
