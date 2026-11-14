@@ -12,6 +12,6 @@ export default async function RootLayout({children}:{children:React.ReactNode}){
  const jar=await cookies();
  const hasAiSession=!!(jar.get('studymind_ai_access')||jar.get('studymind_ai_refresh'));
  const user=userId?await prisma.user.findUnique({where:{id:userId},select:{role:true,name:true}}):null;
- return <html lang="en"><body className="bg-[#fcfcff] text-zinc-900 antialiased"><SiteHeader legacyUser={user?{name:user.name,role:user.role}:null} initialSignedIn={hasAiSession}/>
-<QueryProvider><main>{children}</main></QueryProvider><SiteFooter/></body></html>
+ return <html lang="en"><body className="bg-[#fcfcff] text-zinc-900 antialiased flex flex-col min-h-screen"><SiteHeader legacyUser={user?{name:user.name,role:user.role}:null} initialSignedIn={hasAiSession}/>
+<QueryProvider><main className="flex-1">{children}</main></QueryProvider><SiteFooter/></body></html>
 }
