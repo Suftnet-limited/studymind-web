@@ -35,16 +35,16 @@ export function LandingHero() {
   return <section aria-labelledby="landing-title" className="sm-landing relative overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)]">
     <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 pt-10 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-8 lg:pb-24 lg:pt-16">
       <div className="relative z-10">
-        <h1 id="landing-title" className="text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.03em] text-[var(--sm-ink)] sm:text-6xl lg:text-[3.75rem]">
+        <h1 id="landing-title" className="text-[2rem] font-bold leading-[1.12] tracking-[-0.02em] text-[var(--sm-ink)] sm:text-[2.6rem] lg:text-[3rem]">
           {v.line1}
           <span className="relative mt-1 block w-fit text-[var(--sm-purple)]">
             {v.line2}
-            <svg aria-hidden viewBox="0 0 260 14" preserveAspectRatio="none" className="absolute -bottom-2.5 left-1 h-3 w-[88%] text-[var(--sm-purple)]">
+            <svg aria-hidden viewBox="0 0 260 14" preserveAspectRatio="none" className="absolute -bottom-2 left-0.5 h-[0.18em] w-[90%] text-[var(--sm-purple)] opacity-60">
               <path d="M3 9C62 2 158 2 257 8" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" />
             </svg>
           </span>
         </h1>
-        <p className="mt-8 max-w-[24.5rem] text-lg leading-8 text-[var(--sm-muted)]">{v.sub}</p>
+        <p className="mt-6 max-w-[22rem] text-base leading-7 text-[var(--sm-muted)]">{v.sub}</p>
 
         {/* Variant switcher dots */}
         <div className="mt-5 flex items-center gap-2" role="group" aria-label="Headline alternatives">
