@@ -5,7 +5,6 @@ import {
   Zap, Users, ShieldCheck, Smartphone, GraduationCap, FileText,
 } from 'lucide-react';
 import { LandingHero } from '@/components/landing/landing-hero';
-import { LandingHighlights } from '@/components/landing/landing-highlights';
 
 export const metadata: Metadata = {
   title: 'Revvo — AI Study Companion for University Students',
@@ -119,10 +118,7 @@ export default function Home() {
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <LandingHero />
 
-      {/* ── Highlights bar ───────────────────────────────────────────────── */}
-      <LandingHighlights />
-
-      {/* ── Features grid ────────────────────────────────────────────────── */}
+{/* ── Features grid ────────────────────────────────────────────────── */}
       <section id="features" className="sm-landing mx-auto max-w-6xl px-5 py-20">
         <div className="mb-12 max-w-2xl">
           <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
