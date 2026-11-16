@@ -121,7 +121,7 @@ export default function Home() {
 {/* ── Features grid ────────────────────────────────────────────────── */}
       <section id="features" className="sm-landing mx-auto max-w-6xl px-5 py-20">
         <div className="mb-12 max-w-2xl">
-          <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
             Everything you need to make progress
           </h2>
           <p className="mt-4 text-lg leading-7 text-zinc-600">
@@ -146,7 +146,7 @@ export default function Home() {
       <section id="how-it-works" className="border-y border-violet-100 bg-violet-50/60">
         <div className="mx-auto max-w-6xl px-5 py-20">
           <div className="mb-12 max-w-2xl">
-            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
               Up and studying in three steps
             </h2>
           </div>
@@ -166,7 +166,7 @@ export default function Home() {
       <section id="for-lecturers" className="mx-auto max-w-6xl px-5 py-20">
         <div className="grid gap-12 md:grid-cols-2 md:items-center">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl">
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
               Share your materials. Let AI do the tutoring.
             </h2>
             <p className="mt-4 leading-7 text-zinc-600">
@@ -232,7 +232,7 @@ export default function Home() {
       {/* ── CTA banner ────────────────────────────────────────────────────── */}
       <section className="bg-violet-700 py-20 text-white">
         <div className="mx-auto max-w-3xl px-5 text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Ready to study smarter?
           </h2>
           <p className="mt-4 text-lg text-violet-200">

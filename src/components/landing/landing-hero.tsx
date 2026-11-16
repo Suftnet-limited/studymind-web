@@ -7,7 +7,7 @@ export function LandingHero() {
   return <section aria-labelledby="landing-title" className="sm-landing relative overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#faf7ff_100%)]">
     <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 pt-10 sm:pt-14 lg:grid-cols-[1fr_1.05fr] lg:gap-8 lg:pb-24 lg:pt-16">
       <div className="relative z-10">
-        <h1 id="landing-title" className="text-[2rem] font-bold leading-[1.12] tracking-[-0.02em] text-[var(--sm-ink)] sm:text-[2.6rem] lg:text-[3rem]">
+        <h1 id="landing-title" className="text-[1.6rem] font-bold leading-[1.15] tracking-[-0.01em] text-[var(--sm-ink)] sm:text-[2rem] lg:text-[2.4rem]">
           Learning Made Easy.
         </h1>
         <p className="mt-6 max-w-[22rem] text-base leading-7 text-[var(--sm-muted)]">An AI-powered workspace to study, practise and stay organised.</p>
