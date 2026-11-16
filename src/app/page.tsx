@@ -120,7 +120,7 @@ export default function Home() {
 
 {/* ── Features grid ────────────────────────────────────────────────── */}
       <section id="features" className="sm-landing mx-auto max-w-6xl px-5 py-20">
-        <div className="mb-12 max-w-2xl">
+        <div className="mb-12 text-center">
           <h2 className="text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
             Everything you need to make progress
           </h2>
