@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ['/api/', '/my-learning/', '/dashboard/', '/lecturer/', '/billing/'],
       },
     ],
-    sitemap: 'https://studymind-web.onrender.com/sitemap.xml',
+    sitemap: 'https://ciquis.com/sitemap.xml',
   };
 }

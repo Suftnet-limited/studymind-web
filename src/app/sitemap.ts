@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const BASE = 'https://studymind-web.onrender.com';
+const BASE = 'https://ciquis.com';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

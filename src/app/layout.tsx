@@ -10,9 +10,9 @@ import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { AnalyticsProvider } from '@/components/analytics-provider';
 import { Suspense } from 'react';
 export const metadata: Metadata = {
-  title: { default: 'Revvo — AI Study Companion', template: '%s | Revvo' },
-  description: 'Revvo turns your course materials into an AI tutor, quizzes, flashcards and smart summaries. Join your module with an enrolment code and study smarter.',
-  metadataBase: new URL('https://studymind-web.onrender.com'),
+  title: { default: 'Ciquis — AI Study Companion', template: '%s | Ciquis' },
+  description: 'Ciquis turns your course materials into an AI tutor, quizzes, flashcards and smart summaries. Join your module with an enrolment code and study smarter.',
+  metadataBase: new URL('https://ciquis.com'),
   robots: { index: true, follow: true },
   icons: { icon: '/favicon.ico' },
 };
