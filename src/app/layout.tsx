@@ -7,6 +7,8 @@ import {prisma} from '@/lib/prisma';
 import './globals.css';
 import { QueryProvider } from '@/components/query-provider';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
+import { AnalyticsProvider } from '@/components/analytics-provider';
+import { Suspense } from 'react';
 export const metadata: Metadata = {
   title: { default: 'Revvo — AI Study Companion', template: '%s | Revvo' },
   description: 'Revvo turns your course materials into an AI tutor, quizzes, flashcards and smart summaries. Join your module with an enrolment code and study smarter.',
@@ -20,5 +22,5 @@ export default async function RootLayout({children}:{children:React.ReactNode}){
  const hasAiSession=!!(jar.get('studymind_ai_access')||jar.get('studymind_ai_refresh'));
  const user=userId?await prisma.user.findUnique({where:{id:userId},select:{role:true,name:true}}):null;
  return <html lang="en"><body className="bg-[#fcfcff] text-zinc-900 antialiased flex flex-col min-h-screen"><SiteHeader legacyUser={user?{name:user.name,role:user.role}:null} initialSignedIn={hasAiSession}/>
-<RecaptchaProvider><QueryProvider><main className="flex-1">{children}</main></QueryProvider></RecaptchaProvider><SiteFooter/></body></html>
+<Suspense><AnalyticsProvider /></Suspense><RecaptchaProvider><QueryProvider><main className="flex-1">{children}</main></QueryProvider></RecaptchaProvider><SiteFooter/></body></html>
 }
