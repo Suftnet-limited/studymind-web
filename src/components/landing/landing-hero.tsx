@@ -25,8 +25,6 @@ export function LandingHero() {
       </div>
 
       <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
-        <Image src="/landing/hero-backdrop.svg" alt="" aria-hidden width={900} height={800} unoptimized
-          className="pointer-events-none absolute -right-10 -top-10 w-[112%] max-w-none opacity-80 sm:-right-14" />
         <Image src="/landing/hero-composition.webp" width={851} height={720} priority quality={82}
             sizes="(min-width: 1024px) 560px, (min-width: 640px) 560px, 92vw"
             alt="A smiling student in a purple hoodie holding notebooks, surrounded by study tools."
