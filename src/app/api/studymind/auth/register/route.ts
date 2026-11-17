@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { aiIdentityRequest, setAiTokens } from '@/lib/studymind-identity';
 import { apiDetail } from '@/lib/studymind-validation.mjs';
+import { verifyRecaptcha } from '@/lib/recaptcha';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
@@ -8,6 +9,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Invalid registration' }, { status: 400 });
   const input = body as Record<string, unknown>;
+  if (!(await verifyRecaptcha(typeof input.recaptchaToken === 'string' ? input.recaptchaToken : ''))) return NextResponse.json({ error: 'Bot check failed. Please try again.' }, { status: 403 });
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
   const full_name = typeof input.full_name === 'string' ? input.full_name.trim() : '';
   const password = typeof input.password === 'string' ? input.password : '';

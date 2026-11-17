@@ -12,10 +12,10 @@ async function jsonResponse<T>(response: Response): Promise<T> {
 const authChanged = <T,>(value: T): T => { if (typeof window !== 'undefined') window.dispatchEvent(new Event('studymind-auth-changed')); return value; };
 
 export const studyMindIdentityService = {
-  login: async (email: string, password: string) => authChanged(await jsonResponse<{ authenticated: boolean }>(
+  login: async (email: string, password: string, recaptchaToken = '') => authChanged(await jsonResponse<{ authenticated: boolean }>(
     await fetch('/api/studymind/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }), credentials: 'same-origin',
+      body: JSON.stringify({ email, password, recaptchaToken }), credentials: 'same-origin',
     }),
   )),
   overview: async () => jsonResponse<LearningOverview>(
