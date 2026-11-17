@@ -11,20 +11,26 @@ import { CreateModule, CreateModuleDialog, JoinCourse, ModuleTable, StatTiles, s
 import { dashboardStats } from '@/lib/dashboard.mjs';
 import { Mail, Lock } from 'lucide-react';
 import { currentNext, withNext } from '@/lib/return-to';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
-function SignIn() {
+// reCAPTCHA loads only while the sign-in form is on screen, not for the signed-in dashboard.
+function SignIn() { return <RecaptchaProvider><SignInForm /></RecaptchaProvider>; }
+
+function SignInForm() {
   const cache = useQueryClient();
   const router = useRouter();
   const [next, setNext] = useState<string | null>(null);
   useEffect(() => setNext(currentNext()), []);
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
-    mutationFn: () => studyMindIdentityService.login(email, password),
+    mutationFn: async () => studyMindIdentityService.login(email, password, executeRecaptcha ? await executeRecaptcha('login') : ''),
     onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); const back = currentNext(); if (back) router.replace(back); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
