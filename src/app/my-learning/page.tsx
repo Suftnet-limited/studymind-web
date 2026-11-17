@@ -9,17 +9,23 @@ import { ErrorBox, LoadingBlock } from '@/components/learning/states';
 import { CreateModule, CreateModuleDialog, JoinCourse, ModuleTable, StatTiles, statIcons, type Stat } from '@/components/learning/dashboard';
 import { dashboardStats } from '@/lib/dashboard.mjs';
 import { Mail, Lock } from 'lucide-react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
-function SignIn() {
+// reCAPTCHA loads only while the sign-in form is on screen, not for the signed-in dashboard.
+function SignIn() { return <RecaptchaProvider><SignInForm /></RecaptchaProvider>; }
+
+function SignInForm() {
   const cache = useQueryClient();
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
-    mutationFn: () => studyMindIdentityService.login(email, password),
+    mutationFn: async () => studyMindIdentityService.login(email, password, executeRecaptcha ? await executeRecaptcha('login') : ''),
     onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
