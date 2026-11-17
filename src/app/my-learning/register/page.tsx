@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ChevronDown, Lock, Mail, User } from 'lucide-react';
 import { currentNext, withNext } from '@/lib/return-to';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit, PasswordChecks } from '@/components/auth/auth-field';
 
@@ -15,10 +17,13 @@ const ROLE_HELP: Record<string, string> = {
 };
 const MIN_PASSWORD = 12;
 
-export default function RegisterLearning() {
+export default function RegisterLearning() { return <RecaptchaProvider><RegisterForm /></RecaptchaProvider>; }
+
+function RegisterForm() {
   const router = useRouter();
   const [next, setNext] = useState<string | null>(null);
   useEffect(() => setNext(currentNext()), []);
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [roles, setRoles] = useState<string[]>(['student', 'lecturer']);
@@ -37,9 +42,10 @@ export default function RegisterLearning() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('');
     try {
+      const recaptchaToken = executeRecaptcha ? await executeRecaptcha('register') : '';
       const response = await fetch('/api/studymind/auth/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, full_name: fullName, password, role }),
+        body: JSON.stringify({ email, full_name: fullName, password, role, recaptchaToken }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to create account');
