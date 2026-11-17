@@ -1,12 +1,17 @@
 'use client';
 import {type FormEvent} from 'react';
 import {useAuthSubmit} from '@/hooks/use-auth-submit';
+import {RecaptchaProvider} from '@/components/recaptcha-provider';
 import Link from 'next/link';
 
 import {Button} from '@/components/ui/button';
 import {Input} from '@/components/ui/input';
 import {Card,CardContent,CardHeader,CardTitle,CardDescription} from '@/components/ui/card';
+// reCAPTCHA is loaded only here (sign-in and sign-up), not site-wide.
 export function AuthForm({mode}:{mode:'login'|'register'}){
+ return <RecaptchaProvider><AuthFormInner mode={mode}/></RecaptchaProvider>
+}
+function AuthFormInner({mode}:{mode:'login'|'register'}){
  const {submit:submitAuth,busy,error}=useAuthSubmit(mode);
  const register=mode==='register';
  function submit(e:FormEvent<HTMLFormElement>){ e.preventDefault(); submitAuth(e.currentTarget); }
