@@ -2,10 +2,18 @@
 import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { Mail, MailCheck } from 'lucide-react';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
+import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
+// reCAPTCHA is loaded only on this page (and sign-in / sign-up), not site-wide.
 export default function ForgotPassword() {
+  return <RecaptchaProvider><ForgotPasswordForm /></RecaptchaProvider>;
+}
+
+function ForgotPasswordForm() {
+  const { executeRecaptcha } = useGoogleReCaptcha();
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -13,7 +21,8 @@ export default function ForgotPassword() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('');
     try {
-      const response = await fetch('/api/studymind/auth/password-recovery/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+      const recaptchaToken = executeRecaptcha ? await executeRecaptcha('forgot_password') : '';
+      const response = await fetch('/api/studymind/auth/password-recovery/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, recaptchaToken }) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || 'Something went wrong. Please try again.');
       setSent(true);
