@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { aiIdentityRequest } from '@/lib/studymind-identity';
+import { verifyRecaptcha } from '@/lib/recaptcha';
 export const runtime = 'nodejs';
 
 /** Asks the backend to email a reset link. The answer is always the same, so it never reveals whether an account exists. */
 export async function POST(request: Request) {
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }); }
+  const recaptchaToken = body && typeof body === 'object' && typeof (body as Record<string, unknown>).recaptchaToken === 'string' ? (body as Record<string, string>).recaptchaToken : '';
+  if (!(await verifyRecaptcha(recaptchaToken))) return NextResponse.json({ error: 'Bot check failed. Please try again.' }, { status: 403 });
   const email = body && typeof body === 'object' && typeof (body as Record<string, unknown>).email === 'string' ? ((body as Record<string, string>).email).trim().toLowerCase() : '';
   if (!email || email.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Enter a valid email address' }, { status: 400 });
   try {
