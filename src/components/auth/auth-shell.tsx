@@ -1,12 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, type ReactNode } from 'react';
-import { BookOpen, GraduationCap, MessagesSquare, Sparkles } from 'lucide-react';
+import { BookOpen, GraduationCap, MessagesSquare } from 'lucide-react';
 
 /**
- * Full-screen split layout for sign-in and registration (adapted from Learnify's auth screens, in StudyMind's own identity).
- * It sits above the site header and the learning navigation, so those are made inert while it is shown: keyboard and screen-reader
- * users go straight to the form instead of tabbing through links they cannot see.
+ * Full-screen split layout for sign-in and registration.
+ * It sits above the site header and the learning navigation, so those are made inert while it is shown.
  */
 export function AuthShell({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -21,16 +20,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
     <div className="relative flex min-h-full items-center justify-center p-4 sm:p-6">
       <main className="relative z-10 w-full max-w-[920px] overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_28px_80px_rgba(31,41,55,0.10)]">
         <div className="flex min-h-[600px]">
-          <section className="relative hidden w-[42%] flex-col overflow-hidden border-r border-violet-100/70 bg-gradient-to-br from-[#f3efff] via-[#f5f3ff] to-[#eef2ff] p-9 lg:flex" aria-label="About StudyMind">
+          <section className="relative hidden w-[42%] flex-col overflow-hidden border-r border-violet-100/70 bg-gradient-to-br from-[#f3efff] via-[#f5f3ff] to-[#eef2ff] p-9 lg:flex" aria-label="About Revvo">
             <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full border-[42px] border-white/45" aria-hidden />
             <div className="pointer-events-none absolute -bottom-28 -left-24 h-72 w-72 rounded-full bg-violet-100/50" aria-hidden />
             <Link href="/" className="relative z-10 flex items-center gap-3 text-lg font-extrabold tracking-tight text-violet-700">
-              <span className="rounded-xl bg-violet-600 p-2 text-white shadow-[0_10px_25px_rgba(124,58,237,0.25)]"><BookOpen className="size-5" aria-hidden /></span>StudyMind
+              <span className="rounded-xl bg-violet-600 p-2 text-white shadow-[0_10px_25px_rgba(124,58,237,0.25)]"><BookOpen className="size-5" aria-hidden /></span>Revvo
             </Link>
             <div className="relative z-10 my-auto py-12">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200/70 bg-white/70 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-violet-700 shadow-sm">
-                <Sparkles className="size-3" aria-hidden /> Your AI study companion
-              </span>
               <h2 className="mt-6 max-w-sm text-[2rem] font-extrabold leading-[1.15] tracking-tight text-slate-900">Learn smarter from your own materials.</h2>
               <p className="mt-4 max-w-sm text-sm leading-6 text-slate-600">Upload your notes and slides, then ask questions, practise with quizzes and flashcards, and get summaries, all in one calm workspace.</p>
               <ul className="mt-8 space-y-3">
@@ -44,11 +40,11 @@ export function AuthShell({ children }: { children: ReactNode }) {
                 </li>
               </ul>
             </div>
-            <p className="relative z-10 text-[11px] leading-5 text-slate-400">One account for StudyMind Web and Mobile.</p>
+            <p className="relative z-10 text-[11px] leading-5 text-slate-400">One account for Revvo Web and Mobile.</p>
           </section>
           <section className="flex flex-1 flex-col justify-center bg-white px-6 py-10 sm:px-12 lg:px-14">
             <Link href="/" className="mb-8 flex items-center gap-2.5 text-base font-extrabold text-violet-700 lg:hidden">
-              <span className="rounded-lg bg-violet-600 p-1.5 text-white"><BookOpen className="size-4" aria-hidden /></span>StudyMind
+              <span className="rounded-lg bg-violet-600 p-1.5 text-white"><BookOpen className="size-4" aria-hidden /></span>Revvo
             </Link>
             <div className="w-full max-w-[360px] self-center">{children}</div>
           </section>

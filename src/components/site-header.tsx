@@ -13,8 +13,8 @@ type LegacyUser = { name: string; role: string } | null;
 type NavItem = { href: string; label: string; icon: ReactNode; active: boolean };
 
 function Logo() {
-  return <Link href="/" className="flex shrink-0 items-center rounded-lg text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2">
-    <BrandMark className="h-8 w-auto sm:h-9" /><span className="sr-only">StudyMind</span>
+  return <Link href="/" aria-label="Revvo home" className="flex shrink-0 items-center rounded-lg text-violet-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2">
+    <BrandMark className="text-xl sm:text-2xl" />
   </Link>;
 }
 

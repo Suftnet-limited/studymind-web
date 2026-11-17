@@ -9,7 +9,7 @@ import {currentUserId} from '@/lib/session';
 export default async function Dashboard(){
  const id=await currentUserId();if(!id)redirect('/sign-in');
  const user=await prisma.user.findUnique({where:{id},include:{modules:{take:6,orderBy:{createdAt:'desc'}},enrolments:{take:6,include:{module:true}}}});if(!user)redirect('/sign-in');
- const lecturer=user.role==='LECTURER';const modules=lecturer?user.modules:user.enrolments.map(e=>e.module);
+ type Module={id:string;title:string;description:string|null};const lecturer=user.role==='LECTURER';const modules:Module[]=lecturer?user.modules:user.enrolments.map((e:{module:Module})=>e.module);
  const moduleCount=lecturer?await prisma.module.count({where:{lecturerId:id}}):await prisma.enrolment.count({where:{userId:id}});
  return <div className="mx-auto max-w-6xl space-y-9 px-5 py-10 sm:py-12">
  <PageHeading eyebrow={lecturer?'Lecturer workspace':'Student workspace'} title={`Welcome back, ${user.name.split(' ')[0]}`} description={lecturer?'Manage your modules, students and teaching materials.':'Continue learning with your courses and AI study tools.'} action={lecturer?<Link href="/lecturer" className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">Teaching dashboard</Link>:<Link href="/modules" className="rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-700">My modules</Link>}/>

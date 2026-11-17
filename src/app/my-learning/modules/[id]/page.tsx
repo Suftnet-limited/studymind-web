@@ -81,7 +81,7 @@ export default function CanonicalModulePage() {
       </ul>
     </ToolPanel>}
     side={<SideCard title="Upload course material" icon={<Upload className="size-4" />}>
-      <p className="mb-4 text-sm leading-6 text-zinc-500">PDFs, slides and notes are indexed so StudyMind AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV. Maximum 50 MB.</p>
+      <p className="mb-4 text-sm leading-6 text-zinc-500">PDFs, slides and notes are indexed so StudyMind AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV. Maximum 200 MB.</p>
       <form onSubmit={submit} className="space-y-4">
         <input aria-label="Document" type="file" required accept={ALLOWED_EXTENSIONS.join(',')} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-2 file:font-semibold file:text-violet-700"
           onChange={e => pick(e.target.files?.[0] ?? null)} />

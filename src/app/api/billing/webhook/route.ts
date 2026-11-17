@@ -21,7 +21,8 @@ async function activate(session:Stripe.Checkout.Session){
  if(!user)return;
  const now=new Date();
  if(charge.amount_refunded>=charge.amount)return;
- await prisma.$transaction(async tx=>{
+ // eslint-disable-next-line @typescript-eslint/no-explicit-any
+ await prisma.$transaction(async (tx: any)=>{
   const existing=await tx.accessPass.findUnique({where:{stripePaymentIntentId:paymentIntentId}});
   if(existing)return;
   const active=await tx.accessPass.findFirst({where:{userId,status:'ACTIVE',expiresAt:{gt:now}},orderBy:{expiresAt:'desc'},select:{expiresAt:true}});

@@ -28,7 +28,7 @@ export function StatTiles({ stats }: { stats: Stat[] }) {
   return <ul aria-label="Overview" className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
     {stats.map(s => <li key={s.label} className={cn('flex items-center gap-3 rounded-3xl bg-gradient-to-br p-4 sm:gap-4 sm:p-5', TONES[s.tone].tile)}>
       <span aria-hidden className={cn('flex size-12 shrink-0 items-center justify-center rounded-full sm:size-14', TONES[s.tone].dot)}>{s.icon}</span>
-      <div className="min-w-0"><p className="text-2xl font-extrabold leading-none text-[#111034] sm:text-3xl">{s.value}</p><p className="mt-1.5 text-sm text-zinc-600">{s.label}</p></div>
+      <div className="min-w-0"><p className="text-2xl font-extrabold leading-none text-zinc-900 sm:text-3xl">{s.value}</p><p className="mt-1.5 text-sm text-zinc-900">{s.label}</p></div>
     </li>)}
   </ul>;
 }

@@ -10,7 +10,7 @@ export type LearningOverview = { user: CanonicalUser; modules: { owned: number; 
 type TokenResponse = { access_token: string; refresh_token: string; expires_in: number };
 
 /** Routes Web may call on the canonical AI backend. Anything else is refused before a request is made. */
-const IDENTITY_PATH = /^\/api\/auth\//;
+const IDENTITY_PATH = /^\/api\/auth\//;  // covers /api/auth/magic-verify and all other auth routes
 const LEARNING_PATH = /^\/api\/(billing\/checkout$|sessions(\?module_id=[0-9a-f-]{36})?$|sessions\/[0-9a-f-]{36}$|modules(\/|$)|chat$|quiz\/[0-9a-f-]{36}\/submit$|quiz\/generate$|quiz\/history\/list\?module_id=[0-9a-f-]{36}$|quiz\/[0-9a-f-]{36}$|flashcards\/generate$|flashcards\?module_id=[0-9a-f-]{36}$|flashcards\/[0-9a-f-]{36}$|summarise$|summarise\?module_id=[0-9a-f-]{36}$|summarise\/[0-9a-f-]{36}$)/i;
 
 export async function aiIdentityRequest(path: string, init: RequestInit = {}) {
@@ -94,6 +94,28 @@ export function authenticatedAiRequest(path: string): Promise<Response | null> {
 export async function authenticatedAiFetch(path: string, init: RequestInit = {}): Promise<Response | null> {
   if (!LEARNING_PATH.test(path)) throw new Error('Invalid learning API route');
   return callWithRecovery(path, init);
+}
+
+/** Returns a valid access token for the current session (refreshing if needed), or null if there is no session.
+ *  Used by the direct-upload flow: the browser uploads large files straight to the AI backend,
+ *  bypassing Render's 30-second request timeout. The token is short-lived and read-once. */
+export async function getAccessToken(): Promise<string | null> {
+  const jar = await cookies();
+  const access = jar.get(accessCookie)?.value;
+  const refresh = jar.get(refreshCookie)?.value;
+  if (!access && !refresh) return null;
+  if (access) {
+    // Quick check: try to use it. If it's still valid return it immediately.
+    // We don't want to burn a network round-trip just to verify — the browser will get a 401
+    // on the direct upload and can retry after calling this endpoint again.
+    return access;
+  }
+  if (!refresh) { await clearAiTokens(); return null; }
+  const outcome = await refreshTokens(refresh);
+  if (outcome.kind === 'unavailable') return null;
+  if (outcome.kind === 'invalid') { await clearAiTokens(); return null; }
+  await setAiTokens(outcome.tokens);
+  return outcome.tokens.access_token;
 }
 
 /** Sign out: revoke the refresh token on the backend (best effort, so a copied cookie cannot be replayed), forget any
