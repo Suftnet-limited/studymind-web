@@ -17,19 +17,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Stream the raw multipart body straight through — do NOT call req.formData() which
-  // buffers the entire payload (PDFs) into memory and can exceed Render's 30s timeout.
-  const contentType = req.headers.get('content-type');
-  if (!contentType?.includes('multipart/form-data')) {
-    return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 });
-  }
-  const init = {
+  const form = await req.formData().catch(() => null);
+  if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
+  // Pass an explicit 120 s signal so the upstream fetch doesn't hit the 12 s default.
+  const upstream = await authenticatedAiFetch('/api/assignments', {
     method: 'POST',
-    body: req.body,
-    headers: { 'content-type': contentType },
-    duplex: 'half',
-  } as unknown as RequestInit;
-  const upstream = await authenticatedAiFetch('/api/assignments', init);
+    body: form,
+    signal: AbortSignal.timeout(120_000),
+  });
   if (!upstream) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const text = await upstream.text().catch(() => '');
   let body: unknown;
