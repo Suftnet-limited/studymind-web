@@ -23,13 +23,13 @@ export async function POST(req: NextRequest) {
   if (!contentType?.includes('multipart/form-data')) {
     return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 });
   }
-  const upstream = await authenticatedAiFetch('/api/assignments', {
+  const init = {
     method: 'POST',
-    // @ts-expect-error — Node 18+ fetch requires duplex:'half' when body is a ReadableStream
     body: req.body,
     headers: { 'content-type': contentType },
     duplex: 'half',
-  } as RequestInit);
+  } as unknown as RequestInit;
+  const upstream = await authenticatedAiFetch('/api/assignments', init);
   if (!upstream) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const body = await upstream.json().catch(() => null);
   return NextResponse.json(body, { status: upstream.status });
