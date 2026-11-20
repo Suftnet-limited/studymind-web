@@ -14,7 +14,9 @@ const AI_COOKIES = ['studymind_ai_access', 'studymind_ai_refresh'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  // These /lecturer/* paths are used by the AI app — don't redirect them
+  // The lecturer assignment-detail page lives under /lecturer/modules/:id/assignments/**
+  // and uses AI-only auth (no legacy session). Exempt it so students with AI cookies
+  // aren't redirected away when the lecturer shares a link.
   if (/^\/lecturer\/modules\/[^/]+\/assignments(\/|$)/.test(pathname)) return NextResponse.next();
   const has = (name: string) => Boolean(request.cookies.get(name)?.value);
   if (has(LEGACY_SESSION) || !AI_COOKIES.some(has)) return NextResponse.next();
