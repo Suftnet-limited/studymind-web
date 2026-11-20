@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { ApiError, studyMindModulesService } from '@/services/studymind-modules.service';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
-import { BookOpen, CalendarDays, FileText, Files, Upload } from 'lucide-react';
+import { BookOpen, CalendarDays, FileText, Files, Upload, ClipboardList } from 'lucide-react';
 import { CopyButton } from '@/components/learning/copy-button';
 import { SideCard, ToolLayout, ToolPanel, btnPrimary } from '@/components/learning/ai/layout';
 import { StudyTools } from '@/components/learning/ai/study-tools';
@@ -139,7 +139,7 @@ export default function CanonicalModulePage() {
         <p className="w-full text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
       </div>}
 
-      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} />
+      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} />
     </>}
   </div>;
 }

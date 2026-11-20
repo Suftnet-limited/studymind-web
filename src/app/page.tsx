@@ -7,9 +7,9 @@ import {
 import { LandingHero } from '@/components/landing/landing-hero';
 
 export const metadata: Metadata = {
-  title: 'Revvo — AI Study Companion for University Students',
+  title: 'Ciquis — AI Study Companion for University Students',
   description:
-    'Revvo turns your course materials into an AI tutor, quizzes, flashcards and smart summaries. Join your lecturer\'s module with a code and study smarter from day one.',
+    'Ciquis turns your course materials into an AI tutor, quizzes, flashcards and smart summaries. Join your lecturer\'s module with a code and study smarter from day one.',
   keywords: [
     'AI study app', 'AI tutor for students', 'university study tool',
     'quiz generator from notes', 'flashcard maker', 'course summary AI',
@@ -18,23 +18,23 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     type: 'website',
-    title: 'Revvo — AI Study Companion for University Students',
+    title: 'Ciquis — AI Study Companion for University Students',
     description:
       'Turn your course materials into an AI tutor, quizzes and summaries. Join your module with a code — study smarter from day one.',
     url: 'https://studymind-web.onrender.com',
-    siteName: 'Revvo',
+    siteName: 'Ciquis',
     images: [
       {
         url: '/landing/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Revvo — AI Study Companion',
+        alt: 'Ciquis — AI Study Companion',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Revvo — AI Study Companion for University Students',
+    title: 'Ciquis — AI Study Companion for University Students',
     description: 'Turn your course materials into an AI tutor, quizzes and summaries.',
     images: ['/landing/og-image.png'],
   },
@@ -49,7 +49,7 @@ const FEATURES = [
     title: 'AI Tutor',
     color: { bg: 'bg-violet-50', icon: 'text-violet-600', border: 'border-violet-100', hover: 'hover:border-violet-200' },
     description:
-      'Ask anything about your course. Revvo answers from your module documents and cites the source — so you know exactly where to look.',
+      'Ask anything about your course. Ciquis answers from your module documents and cites the source — so you know exactly where to look.',
   },
   {
     Icon: Layers,
@@ -84,7 +84,7 @@ const FEATURES = [
     title: 'Study Anywhere',
     color: { bg: 'bg-indigo-50', icon: 'text-indigo-600', border: 'border-indigo-100', hover: 'hover:border-indigo-200' },
     description:
-      'Access Revvo on the web or on your phone. Your modules, chats and study history stay in sync across every device.',
+      'Access Ciquis on the web or on your phone. Your modules, chats and study history stay in sync across every device.',
   },
 ];
 
@@ -125,7 +125,7 @@ export default function Home() {
             Everything you need to make progress
           </h2>
           <p className="mt-4 text-lg leading-7 text-zinc-600">
-            Revvo works with the materials your lecturer already shares — no extra effort, just better results.
+            Ciquis works with the materials your lecturer already shares — no extra effort, just better results.
           </p>
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -170,7 +170,7 @@ export default function Home() {
               Share your materials. Let AI do the tutoring.
             </h2>
             <p className="mt-4 leading-7 text-zinc-600">
-              Upload your lecture slides, notes and handouts. Revvo indexes them so your students can ask questions,
+              Upload your lecture slides, notes and handouts. Ciquis indexes them so your students can ask questions,
               generate quizzes and get summaries — all grounded in what you taught.
             </p>
             <ul className="mt-6 space-y-3">
@@ -236,7 +236,7 @@ export default function Home() {
             Ready to study smarter?
           </h2>
           <p className="mt-4 text-lg text-violet-200">
-            Join thousands of students using Revvo to make the most of their course materials.
+            Join thousands of students using Ciquis to make the most of their course materials.
           </p>
           <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/my-learning/register"

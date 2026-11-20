@@ -52,7 +52,7 @@ function RegisterForm() {
     finally { setBusy(false); }
   }
   return <AuthShell>
-    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create your Revvo account</h1>
+    <h1 className="text-2xl font-bold tracking-tight text-slate-900">Create your Ciquis account</h1>
     <p className="mt-1.5 text-sm text-slate-500">One account for web and mobile. Your courses and materials stay in sync across every device.</p>
     <form onSubmit={submit} className="mt-7">
       {error && <AuthError message={error} />}

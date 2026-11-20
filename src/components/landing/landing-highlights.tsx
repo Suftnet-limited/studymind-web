@@ -10,7 +10,7 @@ const HIGHLIGHTS = [
 /** Three short highlights under the hero. No statistics, ratings or testimonials. */
 export function LandingHighlights() {
   return <section aria-labelledby="highlights-title" className="sm-landing bg-white">
-    <h2 id="highlights-title" className="sr-only">Why Revvo</h2>
+    <h2 id="highlights-title" className="sr-only">Why Ciquis</h2>
     <ul className="mx-auto grid max-w-6xl divide-y divide-[var(--sm-border)] px-5 py-4 md:grid-cols-3 md:divide-x md:divide-y-0 md:py-10">
       {HIGHLIGHTS.map(({ icon, title, text }) => <li key={title} className="flex items-center gap-4 py-6 md:justify-center md:px-8 md:py-2">
         <Image src={icon} alt="" aria-hidden width={32} height={32} unoptimized className="size-9 shrink-0" />
