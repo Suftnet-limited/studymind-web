@@ -16,7 +16,9 @@ const LEARNING_PATH = /^\/api\/(billing\/checkout$|sessions(\?module_id=[0-9a-f-
 export async function aiIdentityRequest(path: string, init: RequestInit = {}) {
   if (!IDENTITY_PATH.test(path) && !LEARNING_PATH.test(path)) throw new Error('Invalid StudyMind API route');
   // AI generation can take far longer than an identity call, so callers may pass their own signal.
-  return fetch(base + path, { ...init, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(12000) });
+  // File uploads (multipart POST) need a longer timeout; default 12 s is enough for JSON/GET.
+  const isUpload = init.method === 'POST' && init.body instanceof FormData;
+  return fetch(base + path, { ...init, cache: 'no-store', signal: init.signal ?? AbortSignal.timeout(isUpload ? 120000 : 12000) });
 }
 
 export async function setAiTokens(tokens: TokenResponse) {

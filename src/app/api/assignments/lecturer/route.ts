@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticatedAiFetch } from '@/lib/studymind-identity';
 export const runtime = 'nodejs';
+export const maxDuration = 120; // file uploads can take a while
 
 export async function GET(req: NextRequest) {
   const moduleId = req.nextUrl.searchParams.get('module_id');
