@@ -7,10 +7,12 @@ import { ChatTab } from './chat-tab';
 import { QuizTab } from './quiz-tab';
 import { FlashcardsTab } from './flashcards-tab';
 import { SummaryTab } from './summary-tab';
+import { AssignmentsTab } from './assignments-tab';
 
 const TABS = [
   { id: 'documents', label: 'Documents' }, { id: 'chat', label: 'Chat' }, { id: 'quiz', label: 'Quiz' },
   { id: 'flashcards', label: 'Flashcards' }, { id: 'summary', label: 'Summary' },
+  { id: 'assignments', label: 'Assignments' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -18,7 +20,7 @@ type TabId = (typeof TABS)[number]['id'];
  * The module's sections: Documents (upload and materials) and the four AI learning features. Every panel stays mounted so a chat
  * or a quiz survives tab changes. Chat is the default; its "no materials yet" hint, the paperclip and the suggestion chips jump to other sections.
  */
-export function StudyTools({ moduleId, hasMaterials, documents, userName }: { moduleId: string; hasMaterials: boolean; documents: ReactNode; userName: string }) {
+export function StudyTools({ moduleId, hasMaterials, documents, userName, isOwner = false }: { moduleId: string; hasMaterials: boolean; documents: ReactNode; userName: string; isOwner?: boolean }) {
   const [tab, setPicked] = useState<TabId>('chat');
   // Topic suggestions (the module's weeks and indexed documents), shared by Quiz, Flashcards and Summary. Reloaded when one of those tabs opens, so new uploads show up.
   const [outline, setOutline] = useState<Outline | null>(null);
@@ -44,5 +46,6 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName }: { mo
     <div id="ai-panel-quiz" role="tabpanel" aria-labelledby="ai-tab-quiz" hidden={tab !== 'quiz'}><QuizTab moduleId={moduleId} outline={outline} /></div>
     <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} outline={outline} /></div>
     <div id="ai-panel-summary" role="tabpanel" aria-labelledby="ai-tab-summary" hidden={tab !== 'summary'}><SummaryTab moduleId={moduleId} outline={outline} /></div>
+    <div id="ai-panel-assignments" role="tabpanel" aria-labelledby="ai-tab-assignments" hidden={tab !== 'assignments'}><AssignmentsTab moduleId={moduleId} isOwner={isOwner} /></div>
   </section>;
 }

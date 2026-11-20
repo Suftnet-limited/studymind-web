@@ -139,8 +139,7 @@ export default function CanonicalModulePage() {
         <p className="w-full text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
       </div>}
 
-      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} />
-      {!isOwner && <Link href={`/my-learning/modules/${id}/assignments`} className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"><ClipboardList className="size-5 text-violet-600" /> View assignments</Link>}
+      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} />
     </>}
   </div>;
 }
