@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { ApiError, studyMindModulesService } from '@/services/studymind-modules.service';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
-import { BookOpen, CalendarDays, FileText, Files, Upload } from 'lucide-react';
+import { BookOpen, CalendarDays, FileText, Files, Upload, ClipboardList } from 'lucide-react';
 import { CopyButton } from '@/components/learning/copy-button';
 import { SideCard, ToolLayout, ToolPanel, btnPrimary } from '@/components/learning/ai/layout';
 import { StudyTools } from '@/components/learning/ai/study-tools';
@@ -140,6 +140,7 @@ export default function CanonicalModulePage() {
       </div>}
 
       <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} />
+      {!isOwner && <Link href={`/my-learning/modules/${id}/assignments`} className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"><ClipboardList className="size-5 text-violet-600" /> View assignments</Link>}
     </>}
   </div>;
 }
