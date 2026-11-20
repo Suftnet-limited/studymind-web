@@ -112,39 +112,18 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
     const selectedPreset = GRADING_PRESETS.find(p => p.id === preset);
     const gradingPrompt = [selectedPreset?.prompt, customPrompt.trim()].filter(Boolean).join('\n\n');
 
-    // Direct-upload pattern: fetch a short-lived token, then POST straight to the
-    // AI backend — same as the document upload flow, bypassing any serverless timeout.
-    const AI_BASE = process.env.NEXT_PUBLIC_AI_BASE_URL ?? 'https://api.aismartlearner.com';
-
-    const getToken = async (): Promise<string> => {
-      const res = await fetch('/api/studymind/upload-token', { cache: 'no-store' });
-      if (!res.ok) throw new Error('Authentication required');
-      const { token } = await res.json() as { token: string };
-      return token;
-    };
-
-    const doUpload = async (token: string): Promise<Response> => {
-      const form = new FormData();
-      form.append('module_id', moduleId);
-      form.append('title', title);
-      form.append('description', description);
-      form.append('due_at', new Date(dueAt).toISOString());
-      form.append('max_score', String(maxScore));
-      form.append('grading_prompt', gradingPrompt);
-      form.append('brief', brief!);
-      form.append('scheme', scheme!);
-      return fetch(`${AI_BASE}/api/assignments`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: form,
-      });
-    };
+    const form = new FormData();
+    form.append('module_id', moduleId);
+    form.append('title', title);
+    form.append('description', description);
+    form.append('due_at', new Date(dueAt).toISOString());
+    form.append('max_score', String(maxScore));
+    form.append('grading_prompt', gradingPrompt);
+    form.append('brief', brief!);
+    form.append('scheme', scheme!);
 
     try {
-      let token = await getToken();
-      let res = await doUpload(token);
-      // Retry once if token expired mid-upload
-      if (res.status === 401) { token = await getToken(); res = await doUpload(token); }
+      const res = await fetch('/api/assignments/lecturer', { method: 'POST', body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setFormError((data as { detail?: string }).detail || 'Failed to create assignment.'); return; }
       setDone(true);

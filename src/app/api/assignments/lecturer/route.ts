@@ -17,9 +17,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const form = await req.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
-  const upstream = await authenticatedAiFetch('/api/assignments', { method: 'POST', body: form });
+  // Stream the raw multipart body straight through — do NOT call req.formData() which
+  // buffers the entire payload (PDFs) into memory and can exceed Render's 30s timeout.
+  const contentType = req.headers.get('content-type');
+  if (!contentType?.includes('multipart/form-data')) {
+    return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 });
+  }
+  const upstream = await authenticatedAiFetch('/api/assignments', {
+    method: 'POST',
+    // @ts-expect-error — Next.js Request body is a ReadableStream; Node fetch accepts it
+    body: req.body,
+    headers: { 'content-type': contentType },
+  });
   if (!upstream) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const body = await upstream.json().catch(() => null);
   return NextResponse.json(body, { status: upstream.status });
