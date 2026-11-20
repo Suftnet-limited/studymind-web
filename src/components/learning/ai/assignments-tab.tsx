@@ -4,7 +4,7 @@ import {
   ClipboardList, Clock, Users, ArrowUpRight, Plus, FileText,
   CheckCircle2, AlertCircle, Loader2, Upload, X, CircleAlert,
 } from 'lucide-react';
-import { ToolLayout, ToolPanel, SideCard } from './layout';
+import { ToolLayout, ToolPanel } from './layout';
 
 type Assignment = {
   id: string;
@@ -188,19 +188,19 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
   );
 
   const lecturerSideCard = (
-    <SideCard title="Create an assignment" icon={<Plus className="size-4" />}>
+    <div className="rounded-3xl border border-zinc-200/80 bg-white p-5 shadow-[0_18px_50px_rgba(76,29,149,0.04)]">
       <p className="mb-4 text-sm leading-6 text-zinc-500">
         Before you create an assignment, make sure you have both files ready to upload:
       </p>
       <ul className="mb-5 space-y-3">
-        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="size-4" /></span>
           <div>
             <p className="text-sm font-semibold text-zinc-900">Assignment brief</p>
             <p className="text-xs text-zinc-500">The task description shared with students (PDF or Word).</p>
           </div>
         </li>
-        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><CircleAlert className="size-4" /></span>
           <div>
             <p className="text-sm font-semibold text-zinc-900">Marking scheme <span className="text-xs font-normal text-zinc-400">(private)</span></p>
@@ -212,12 +212,19 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold! text-white hover:bg-violet-700">
         <Plus className="size-4" /> New assignment
       </button>
-    </SideCard>
+    </div>
   );
 
   return (
     <>
-      <ToolLayout main={assignmentList} side={isOwner ? lecturerSideCard : undefined} />
+      {isOwner ? (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="min-w-0">{assignmentList}</div>
+          <aside className="min-w-0 lg:sticky lg:top-6 lg:h-fit">{lecturerSideCard}</aside>
+        </div>
+      ) : (
+        <div className="min-w-0">{assignmentList}</div>
+      )}
 
       {/* Overlay */}
       <div
