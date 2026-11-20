@@ -98,9 +98,9 @@ export default function NewAssignmentPage() {
   const [moduleId, setModuleId] = useState('');
 
   useEffect(() => {
-    if (params && typeof params.id === 'string') setModuleId(params.id);
-    else if (params && params.id instanceof Promise) params.id.then(setModuleId);
-    else Promise.resolve(params).then((p: Record<string, string>) => setModuleId(p.id));
+    const id = params?.id;
+    if (typeof id === 'string') setModuleId(id);
+    else if (id instanceof Promise) void id.then(setModuleId);
   }, [params]);
 
   const [title, setTitle] = useState('');
