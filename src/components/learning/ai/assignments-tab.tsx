@@ -2,8 +2,9 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import {
   ClipboardList, Clock, Users, ArrowUpRight, Plus, FileText,
-  CheckCircle2, AlertCircle, Loader2, Upload, X,
+  CheckCircle2, AlertCircle, Loader2, Upload, X, CircleAlert,
 } from 'lucide-react';
+import { ToolLayout, ToolPanel, SideCard } from './layout';
 
 type Assignment = {
   id: string;
@@ -135,50 +136,34 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
     </div>
   );
 
-  return (
-    <>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-5">
-        <p className="text-sm text-zinc-500">
-          {isOwner
-            ? 'Manage assignments. Click the arrow icon to view student submissions.'
-            : 'Download each brief, submit before the deadline, and view AI feedback once graded.'}
-        </p>
-        {isOwner && (
-          <button onClick={openDrawer}
-            className="flex shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold! text-white hover:bg-violet-700">
-            <Plus className="size-4" /> New assignment
-          </button>
-        )}
-      </div>
-
-      {/* Assignment list */}
+  const assignmentList = (
+    <ToolPanel
+      icon={<ClipboardList className="size-5" />}
+      title="Assignments"
+      subtitle={
+        assignments.length > 0
+          ? `${assignments.length} ${assignments.length === 1 ? 'assignment' : 'assignments'}`
+          : isOwner ? 'No assignments created yet.' : 'No assignments posted yet.'
+      }
+    >
       {assignments.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-zinc-200 bg-white py-16 text-center shadow-sm">
-          <ClipboardList className="size-10 text-zinc-200" />
-          <p className="font-semibold text-zinc-700">No assignments yet</p>
-          <p className="text-sm text-zinc-500">
-            {isOwner ? 'Create your first assignment to get started.' : "Your lecturer hasn't posted any assignments yet."}
-          </p>
-          {isOwner && (
-            <button onClick={openDrawer}
-              className="mt-1 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold! text-white hover:bg-violet-700">
-              <Plus className="size-4" /> New assignment
-            </button>
-          )}
-        </div>
+        <p className="py-6 text-center text-sm text-zinc-500">
+          {isOwner ? 'Create your first assignment using the panel on the right.' : "Your lecturer hasn't posted any assignments for this module."}
+        </p>
       ) : (
         <ul className="space-y-3">
           {assignments.map((a) => (
-            <li key={a.id} className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-50">
-                <ClipboardList className="size-5 text-violet-600" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-zinc-900">{a.title}</p>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-                  <span className="flex items-center gap-1"><Clock className="size-3" /> Due {new Date(a.due_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                  {isOwner && <span className="flex items-center gap-1"><Users className="size-3" /> {a.submission_count ?? 0} submissions</span>}
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-600" aria-hidden>
+                  <ClipboardList className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="break-words font-semibold text-[#111034]">{a.title}</p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                    <span className="flex items-center gap-1"><Clock className="size-3" /> Due {new Date(a.due_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    {isOwner && <span className="flex items-center gap-1"><Users className="size-3" /> {a.submission_count ?? 0} submissions</span>}
+                  </div>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -199,6 +184,40 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
           ))}
         </ul>
       )}
+    </ToolPanel>
+  );
+
+  const lecturerSideCard = (
+    <SideCard title="Create an assignment" icon={<Plus className="size-4" />}>
+      <p className="mb-4 text-sm leading-6 text-zinc-500">
+        Before you create an assignment, make sure you have both files ready to upload:
+      </p>
+      <ul className="mb-5 space-y-3">
+        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><FileText className="size-4" /></span>
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">Assignment brief</p>
+            <p className="text-xs text-zinc-500">The task description shared with students (PDF or Word).</p>
+          </div>
+        </li>
+        <li className="flex items-start gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><CircleAlert className="size-4" /></span>
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">Marking scheme <span className="text-xs font-normal text-zinc-400">(private)</span></p>
+            <p className="text-xs text-zinc-500">Your grading criteria — only the AI sees this, never students.</p>
+          </div>
+        </li>
+      </ul>
+      <button onClick={openDrawer}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold! text-white hover:bg-violet-700">
+        <Plus className="size-4" /> New assignment
+      </button>
+    </SideCard>
+  );
+
+  return (
+    <>
+      <ToolLayout main={assignmentList} side={isOwner ? lecturerSideCard : undefined} />
 
       {/* Overlay */}
       <div
