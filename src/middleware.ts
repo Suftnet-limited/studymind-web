@@ -13,11 +13,14 @@ const LEGACY_SESSION = 'studymind_session';
 const AI_COOKIES = ['studymind_ai_access', 'studymind_ai_refresh'];
 
 export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  // These /lecturer/* paths are used by the AI app — don't redirect them
+  if (/^\/lecturer\/modules\/[^/]+\/assignments(\/|$)/.test(pathname)) return NextResponse.next();
   const has = (name: string) => Boolean(request.cookies.get(name)?.value);
   if (has(LEGACY_SESSION) || !AI_COOKIES.some(has)) return NextResponse.next();
   const url = request.nextUrl.clone();
   url.search = '';
-  if (request.nextUrl.pathname === '/billing') { url.pathname = '/my-learning/allowances'; }
+  if (pathname === '/billing') { url.pathname = '/my-learning/allowances'; }
   else { url.pathname = '/my-learning'; }
   return NextResponse.redirect(url);
 }
