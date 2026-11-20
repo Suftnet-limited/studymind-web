@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
   } as unknown as RequestInit;
   const upstream = await authenticatedAiFetch('/api/assignments', init);
   if (!upstream) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  const body = await upstream.json().catch(() => null);
+  const text = await upstream.text().catch(() => '');
+  let body: unknown;
+  try { body = text ? JSON.parse(text) : {}; } catch { body = { detail: text || 'Unexpected response from server' }; }
   return NextResponse.json(body, { status: upstream.status });
 }

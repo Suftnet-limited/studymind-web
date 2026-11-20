@@ -125,7 +125,7 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
     try {
       const res = await fetch('/api/assignments/lecturer', { method: 'POST', body: form });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setFormError((data as { detail?: string }).detail || 'Failed to create assignment.'); return; }
+      if (!res.ok) { setFormError((data as { detail?: string } | null)?.detail || 'Failed to create assignment.'); return; }
       setDone(true);
       await loadAssignments();
       setTimeout(() => { closeDrawer(); setDone(false); resetForm(); }, 1000);
