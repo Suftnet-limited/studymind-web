@@ -59,19 +59,31 @@ test('session: concurrent requests after the access cookie expires share one ref
 });
 
 for (const width of [320, 360, 393]) {
-  test(`study-tool tabs are fully visible with no clipping at ${width}px`, async ({ page, baseURL }, info) => {
+  test(`study-tool tabs stay readable at ${width}px: labels are never clipped or shrunk, the strip scrolls and the page does not`, async ({ page, baseURL }, info) => {
     test.skip(info.project.name !== 'desktop', 'sets its own viewport');
     await page.setViewportSize({ width, height: 800 });
     const { mod, learner } = await enrolled(baseURL!);
     await openModule(page, learner.email, mod.id);
     const list = page.getByRole('tablist', { name: 'Module sections' });
-    const lb = (await list.boundingBox())!;
-    for (const name of ['Documents', 'Chat', 'Quiz', 'Flashcards', 'Summary']) {
-      const tb = (await page.getByRole('tab', { name }).boundingBox())!;
-      expect(tb.x, `${name} left edge`).toBeGreaterThanOrEqual(lb.x - 1);
-      expect(tb.x + tb.width, `${name} right edge`).toBeLessThanOrEqual(lb.x + lb.width + 1);
+    const names = ['Documents', 'Chat', 'Quiz', 'Flashcards', 'Summary', 'Assignments'];
+    for (const name of names) {
+      const tab = page.getByRole('tab', { name });
+      // every label is drawn in full inside its own button, at a legible size
+      expect(await tab.evaluate((el) => el.scrollWidth - el.clientWidth), `${name}: label is not clipped`).toBeLessThanOrEqual(1);
+      expect(await tab.evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), `${name}: label is not shrunk below 13px`).toBeGreaterThanOrEqual(13);
     }
-    expect(await list.evaluate((el) => el.scrollWidth - el.clientWidth), 'tab list needs no horizontal scrolling').toBeLessThanOrEqual(1);
+    // the strip never widens the page; if the tabs do not all fit, the strip itself scrolls
+    const lb = (await list.boundingBox())!;
+    expect(lb.x + lb.width, 'the strip stays inside the screen').toBeLessThanOrEqual(width + 1);
+    await expectNoHorizontalScroll(page);
+    // every tab can be reached: selecting the last one brings it fully into view inside the strip
+    for (const name of [names[names.length - 1], names[0]]) {
+      await page.getByRole('tab', { name }).click();
+      await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true');
+      const tb = (await page.getByRole('tab', { name }).boundingBox())!, now = (await list.boundingBox())!;
+      expect(tb.x, `${name} left edge`).toBeGreaterThanOrEqual(now.x - 1);
+      expect(tb.x + tb.width, `${name} right edge`).toBeLessThanOrEqual(now.x + now.width + 1);
+    }
     await expectNoHorizontalScroll(page);
     await shot(page, info, `tabs-${width}`);
   });

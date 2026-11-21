@@ -26,6 +26,14 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName, isOwne
   const [outline, setOutline] = useState<Outline | null>(null);
   const loadOutline = useCallback(async () => { try { setOutline(await studyMindAiService.outline(moduleId)); } catch { /* suggestions are optional: the free-text topic still works */ } }, [moduleId]);
   useEffect(() => { if (tab === 'chat' || tab === 'quiz' || tab === 'flashcards' || tab === 'summary') void loadOutline(); }, [tab, loadOutline]);
+  // The strip scrolls on narrow screens (labels are never shrunk or clipped): bring the selected tab into view, horizontally only.
+  useEffect(() => {
+    const el = document.getElementById(`ai-tab-${tab}`), list = el?.parentElement;
+    if (!el || !list) return;
+    const left = el.offsetLeft, right = left + el.offsetWidth;
+    if (left < list.scrollLeft) list.scrollLeft = Math.max(0, left - 8);
+    else if (right > list.scrollLeft + list.clientWidth) list.scrollLeft = right - list.clientWidth + 8;
+  }, [tab]);
   const move = (e: KeyboardEvent, i: number) => {
     const next = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : null;
     if (next === null) return;
@@ -34,10 +42,10 @@ export function StudyTools({ moduleId, hasMaterials, documents, userName, isOwne
   return <section aria-labelledby="study-tools-title" className="min-w-0 space-y-5">
     <h2 id="study-tools-title" className="sr-only">Study tools</h2>
     {/* font sizes use `!` because the global unlayered `button{font:inherit}` rule otherwise beats every Tailwind font utility */}
-    <div role="tablist" aria-label="Module sections" className="flex w-full gap-0.5 overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
+    <div role="tablist" aria-label="Module sections" className="relative flex w-full max-w-full gap-0.5 overflow-x-auto overflow-y-hidden border-b border-zinc-200 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5">
       {TABS.map((t, i) => <button key={t.id} id={`ai-tab-${t.id}`} role="tab" type="button" aria-selected={tab === t.id} aria-controls={`ai-panel-${t.id}`} tabIndex={tab === t.id ? 0 : -1}
         onClick={() => setPicked(t.id)} onKeyDown={e => move(e, i)}
-        className={cn('relative -mb-px min-w-0 flex-1 whitespace-nowrap rounded-t-xl px-[3px] min-[360px]:px-1 py-2.5 text-center font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 text-[length:11px]! min-[360px]:text-[length:12px]! min-[390px]:text-[length:13px]! sm:flex-none sm:px-5 sm:text-[15px]!',
+        className={cn('relative -mb-px shrink-0 grow whitespace-nowrap rounded-t-xl px-3 py-2.5 text-center font-semibold! transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 text-[length:13px]! sm:grow-0 sm:px-5 sm:text-[15px]!',
           tab === t.id ? 'bg-violet-50 text-violet-700 after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-violet-600' : 'text-zinc-600 hover:bg-zinc-50 hover:text-violet-700')}>{t.label}</button>)}
     </div>
     <div id="ai-panel-documents" role="tabpanel" aria-labelledby="ai-tab-documents" hidden={tab !== 'documents'}>{documents}</div>

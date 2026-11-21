@@ -43,7 +43,7 @@ test('the site header and learning nav are inert behind the auth screen (keyboar
 test('registration: strength tips, role help, validation, creates the account and signs in', async ({ page }, info) => {
   const address = email();
   await page.goto('/my-learning/register');
-  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your Ciquis account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeFocused();
   await page.getByLabel('Full name').fill('Screens Tester');
   await page.getByLabel('Email').fill(address);

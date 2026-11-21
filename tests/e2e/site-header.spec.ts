@@ -5,14 +5,23 @@ import { accountMenu, apiAccount, expectNoHorizontalScroll, expectSignedIn, sign
 const header = (page: Page) => page.getByRole('banner');
 const nav = (page: Page) => header(page).getByRole('navigation', { name: 'Learning navigation' });
 
-test('logo: only the mark is shown (no wordmark), and it still has the accessible name and links home', async ({ page }) => {
+test('logo: mark and Ciquis wordmark, with the accessible name, linking home', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
   const logo = header(page).getByRole('link', { name: 'Ciquis home' });
   await expect(logo).toHaveAttribute('href', '/');
   await expect(logo.locator('svg')).toBeVisible();
-  const box = (await logo.boundingBox())!;
-  expect(box.width, 'the logo link is the mark only').toBeLessThan(60);
-  expect(await logo.evaluate((el) => [...el.querySelectorAll('*')].filter((n) => n.textContent?.trim() && getComputedStyle(n).position !== 'absolute').length), 'no visible wordmark text').toBe(0);
+  await expect(logo.getByText('Ciquis', { exact: true }), 'wordmark is shown on normal screens').toBeVisible();
+});
+
+test('logo: below 350px only the mark is shown (so the header fits), and the link keeps its accessible name', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/');
+  const logo = header(page).getByRole('link', { name: 'Ciquis home' });
+  await expect(logo).toHaveAttribute('href', '/');
+  await expect(logo.locator('svg')).toBeVisible();
+  await expect(logo.getByText('Ciquis', { exact: true })).toBeHidden();
+  expect((await logo.boundingBox())!.width, 'the logo link is the mark only').toBeLessThan(60);
 });
 
 test('signed in: nav pills, active state follows the page, and the account menu holds the name and Sign out', async ({ page, baseURL }) => {
