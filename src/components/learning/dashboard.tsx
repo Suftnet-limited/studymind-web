@@ -98,21 +98,58 @@ export function CreateModuleDialog({ open, onClose, canCreateClass }: { open: bo
   </Modal>;
 }
 
+type ModulePreview = { module_id: string; title: string; lecturer_name: string; status: string; already_enrolled: boolean };
+
 export function JoinCourse() {
   const cache = useQueryClient();
   const [courseId, setCourseId] = useState('');
-  const join = useMutation({
-    mutationFn: () => studyMindModulesService.join(courseId.trim()),
-    onSuccess: async () => { setCourseId(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
+  const [preview, setPreview] = useState<ModulePreview | null>(null);
+
+  const lookup = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/studymind/modules/join/preview?course_id=${encodeURIComponent(id)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Course not found');
+      return data as ModulePreview;
+    },
+    onSuccess: (data) => setPreview(data),
   });
+
+  const join = useMutation({
+    mutationFn: () => studyMindModulesService.join(preview!.module_id),
+    onSuccess: async () => { setCourseId(''); setPreview(null); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
+  });
+
+  function reset() { setCourseId(''); setPreview(null); lookup.reset(); join.reset(); }
+
   return <ActionCard icon={<Users className="size-6" />} title="Join a course" description="Paste the Course ID your lecturer shared with you.">
-    <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); join.mutate(); }}>
-      <Input aria-label="Course ID" className="min-w-48 flex-1" placeholder="Course ID" required maxLength={64} autoComplete="off" spellCheck={false} value={courseId}
-        onChange={e => { setCourseId(e.target.value); if (join.isError || join.isSuccess) join.reset(); }} />
-      <Button variant="secondary" disabled={join.isPending || courseId.trim().length < 3}>{join.isPending ? 'Joining…' : 'Join course'}</Button>
-    </form>
-    {join.isError && <div className="mt-3"><ErrorBox message={message(join.error)} /></div>}
-    {join.isSuccess && <p role="status" className="mt-3 text-sm text-green-700">You have joined the course. It now appears in My modules.</p>}
+    {!preview ? (
+      <form className="flex flex-wrap gap-3" onSubmit={e => { e.preventDefault(); lookup.mutate(courseId.trim()); }}>
+        <Input aria-label="Course ID" className="min-w-48 flex-1" placeholder="Course ID" required maxLength={64} autoComplete="off" spellCheck={false} value={courseId}
+          onChange={e => { setCourseId(e.target.value); if (lookup.isError || join.isError) { lookup.reset(); join.reset(); } }} />
+        <Button variant="secondary" disabled={lookup.isPending || courseId.trim().length < 3}>{lookup.isPending ? 'Looking up…' : 'Find course'}</Button>
+        {lookup.isError && <div className="w-full"><ErrorBox message={message(lookup.error)} /></div>}
+        {join.isSuccess && <p role="status" className="w-full text-sm text-green-700">You have joined the course. It now appears in My modules.</p>}
+      </form>
+    ) : (
+      <div className="space-y-3">
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <p className="text-sm font-bold text-zinc-900">{preview.title}</p>
+          <p className="text-xs text-zinc-500 mt-0.5">Lecturer: {preview.lecturer_name}</p>
+          {preview.already_enrolled && <p className="mt-2 text-xs font-semibold text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5">You are already enrolled in this course.</p>}
+          {preview.status !== 'active' && <p className="mt-2 text-xs font-semibold text-red-600 bg-red-50 rounded-lg px-3 py-1.5">This course is not currently open for enrolment.</p>}
+        </div>
+        {join.isError && <ErrorBox message={message(join.error)} />}
+        <div className="flex gap-3">
+          <Button variant="ghost" onClick={reset} disabled={join.isPending}>Cancel</Button>
+          {!preview.already_enrolled && preview.status === 'active' && (
+            <Button variant="secondary" onClick={() => join.mutate()} disabled={join.isPending}>
+              {join.isPending ? 'Joining…' : `Join "${preview.title}"`}
+            </Button>
+          )}
+        </div>
+      </div>
+    )}
   </ActionCard>;
 }
 
