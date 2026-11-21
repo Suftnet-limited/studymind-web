@@ -34,7 +34,7 @@ export function validateUpload(file) {
     if (!ALLOWED_EXTENSIONS.includes(ext))
       return { ok: false, error: `Unsupported file type${ext ? ` "${ext}"` : ''}. Upload a PDF, DOCX, TXT, MD or CSV file.` };
   }
-  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: 'The file exceeds the 50 MB limit' };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: 'The file exceeds the 200 MB limit' };
   return { ok: true };
 }
 
