@@ -179,9 +179,9 @@ await check('self-learner creates a personal module', async () => {
   const r = await sl.json('/api/studymind/modules', 'POST', { title: 'IT Self Learner Notes', access_type: 'personal' });
   eq(r.status, 201); state.slMod = r.body;
 });
-await check('student cannot create modules (readable 403)', async () => {
-  const r = await s1.json('/api/studymind/modules', 'POST', { title: 'Nope Module', access_type: 'personal' });
-  eq(r.status, 403); expect(/student/i.test(r.body.error), `message: ${r.body.error}`);
+await check('student can create a personal module (201)', async () => {
+  const r = await s1.json('/api/studymind/modules', 'POST', { title: 'Student Personal Notes', access_type: 'personal' });
+  eq(r.status, 201); eq(r.body.access_type, 'personal'); state.s1Personal = r.body;
 });
 await check('self-learner cannot create a class module (readable 403)', async () => {
   const r = await sl.json('/api/studymind/modules', 'POST', { title: 'Nope Class', access_type: 'class' });
@@ -228,9 +228,9 @@ await check('Owned vs Enrolled: lecturer owns, student is enrolled (owner_id dif
   expect(m && m.owner_id !== state.s1.id, 'student should see class module as enrolled');
   expect(!s.some((x) => x.id === state.lecPersonal.id), 'student must not see lecturer personal module');
 });
-await check('overview counts match (student: 0 owned / 1 enrolled; lecturer: 2 owned)', async () => {
+await check('overview counts match (student: 1 owned / 1 enrolled; lecturer: 2 owned)', async () => {
   const s = (await s1.req('/api/studymind/learning-overview')).body.modules, l = (await lec.req('/api/studymind/learning-overview')).body.modules;
-  eq(s.owned, 0, 'student owned'); eq(s.enrolled, 1, 'student enrolled'); eq(l.owned, 2, 'lecturer owned');
+  eq(s.owned, 1, 'student owned'); eq(s.enrolled, 1, 'student enrolled'); eq(l.owned, 2, 'lecturer owned');
 });
 await check('non-enrolled student cannot open the class module', async () => {
   expect([403, 404].includes((await s2.req(`/api/studymind/modules/${state.classMod.id}`)).status), 'expected 403/404');
