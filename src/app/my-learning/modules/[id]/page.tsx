@@ -68,7 +68,7 @@ export default function CanonicalModulePage() {
       const data = await res.json().catch(() => ({}));
       throw new Error((data as { error?: string }).error || 'Unable to remove student');
     },
-    onSuccess: () => { void cache.invalidateQueries({ queryKey: ['canonical', 'students', id] }); setRemovingId(null); },
+    onSuccess: () => { void studentsQuery.refetch(); setRemovingId(null); },
     onError: () => setRemovingId(null),
   });
   const documents = useQuery({
@@ -241,6 +241,7 @@ export default function CanonicalModulePage() {
             </div>
           )}
           {studentsQuery.isError && <p className="px-5 py-4 text-sm text-red-600">{message(studentsQuery.error)}</p>}
+          {removeStudent.isError && <p className="px-5 py-4 text-sm text-red-600">Remove failed: {message(removeStudent.error)}</p>}
         </div>
       )}
 
