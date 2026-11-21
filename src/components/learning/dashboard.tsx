@@ -116,7 +116,7 @@ export function JoinCourse() {
   });
 
   const join = useMutation({
-    mutationFn: () => studyMindModulesService.join(courseId.trim()),
+    mutationFn: () => studyMindModulesService.join(preview!.module_id),
     onSuccess: async () => { setCourseId(''); setPreview(null); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
 
