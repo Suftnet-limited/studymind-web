@@ -193,7 +193,7 @@ export default function Home() {
           </div>
           <div className="space-y-4">
             {[
-              { Icon: GraduationCap, label: 'Lecturers upload once', sub: 'PDF, DOCX, TXT — up to 200 MB per file.' },
+              { Icon: GraduationCap, label: 'Lecturers upload once', sub: 'PDF, DOCX, TXT — up to 50 MB per file.' },
               { Icon: Users, label: 'Students join with a code', sub: 'One code per module, works on web and mobile.' },
               { Icon: ShieldCheck, label: 'Secure & private', sub: 'Your materials are never used to train AI models.' },
             ].map(({ Icon, label, sub }) => (

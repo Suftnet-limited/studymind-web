@@ -1,6 +1,6 @@
 // Pure, dependency-free validation shared by the /api/studymind/* routes and unit tests.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200 MB — semester booklets / full course PDFs
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB — backend indexes synchronously; raise once async ingestion lands
 export const ACCESS_TYPES = ['personal', 'class'];
 
 export const isUuid = (value) => typeof value === 'string' && UUID.test(value);

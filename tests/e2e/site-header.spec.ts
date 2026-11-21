@@ -5,9 +5,9 @@ import { accountMenu, apiAccount, expectNoHorizontalScroll, expectSignedIn, sign
 const header = (page: Page) => page.getByRole('banner');
 const nav = (page: Page) => header(page).getByRole('navigation', { name: 'Learning navigation' });
 
-test('logo: only the mark is shown (no wordmark), and it still has the accessible name StudyMind and links home', async ({ page }) => {
+test('logo: only the mark is shown (no wordmark), and it still has the accessible name and links home', async ({ page }) => {
   await page.goto('/');
-  const logo = header(page).getByRole('link', { name: 'StudyMind' });
+  const logo = header(page).getByRole('link', { name: 'Ciquis home' });
   await expect(logo).toHaveAttribute('href', '/');
   await expect(logo.locator('svg')).toBeVisible();
   const box = (await logo.boundingBox())!;

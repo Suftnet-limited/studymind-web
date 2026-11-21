@@ -8,7 +8,7 @@ async function registerThroughUi(page: Page, info: TestInfo, role: 'student' | '
   await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
   await shot(page, info, `${role}-01-signed-out`);
   await page.getByRole('link', { name: 'Create an account' }).click();
-  await expect(page.getByRole('heading', { name: 'Create a StudyMind account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
   await page.getByLabel('Full name').fill(name);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
@@ -173,7 +173,7 @@ test('header: Sign in and Get started use the canonical journey and are readable
   await expect(cta).toHaveCSS('color', 'rgb(255, 255, 255)');
   await shot(page, info, 'header-get-started');
   await cta.click();
-  await expect(page.getByRole('heading', { name: 'Create a StudyMind account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
   await page.goto('/my-learning');
   await expect(page.getByRole('link', { name: 'Sign in with it here' })).toHaveAttribute('href', '/sign-in'); // legacy Web accounts keep access
 });

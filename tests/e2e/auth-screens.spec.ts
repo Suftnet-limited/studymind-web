@@ -43,7 +43,7 @@ test('the site header and learning nav are inert behind the auth screen (keyboar
 test('registration: strength tips, role help, validation, creates the account and signs in', async ({ page }, info) => {
   const address = email();
   await page.goto('/my-learning/register');
-  await expect(page.getByRole('heading', { name: 'Create a StudyMind account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
   await expect(page.getByLabel('Full name')).toBeFocused();
   await page.getByLabel('Full name').fill('Screens Tester');
   await page.getByLabel('Email').fill(address);
@@ -89,7 +89,7 @@ for (const width of [320, 360, 393]) {
       await page.goto(path);
       await expect(page.getByTestId('auth-shell')).toBeVisible();
       await noHScroll(page);
-      await expect(page.getByTestId('auth-shell').getByRole('link', { name: 'StudyMind' }).last()).toBeVisible();   // compact logo replaces the side panel
+      await expect(page.getByTestId('auth-shell').getByRole('link', { name: 'Ciquis' }).last()).toBeVisible();      // compact logo replaces the side panel
       await expect(page.getByRole('button', { name: /Sign in|Create account/ }).first()).toBeVisible();
     }
   });

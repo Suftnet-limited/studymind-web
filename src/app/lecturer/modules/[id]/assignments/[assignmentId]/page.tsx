@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   X, Download, Loader2, CheckCircle2, AlertCircle, Clock,
@@ -79,6 +79,15 @@ function FeedbackList({ icon: Icon, title, items, colorClass }: {
 
 export default function SubmissionsPage() {
   const { id: moduleId, assignmentId } = useParams<{ id: string; assignmentId: string }>();
+  const router = useRouter();
+  const backHref = `/lecturer/modules/${moduleId}/assignments`;
+
+  // Replace any sign-in / redirect page that ended up in the history stack
+  // so the browser back button returns to the assignments list, not a login page.
+  useEffect(() => {
+    window.history.replaceState(null, '', window.location.href);
+  }, []);
+
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,9 +134,9 @@ export default function SubmissionsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-5 py-10">
-      <Link href={`/lecturer/modules/${moduleId}/assignments`} className="text-sm font-semibold text-violet-700 hover:underline">
+      <button onClick={() => router.push(backHref)} className="text-sm font-semibold text-violet-700 hover:underline">
         ← Assignments
-      </Link>
+      </button>
 
       <div>
         <p className="text-xs font-bold uppercase tracking-widest text-violet-600">Submissions</p>
