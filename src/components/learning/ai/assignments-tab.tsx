@@ -125,9 +125,11 @@ function FeedbackSection({ icon: Icon, title, items, color }: { icon: React.Elem
 
 type DrawerMode = 'create' | 'view';
 
-export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwner: boolean }) {
+export function AssignmentsTab({ moduleId, moduleTitle, isOwner }: { moduleId: string; moduleTitle?: string; isOwner: boolean }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not look like "no assignments yet": show the error and let the user retry.
+  const [loadError, setLoadError] = useState('');
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -168,9 +170,12 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
       if (res.ok) {
         const data = await res.json().catch(() => []);
         setAssignments(Array.isArray(data) ? data : []);
+        setLoadError('');
+      } else {
+        setLoadError(res.status === 401 ? 'Your session has expired. Sign in again to see assignments.' : "We couldn't load the assignments. Please try again.");
       }
     } catch {
-      // keep existing list on network error
+      setLoadError("We couldn't reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -316,12 +321,19 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
       icon={<ClipboardList className="size-5" />}
       title="Assignments"
       subtitle={
-        assignments.length > 0
-          ? `${assignments.length} ${assignments.length === 1 ? 'assignment' : 'assignments'}`
-          : isOwner ? 'No assignments created yet.' : 'No assignments posted yet.'
+        loadError
+          ? 'Could not load assignments.'
+          : assignments.length > 0
+            ? `${assignments.length} ${assignments.length === 1 ? 'assignment' : 'assignments'}`
+            : isOwner ? 'No assignments created yet.' : 'No assignments posted yet.'
       }
     >
-      {assignments.length === 0 ? (
+      {loadError ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => { setLoading(true); void loadAssignments(); }} className="rounded-lg border border-red-200 bg-white px-3 py-1.5 font-semibold text-red-700 hover:bg-red-100">Retry</button>
+        </div>
+      ) : assignments.length === 0 ? (
         <p className="py-6 text-center text-sm text-zinc-500">
           {isOwner ? 'Create your first assignment using the panel on the right.' : "Your lecturer hasn't posted any assignments for this module."}
         </p>
@@ -533,7 +545,7 @@ export function AssignmentsTab({ moduleId, isOwner }: { moduleId: string; isOwne
             {drawerMode === 'create' ? (
               <>
                 <p className="font-bold text-zinc-900">New assignment</p>
-                <p className="text-xs text-zinc-500">Fill in the details and upload files</p>
+                <p className="text-xs text-zinc-500">{moduleTitle ? <>For <strong className="font-semibold text-zinc-700">{moduleTitle}</strong> · fill in the details and upload files</> : 'Fill in the details and upload files'}</p>
               </>
             ) : (
               <>

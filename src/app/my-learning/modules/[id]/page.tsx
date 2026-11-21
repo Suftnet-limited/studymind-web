@@ -245,7 +245,7 @@ export default function CanonicalModulePage() {
         </div>
       )}
 
-      <StudyTools moduleId={id} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} />
+      <StudyTools moduleId={id} moduleTitle={moduleQuery.data?.title} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} />
     </>}
   </div>;
 }
