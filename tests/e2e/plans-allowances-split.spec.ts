@@ -73,7 +73,7 @@ test('allowances shows the days left for an active pass, and each page fits ever
   expect(new Set(fills).size, 'a different colour for each allowance').toBe(4);
   for (const width of [1280, 1600]) {
     await page.setViewportSize({ width, height: 900 });
-    const logo = (await page.getByRole('banner').getByRole('link', { name: 'StudyMind' }).boundingBox())!;
+    const logo = (await page.getByRole('banner').getByRole('link', { name: 'Ciquis home' }).boundingBox())!;
     const h1 = (await page.getByRole('heading', { name: 'Allowances', exact: true }).boundingBox())!;
     const card = (await page.getByRole('progressbar').first().locator('xpath=ancestor::li').boundingBox())!;
     expect(Math.abs(h1.x - logo.x), `heading lines up with the header at ${width}px`).toBeLessThanOrEqual(2);

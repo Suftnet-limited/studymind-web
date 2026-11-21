@@ -6,7 +6,7 @@ const noHScroll = async (page: Page) => expect(await page.evaluate(() => documen
 test('hero: approved copy, two calls to action, accurate image alt text, header unchanged', async ({ page }, info) => {
   await page.goto('/');
   const h1 = page.getByRole('heading', { level: 1 });
-  await expect(h1).toHaveText(/Learn smarter\.\s*Achieve more\./);
+  await expect(h1).toHaveText(/Smarter Learning\./);
   await expect(page.getByText('An AI-powered workspace to study, practise and stay organised.')).toBeVisible();
   const primary = page.getByRole('link', { name: 'Get started free' });
   const secondary = page.getByRole('link', { name: 'See how it works' });
@@ -23,12 +23,12 @@ test('hero: approved copy, two calls to action, accurate image alt text, header 
     await expect(nav.getByRole('link', { name: 'How it works' })).toBeVisible();
   }
   await expect(nav.getByRole('link', { name: 'Get started' })).toBeVisible();
-  await expect(page.getByRole('banner').getByText('StudyMind').first()).toBeVisible();              // logo and branding retained
+  await expect(page.getByRole('banner').getByRole('link', { name: 'Ciquis home' })).toBeVisible(); // logo retained
 });
 
 test('three concise highlights under the hero, and nothing invented', async ({ page }) => {
   await page.goto('/');
-  const highlights = page.getByRole('region', { name: 'Why StudyMind' });
+  const highlights = page.getByRole('region', { name: 'Why Ciquis' });
   const items = highlights.getByRole('listitem');
   await expect(items).toHaveCount(3);
   await expect(items.nth(0)).toContainText('For students');
@@ -54,7 +54,7 @@ test('calls to action go where they say', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Get started free' }).click();
   await expect(page).toHaveURL(/\/my-learning\/register$/);
-  await expect(page.getByRole('heading', { name: 'Create a StudyMind account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
 });
 
 test('keyboard: both calls to action are reachable and show a focus indicator', async ({ page }) => {
@@ -86,7 +86,7 @@ test('mobile device: hero fits and the highlights stack', async ({ page }, info)
   test.skip(info.project.name !== 'mobile');
   await page.goto('/');
   await noHScroll(page);
-  const items = page.getByRole('region', { name: 'Why StudyMind' }).getByRole('listitem');
+  const items = page.getByRole('region', { name: 'Why Ciquis' }).getByRole('listitem');
   const first = await items.nth(0).boundingBox(), second = await items.nth(1).boundingBox();
   expect(second!.y).toBeGreaterThan(first!.y + first!.height - 2);                                         // stacked, not side by side
 });
