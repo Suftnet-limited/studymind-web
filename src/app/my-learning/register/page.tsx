@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ChevronDown, Lock, Mail, User } from 'lucide-react';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
+import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit, PasswordChecks } from '@/components/auth/auth-field';
 
@@ -39,7 +40,7 @@ function RegisterForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('');
     try {
-      const recaptchaToken = executeRecaptcha ? await executeRecaptcha('register') : '';
+      const recaptchaToken = await getRecaptchaToken(executeRecaptcha, 'register');
       const response = await fetch('/api/studymind/auth/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, full_name: fullName, password, role, recaptchaToken }),

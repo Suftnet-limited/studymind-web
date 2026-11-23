@@ -11,6 +11,7 @@ import { dashboardStats } from '@/lib/dashboard.mjs';
 import { Mail, Lock } from 'lucide-react';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
+import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
@@ -25,7 +26,7 @@ function SignInForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
-    mutationFn: async () => studyMindIdentityService.login(email, password, executeRecaptcha ? await executeRecaptcha('login') : ''),
+    mutationFn: async () => studyMindIdentityService.login(email, password, await getRecaptchaToken(executeRecaptcha, 'login')),
     onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
