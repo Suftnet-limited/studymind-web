@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowRight, PlayCircle } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import './landing.css';
 
 export function LandingHero() {
@@ -14,12 +14,8 @@ export function LandingHero() {
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link href="/my-learning/register"
-            className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-[var(--sm-purple)] px-7 text-base font-semibold text-white shadow-[0_12px_28px_rgba(109,40,217,0.28)] transition hover:bg-[var(--sm-purple-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sm-purple)]">
+            className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-[var(--sm-purple)] px-7 text-base font-semibold text-white transition hover:bg-[var(--sm-purple-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sm-purple)]">
             Get started free <ArrowRight className="size-5" aria-hidden />
-          </Link>
-          <Link href="/#how-it-works"
-            className="inline-flex h-14 items-center justify-center gap-2.5 rounded-2xl border border-[var(--sm-border)] bg-white px-7 text-base font-semibold text-[var(--sm-ink)] transition hover:border-[var(--sm-purple)] hover:text-[var(--sm-purple-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sm-purple)]">
-            <PlayCircle className="size-5 text-[var(--sm-purple)]" aria-hidden /> See how it works
           </Link>
         </div>
 
