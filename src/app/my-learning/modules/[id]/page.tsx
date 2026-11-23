@@ -83,8 +83,11 @@ export default function CanonicalModulePage() {
 
   const canUploadClass = !!overview.data && !!moduleQuery.data && overview.data.user.id === moduleQuery.data.owner_id && roleCapabilities(overview.data.user.role).canUploadClass;
   const isOwner = !!overview.data && !!moduleQuery.data && overview.data.user.id === moduleQuery.data.owner_id;
-  // The module UUID is the Course ID for now. Only owners of class modules can share it; personal modules cannot be joined.
-  const shareableCourseId = isOwner && moduleQuery.data?.access_type === 'class' ? moduleQuery.data.id : null;
+  // Use the short CIQ-XXXX code if present, fall back to UUID for modules created before auto-generation was added.
+  // Only owners of class modules can share it; personal modules cannot be joined.
+  const shareableCourseId = isOwner && moduleQuery.data?.access_type === 'class'
+    ? (moduleQuery.data.course_code ?? moduleQuery.data.id)
+    : null;
   const docs = documents.data ?? [];
   const indexed = docs.filter(d => documentStatus(d) === 'indexed').length;
   const indexing = docs.filter(d => documentStatus(d) === 'processing').length;
