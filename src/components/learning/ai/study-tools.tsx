@@ -8,19 +8,23 @@ import { QuizTab } from './quiz-tab';
 import { FlashcardsTab } from './flashcards-tab';
 import { SummaryTab } from './summary-tab';
 import { AssignmentsTab } from './assignments-tab';
+import { StudentsTab } from './students-tab';
 
-const TABS = [
+const BASE_TABS = [
   { id: 'documents', label: 'Documents' }, { id: 'chat', label: 'Chat' }, { id: 'quiz', label: 'Quiz' },
   { id: 'flashcards', label: 'Flashcards' }, { id: 'summary', label: 'Summary' },
   { id: 'assignments', label: 'Assignments' },
 ] as const;
-type TabId = (typeof TABS)[number]['id'];
+const OWNER_CLASS_TABS = [...BASE_TABS, { id: 'students', label: 'Students' }] as const;
+type TabId = (typeof OWNER_CLASS_TABS)[number]['id'];
 
 /**
  * The module's sections: Documents (upload and materials) and the four AI learning features. Every panel stays mounted so a chat
  * or a quiz survives tab changes. Chat is the default; its "no materials yet" hint, the paperclip and the suggestion chips jump to other sections.
  */
-export function StudyTools({ moduleId, moduleTitle, hasMaterials, documents, userName, isOwner = false }: { moduleId: string; moduleTitle?: string; hasMaterials: boolean; documents: ReactNode; userName: string; isOwner?: boolean }) {
+export function StudyTools({ moduleId, moduleTitle, hasMaterials, documents, userName, isOwner = false, isClassModule = false, ownerId = '' }: { moduleId: string; moduleTitle?: string; hasMaterials: boolean; documents: ReactNode; userName: string; isOwner?: boolean; isClassModule?: boolean; ownerId?: string }) {
+  const showStudents = isOwner && isClassModule;
+  const TABS = showStudents ? OWNER_CLASS_TABS : BASE_TABS;
   const [tab, setPicked] = useState<TabId>('chat');
   // Topic suggestions (the module's weeks and indexed documents), shared by Quiz, Flashcards and Summary. Reloaded when one of those tabs opens, so new uploads show up.
   const [outline, setOutline] = useState<Outline | null>(null);
@@ -55,5 +59,6 @@ export function StudyTools({ moduleId, moduleTitle, hasMaterials, documents, use
     <div id="ai-panel-flashcards" role="tabpanel" aria-labelledby="ai-tab-flashcards" hidden={tab !== 'flashcards'}><FlashcardsTab moduleId={moduleId} outline={outline} /></div>
     <div id="ai-panel-summary" role="tabpanel" aria-labelledby="ai-tab-summary" hidden={tab !== 'summary'}><SummaryTab moduleId={moduleId} outline={outline} /></div>
     <div id="ai-panel-assignments" role="tabpanel" aria-labelledby="ai-tab-assignments" hidden={tab !== 'assignments'}><AssignmentsTab moduleId={moduleId} moduleTitle={moduleTitle} isOwner={isOwner} /></div>
+    {showStudents && <div id="ai-panel-students" role="tabpanel" aria-labelledby="ai-tab-students" hidden={tab !== 'students'}><StudentsTab moduleId={moduleId} ownerId={ownerId} /></div>}
   </section>;
 }

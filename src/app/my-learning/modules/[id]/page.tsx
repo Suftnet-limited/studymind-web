@@ -49,29 +49,6 @@ export default function CanonicalModulePage() {
   const overview = useQuery({ queryKey: ['canonical', 'overview'], queryFn: studyMindIdentityService.overview, retry: false });
   const moduleQuery = useQuery({ queryKey: ['canonical', 'module', id], queryFn: () => studyMindModulesService.get(id), retry: false });
 
-  // Students list (lecturer only — fetched lazily once we know the user is owner)
-  type StudentRow = { enrolment_id: string; student_id: string; full_name: string; email: string; enrolled_at: string };
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const studentsQuery = useQuery<StudentRow[]>({
-    queryKey: ['canonical', 'students', id],
-    queryFn: async () => {
-      const res = await fetch(`/api/studymind/modules/${id}/students`);
-      if (!res.ok) throw new Error('Could not load students');
-      return res.json();
-    },
-    enabled: false, // loaded on demand below
-    retry: false,
-  });
-  const removeStudent = useMutation({
-    mutationFn: async (studentId: string) => {
-      const res = await fetch(`/api/studymind/modules/${id}/students/${studentId}`, { method: 'DELETE' });
-      if (res.status === 204) return;
-      const data = await res.json().catch(() => ({}));
-      throw new Error((data as { error?: string }).error || 'Unable to remove student');
-    },
-    onSuccess: () => { void studentsQuery.refetch(); setRemovingId(null); },
-    onError: () => setRemovingId(null),
-  });
   const documents = useQuery({
     queryKey: ['canonical', 'documents', id], queryFn: () => studyMindModulesService.documents(id), retry: false,
     refetchInterval: query => (hasPendingDocuments(query.state.data) ? POLL_MS : false),
@@ -202,55 +179,7 @@ export default function CanonicalModulePage() {
         <p className="w-full text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
       </div>}
 
-      {/* Enrolled students — lecturer only */}
-      {isOwner && moduleQuery.data?.access_type === 'class' && (
-        <div className="rounded-2xl border border-zinc-200 bg-white">
-          <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
-            <div>
-              <p className="font-bold text-zinc-900">Enrolled students</p>
-              {studentsQuery.data && <p className="text-xs text-zinc-500 mt-0.5">{studentsQuery.data.filter(s => s.student_id !== overview.data?.user.id).length} enrolled</p>}
-            </div>
-            {!studentsQuery.isFetched && (
-              <button onClick={() => studentsQuery.refetch()}
-                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 transition">
-                {studentsQuery.isFetching ? 'Loading…' : 'View students'}
-              </button>
-            )}
-          </div>
-          {studentsQuery.isFetched && (
-            <div className="divide-y divide-zinc-100">
-              {studentsQuery.data?.filter(s => s.student_id !== overview.data?.user.id).length === 0 && (
-                <p className="px-5 py-6 text-sm text-zinc-500">No students enrolled yet. Share the Course ID above.</p>
-              )}
-              {studentsQuery.data?.filter(s => s.student_id !== overview.data?.user.id).map(s => (
-                <div key={s.student_id} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <div>
-                    <p className="text-sm font-semibold text-zinc-900">{s.full_name}</p>
-                    <p className="text-xs text-zinc-500">{s.email}</p>
-                  </div>
-                  {removingId === s.student_id ? (
-                    <span className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-red-700">Remove?</span>
-                      <button onClick={() => removeStudent.mutate(s.student_id)} disabled={removeStudent.isPending}
-                        className="text-xs font-bold text-red-600 hover:text-red-800 disabled:opacity-60">Yes</button>
-                      <button onClick={() => setRemovingId(null)} className="text-xs text-zinc-500 hover:text-zinc-700">Cancel</button>
-                    </span>
-                  ) : (
-                    <button onClick={() => setRemovingId(s.student_id)}
-                      className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {studentsQuery.isError && <p className="px-5 py-4 text-sm text-red-600">{message(studentsQuery.error)}</p>}
-          {removeStudent.isError && <p className="px-5 py-4 text-sm text-red-600">Remove failed: {message(removeStudent.error)}</p>}
-        </div>
-      )}
-
-      <StudyTools moduleId={id} moduleTitle={moduleQuery.data?.title} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} />
+      <StudyTools moduleId={id} moduleTitle={moduleQuery.data?.title} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} isClassModule={moduleQuery.data?.access_type === 'class'} ownerId={overview.data?.user.id ?? ''} />
     </>}
   </div>;
 }
