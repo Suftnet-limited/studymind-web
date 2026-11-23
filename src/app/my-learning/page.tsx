@@ -15,6 +15,7 @@ import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { RecaptchaNotice } from '@/components/auth/recaptcha-notice';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -48,6 +49,7 @@ function SignInForm() {
       <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
     </form>
     <p className="mt-6 text-center text-sm text-slate-500">New to Ciquis?{' '}<Link href={withNext('/my-learning/register', next)} className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
+    <RecaptchaNotice />
   </AuthShell>;
 }
 

@@ -8,6 +8,7 @@ import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { RecaptchaNotice } from '@/components/auth/recaptcha-notice';
 import { AuthError, AuthField, AuthSubmit, PasswordChecks } from '@/components/auth/auth-field';
 
 // This release is for students and lecturers only. Independent learners are not offered, whatever the backend allows.
@@ -81,5 +82,6 @@ function RegisterForm() {
       <AuthSubmit busy={busy} busyText="Creating account…">Create account</AuthSubmit>
     </form>
     <p className="mt-5 text-center text-sm text-slate-500">Already registered?{' '}<Link href={withNext('/my-learning', next)} className="font-semibold text-violet-700 hover:underline">Sign in</Link></p>
+    <RecaptchaNotice />
   </AuthShell>;
 }

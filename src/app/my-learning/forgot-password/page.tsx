@@ -6,6 +6,7 @@ import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
 import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
+import { RecaptchaNotice } from '@/components/auth/recaptcha-notice';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
 // reCAPTCHA is loaded only on this page (and sign-in / sign-up), not site-wide.
@@ -45,5 +46,6 @@ function ForgotPasswordForm() {
       </form>
     </>}
     <p className="mt-5 text-center text-sm text-slate-500"><Link href="/my-learning" className="font-semibold text-violet-700 hover:underline">Back to sign in</Link></p>
+    <RecaptchaNotice />
   </AuthShell>;
 }
