@@ -64,7 +64,8 @@ test('self-learner journey (API-registered; the form no longer offers this role)
   await expect(owned.getByRole('link', { name: /My Chemistry Notes/ })).toBeVisible();
 
   await page.getByLabel('Course ID').fill(classModule.id);
-  await page.getByRole('button', { name: 'Join course' }).click();
+  await page.getByRole('button', { name: 'Find course' }).click();      // joining is two steps: look up and confirm, then join
+  await page.getByRole('button', { name: /^Join "/ }).click();
   await expect(page.getByText('You have joined the course')).toBeVisible();
   const enrolled = page.getByRole('region', { name: /My modules/ });
   await expect(enrolled.getByRole('link', { name: /History 110/ })).toBeVisible();
@@ -119,20 +120,23 @@ test("student journey: register, join a lecturer's class by Course ID, view and 
   await expect(page.getByRole('region', { name: /My modules/ }).getByRole('link', { name: /Sam personal notes/ })).toBeVisible();
 
   await page.getByLabel('Course ID').fill(classModule.id);
-  await page.getByRole('button', { name: 'Join course' }).click();
+  await page.getByRole('button', { name: 'Find course' }).click();      // joining is two steps: look up and confirm, then join
+  await page.getByRole('button', { name: /^Join "/ }).click();
   await expect(page.getByText('You have joined the course')).toBeVisible();
   const enrolled = page.getByRole('region', { name: /My modules/ });
   await expect(enrolled.getByRole('link', { name: /Biology 101/ })).toBeVisible();
   await shot(page, info, 'student-04-joined');
   await expectNoHorizontalScroll(page);
 
-  // Joining again gives a readable error
+  // Looking the course up again says so, and offers no second Join
   await page.getByLabel('Course ID').fill(classModule.id);
-  await page.getByRole('button', { name: 'Join course' }).click();
-  await expect(page.getByRole('alert').filter({ hasText: /already/i })).toBeVisible();
+  await page.getByRole('button', { name: 'Find course' }).click();
+  await expect(page.getByText('You are already enrolled in this course.')).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Join "/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Cancel' }).click();
   // An unknown Course ID is rejected readably
   await page.getByLabel('Course ID').fill('00000000-0000-4000-8000-000000000000');
-  await page.getByRole('button', { name: 'Join course' }).click();
+  await page.getByRole('button', { name: 'Find course' }).click();
   await expect(page.getByRole('alert').filter({ hasText: /not found/i })).toBeVisible();
 
   // Students see course information and Study tools but not the lecturer's Course ID share box
