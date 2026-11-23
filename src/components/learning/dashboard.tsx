@@ -100,9 +100,10 @@ export function CreateModuleDialog({ open, onClose, canCreateClass }: { open: bo
 
 type ModulePreview = { module_id: string; title: string; lecturer_name: string; status: string; already_enrolled: boolean };
 
-export function JoinCourse() {
+/** `initialCode` (from a scanned QR / shared link) is looked up straight away so the student lands on the confirmation step. */
+export function JoinCourse({ initialCode = '', onJoined }: { initialCode?: string; onJoined?: (moduleId: string) => void } = {}) {
   const cache = useQueryClient();
-  const [courseId, setCourseId] = useState('');
+  const [courseId, setCourseId] = useState(initialCode);
   const [preview, setPreview] = useState<ModulePreview | null>(null);
 
   const lookup = useMutation({
@@ -114,10 +115,16 @@ export function JoinCourse() {
     },
     onSuccess: (data) => setPreview(data),
   });
+  const autoLooked = useRef(false);
+  useEffect(() => {
+    if (!initialCode || autoLooked.current) return;
+    autoLooked.current = true; lookup.mutate(initialCode);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [initialCode]);
 
   const join = useMutation({
     mutationFn: () => studyMindModulesService.join(preview!.module_id),
-    onSuccess: async () => { setCourseId(''); setPreview(null); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
+    onSuccess: async (joined) => { setCourseId(''); setPreview(null); await cache.invalidateQueries({ queryKey: ['canonical'] }); onJoined?.(joined.module_id); },
   });
 
   function reset() { setCourseId(''); setPreview(null); lookup.reset(); join.reset(); }

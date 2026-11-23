@@ -8,6 +8,7 @@ import { studyMindIdentityService } from '@/services/studymind-identity.service'
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
 import { BookOpen, CalendarDays, FileText, Files, LogOut, Upload, ClipboardList } from 'lucide-react';
 import { CopyButton } from '@/components/learning/copy-button';
+import { ShareCourseCode } from '@/components/learning/share-course-code';
 import { SideCard, ToolLayout, ToolPanel, btnPrimary } from '@/components/learning/ai/layout';
 import { StudyTools } from '@/components/learning/ai/study-tools';
 import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/learning/states';
@@ -157,6 +158,7 @@ export default function CanonicalModulePage() {
               <h1 className="break-words text-3xl font-extrabold tracking-tight text-[#111034] sm:text-4xl">{moduleQuery.data.title}</h1>
               {moduleQuery.data.course_code && <span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{moduleQuery.data.course_code}</span>}
             </div>
+            {isOwner && moduleQuery.data.access_type === 'class' && moduleQuery.data.course_code && <div className="mt-2.5"><ShareCourseCode code={moduleQuery.data.course_code} title={moduleQuery.data.title} /></div>}
             <p className="mt-1.5 text-zinc-600">{moduleQuery.data.description || (moduleQuery.data.access_type === 'class' ? 'Class module' : 'Personal module')}</p>
           </div>
         </div>
