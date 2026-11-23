@@ -179,7 +179,7 @@ test('header links to the canonical journey and the global link reset cannot ove
   assert.match(header, /\/api\/studymind\/auth\/status/); assert.match(header, /studymind-auth-changed/);
   assert.doesNotMatch(read('src/app/api/studymind/auth/status/route.ts'), /access_token|refresh_token|email/, 'status route must not expose tokens or emails');
   assert.match(read('src/app/globals.css'), /@layer base\{a\{[^}]*\}\}/);
-  assert.match(read('src/app/my-learning/page.tsx'), /href="\/sign-in"/, 'legacy Web accounts keep a way in');
+  assert.doesNotMatch(read('src/app/my-learning/page.tsx'), /href="\/sign-in"/, 'legacy /sign-in link removed — route now redirects server-side');
 });
 
 test('upload visibility: defaults to personal (least privilege) and rejects unknown values', () => {
