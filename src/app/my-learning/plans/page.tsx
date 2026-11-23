@@ -71,7 +71,7 @@ export default function PlansPage() {
     {purchaseAvailable
       ? <div role="note" className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:p-5">
           <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
-          <p><strong>Test payments only.</strong> StudyMind is not live. Checkout uses Stripe&apos;s test mode: pay with the test card 4242 4242 4242 4242 (any future expiry, any CVC). No real money is taken.</p>
+          <p><strong>Test payments only.</strong> Ciquis is not live. Checkout uses Stripe&apos;s test mode: pay with the test card 4242 4242 4242 4242 (any future expiry, any CVC). No real money is taken.</p>
         </div>
       : <div role="note" className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:p-5">
           <Info className="mt-0.5 size-5 shrink-0" aria-hidden />
