@@ -47,9 +47,7 @@ function SignInForm() {
       <p className="mt-2 text-right text-sm"><Link href="/my-learning/forgot-password" className="font-semibold text-violet-700 hover:underline">Forgot password?</Link></p>
       <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
     </form>
-    <div className="mt-6 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-100" /><span className="text-xs text-slate-400">or</span><div className="h-px flex-1 bg-zinc-100" /></div>
-    <p className="mt-5 text-center text-sm text-slate-500">New to Ciquis?{' '}<Link href={withNext('/my-learning/register', next)} className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
-    <p className="mt-6 text-center text-xs text-slate-400">Have an older account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
+    <p className="mt-6 text-center text-sm text-slate-500">New to Ciquis?{' '}<Link href={withNext('/my-learning/register', next)} className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
   </AuthShell>;
 }
 

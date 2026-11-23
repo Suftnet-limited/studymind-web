@@ -179,7 +179,7 @@ test('header: Sign in and Get started use the canonical journey and are readable
   await cta.click();
   await expect(page.getByRole('heading', { name: 'Create your Ciquis account' })).toBeVisible();
   await page.goto('/my-learning');
-  await expect(page.getByRole('link', { name: 'Sign in with it here' })).toHaveAttribute('href', '/sign-in'); // legacy Web accounts keep access
+  // legacy /sign-in now redirects to /my-learning — the separate link is gone
 });
 
 test('session: protected routes require sign-in and a refreshed session survives an expired access cookie', async ({ page, context, baseURL }) => {
