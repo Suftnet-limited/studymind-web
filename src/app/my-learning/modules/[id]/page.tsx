@@ -138,7 +138,6 @@ export default function CanonicalModulePage() {
               <h1 className="break-words text-3xl font-extrabold tracking-tight text-[#111034] sm:text-4xl">{moduleQuery.data.title}</h1>
               {moduleQuery.data.course_code && <span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{moduleQuery.data.course_code}</span>}
             </div>
-            {isOwner && moduleQuery.data.access_type === 'class' && moduleQuery.data.course_code && <div className="mt-2.5"><ShareCourseCode code={moduleQuery.data.course_code} title={moduleQuery.data.title} /></div>}
             <p className="mt-1.5 text-zinc-600">{moduleQuery.data.description || (moduleQuery.data.access_type === 'class' ? 'Class module' : 'Personal module')}</p>
           </div>
         </div>
@@ -172,11 +171,16 @@ export default function CanonicalModulePage() {
         </div>
       </header>
 
-      {shareableCourseId && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-violet-200 bg-violet-50/50 px-5 py-4">
-        <p className="text-sm font-bold text-[#111034]">Course ID</p>
-        <code data-testid="course-id" className="break-all rounded-lg bg-white px-2.5 py-1 text-xs ring-1 ring-zinc-200">{shareableCourseId}</code>
-        <CopyButton value={shareableCourseId} label="Copy Course ID" />
-        <p className="w-full text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
+      {shareableCourseId && <div className="rounded-2xl border border-violet-200 bg-violet-50/50 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="text-sm font-bold text-[#111034]">Course ID</p>
+            <code data-testid="course-id" className="break-all rounded-lg bg-white px-2.5 py-1 text-xs ring-1 ring-zinc-200">{shareableCourseId}</code>
+            <CopyButton value={shareableCourseId} label="Copy Course ID" />
+          </div>
+          {moduleQuery.data.course_code && <ShareCourseCode code={moduleQuery.data.course_code} title={moduleQuery.data.title} />}
+        </div>
+        <p className="mt-2 text-xs text-zinc-600">Share this with your students. They paste it into <em>Join a course</em> in their learning workspace.</p>
       </div>}
 
       <StudyTools moduleId={id} moduleTitle={moduleQuery.data?.title} hasMaterials={indexed > 0} documents={documentsPanel} userName={overview.data?.user.full_name ?? ''} isOwner={isOwner} isClassModule={moduleQuery.data?.access_type === 'class'} ownerId={overview.data?.user.id ?? ''} />
