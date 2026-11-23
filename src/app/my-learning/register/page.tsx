@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ChevronDown, Lock, Mail, User } from 'lucide-react';
+import { currentNext, withNext } from '@/lib/return-to';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit, PasswordChecks } from '@/components/auth/auth-field';
 
@@ -16,6 +17,8 @@ const MIN_PASSWORD = 12;
 
 export default function RegisterLearning() {
   const router = useRouter();
+  const [next, setNext] = useState<string | null>(null);
+  useEffect(() => setNext(currentNext()), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [roles, setRoles] = useState<string[]>(['student', 'lecturer']);
@@ -41,7 +44,7 @@ export default function RegisterLearning() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Unable to create account');
       if (!result.authenticated) throw new Error('Account created. Please sign in with your new credentials.');
-      router.replace('/my-learning'); router.refresh();
+      router.replace(currentNext() ?? '/my-learning'); router.refresh();
     } catch (e) { setError(e instanceof Error ? e.message : 'Registration failed'); }
     finally { setBusy(false); }
   }
@@ -70,6 +73,6 @@ export default function RegisterLearning() {
       </div>
       <AuthSubmit busy={busy} busyText="Creating account…">Create account</AuthSubmit>
     </form>
-    <p className="mt-5 text-center text-sm text-slate-500">Already registered?{' '}<Link href="/my-learning" className="font-semibold text-violet-700 hover:underline">Sign in</Link></p>
+    <p className="mt-5 text-center text-sm text-slate-500">Already registered?{' '}<Link href={withNext('/my-learning', next)} className="font-semibold text-violet-700 hover:underline">Sign in</Link></p>
   </AuthShell>;
 }

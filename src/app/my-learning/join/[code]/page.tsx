@@ -6,6 +6,7 @@ import { studyMindIdentityService } from '@/services/studymind-identity.service'
 import { ApiError } from '@/services/studymind-modules.service';
 import { roleCapabilities } from '@/lib/studymind-validation.mjs';
 import { isJoinCode } from '@/lib/join-link';
+import { withNext } from '@/lib/return-to';
 import { JoinCourse } from '@/components/learning/dashboard';
 import { ErrorBox, LoadingBlock } from '@/components/learning/states';
 
@@ -16,6 +17,7 @@ export default function JoinByCodePage() {
   let code = '';
   try { code = decodeURIComponent(params.code ?? '').trim(); } catch { /* malformed escape → treated as invalid below */ }
   const valid = isJoinCode(code);
+  const back = `/my-learning/join/${encodeURIComponent(code)}`;   // where sign-in / registration return to
 
   const overview = useQuery({
     queryKey: ['canonical', 'overview'], queryFn: studyMindIdentityService.overview, enabled: valid,
@@ -29,11 +31,11 @@ export default function JoinByCodePage() {
     {!valid && <div className="mt-6"><ErrorBox message="This join link isn’t valid. Ask your lecturer for the code and enter it from My modules." /></div>}
     {valid && overview.isLoading && <LoadingBlock label="Checking your account…" />}
     {valid && signedOut && <div data-testid="join-signed-out" className="mt-6 rounded-2xl border border-violet-200 bg-violet-50/50 p-6">
-      <p className="text-sm text-zinc-600">Sign in or create a student account, then enter this code under <em>Join a course</em>:</p>
+      <p className="text-sm text-zinc-600">Sign in or create a student account and you’ll come straight back here to join:</p>
       <p className="mt-3 text-3xl font-extrabold tracking-wider text-violet-700">{code}</p>
       <div className="mt-5 flex flex-wrap gap-3">
-        <Link href="/my-learning" className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800">Sign in</Link>
-        <Link href="/my-learning/register" className="rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50">Create an account</Link>
+        <Link href={withNext('/my-learning', back)} className="rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-800">Sign in</Link>
+        <Link href={withNext('/my-learning/register', back)} className="rounded-xl border border-violet-200 bg-white px-4 py-2.5 text-sm font-semibold text-violet-700 hover:bg-violet-50">Create an account</Link>
       </div>
     </div>}
     {valid && overview.isError && !signedOut && <div className="mt-6"><ErrorBox message="We couldn’t check your account. Please try again." onRetry={() => overview.refetch()} /></div>}

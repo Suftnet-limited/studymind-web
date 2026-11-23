@@ -1,7 +1,8 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ApiError, studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { roleCapabilities } from '@/lib/studymind-validation.mjs';
@@ -9,6 +10,7 @@ import { ErrorBox, LoadingBlock } from '@/components/learning/states';
 import { CreateModule, CreateModuleDialog, JoinCourse, ModuleTable, StatTiles, statIcons, type Stat } from '@/components/learning/dashboard';
 import { dashboardStats } from '@/lib/dashboard.mjs';
 import { Mail, Lock } from 'lucide-react';
+import { currentNext, withNext } from '@/lib/return-to';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
@@ -16,11 +18,14 @@ const message = (e: unknown) => (e instanceof Error ? e.message : 'Something wen
 
 function SignIn() {
   const cache = useQueryClient();
+  const router = useRouter();
+  const [next, setNext] = useState<string | null>(null);
+  useEffect(() => setNext(currentNext()), []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
     mutationFn: () => studyMindIdentityService.login(email, password),
-    onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); },
+    onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); const back = currentNext(); if (back) router.replace(back); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
   return <AuthShell>
@@ -36,7 +41,7 @@ function SignIn() {
       <AuthSubmit busy={login.isPending} busyText="Signing in…" disabled={!email || !password}>Sign in</AuthSubmit>
     </form>
     <div className="mt-6 flex items-center gap-3"><div className="h-px flex-1 bg-zinc-100" /><span className="text-xs text-slate-400">or</span><div className="h-px flex-1 bg-zinc-100" /></div>
-    <p className="mt-5 text-center text-sm text-slate-500">New to Ciquis?{' '}<Link href="/my-learning/register" className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
+    <p className="mt-5 text-center text-sm text-slate-500">New to Ciquis?{' '}<Link href={withNext('/my-learning/register', next)} className="font-semibold text-violet-700 hover:underline">Create an account</Link></p>
     <p className="mt-6 text-center text-xs text-slate-400">Have an older account? <Link href="/sign-in" className="font-semibold text-violet-700 underline">Sign in with it here</Link></p>
   </AuthShell>;
 }

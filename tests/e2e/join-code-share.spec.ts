@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { apiAccount, apiCreateClass, expectNoHorizontalScroll, shot, signIn } from './helpers';
+import { PASSWORD, apiAccount, apiCreateClass, expectNoHorizontalScroll, shot, signIn, uniqueEmail } from './helpers';
 
 const CODE = /^CIQ-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/;
 
@@ -68,4 +68,47 @@ test('Share button is for owners of class modules only; invalid links are reject
   await expect(page.getByText('This join link isn’t valid')).toBeVisible();
   await page.goto('/my-learning/join/CIQ-ZZZZ');
   await expect(page.getByRole('alert').filter({ hasText: /not found/i })).toBeVisible();
+});
+
+
+test('scanning the QR while signed out: sign in (or register) and come back to the join screen', async ({ page, browser, baseURL }) => {
+  const lecturer = await apiAccount(baseURL!, 'lecturer', 'lecturer');
+  const created = await apiCreateClass(lecturer.ctx, 'Return To Module');
+  const code = ((await (await lecturer.ctx.get(`/api/studymind/modules/${created.id}`)).json()) as { course_code: string }).course_code;
+  const confirmation = (p: typeof page) => p.getByRole('button', { name: 'Join "Return To Module"' });
+
+  // existing account: scan → Sign in → sign in → back on the join confirmation (not the dashboard)
+  const s = await apiAccount(baseURL!, 'returning', 'student');
+  await page.goto(`/join/${code}`);
+  await page.getByTestId('join-signed-out').getByRole('link', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(new RegExp(`/my-learning\\?next=`));
+  await signIn(page, s.email);
+  await expect(page).toHaveURL(new RegExp(`/my-learning/join/${code}$`));
+  await expect(confirmation(page)).toBeVisible();
+
+  // new account: scan → Create account → register → back on the join confirmation; switching between the two keeps the destination
+  const ctx = await browser.newContext(); const p2 = await ctx.newPage();
+  await p2.goto(`${baseURL}/join/${code}`);
+  await p2.getByTestId('join-signed-out').getByRole('link', { name: 'Sign in' }).click();
+  await p2.getByRole('link', { name: 'Create an account' }).click();
+  await expect(p2).toHaveURL(/\/my-learning\/register\?next=/);
+  await p2.getByLabel('Full name').fill('Return Student');
+  await p2.getByLabel('Email').fill(uniqueEmail('return'));
+  await p2.getByLabel('Password').fill(PASSWORD);
+  await p2.getByLabel('Account type').selectOption('student');
+  await p2.getByRole('button', { name: 'Create account' }).click();
+  await expect(p2).toHaveURL(new RegExp(`/my-learning/join/${code}$`));
+  await expect(confirmation(p2)).toBeVisible();
+  await ctx.close();
+});
+
+test('next= cannot send anyone off-site or outside the learning area', async ({ page, baseURL }) => {
+  for (const evil of ['//evil.example/my-learning/x', 'https://evil.example/my-learning/x', '/dashboard', '/my-learning/../dashboard']) {
+    const s = await apiAccount(baseURL!, 'evil', 'student');
+    await page.context().clearCookies();
+    await page.goto(`/my-learning?next=${encodeURIComponent(evil)}`);
+    await signIn(page, s.email);
+    const landed = new URL(page.url());
+    expect([landed.origin, landed.pathname], evil).toEqual([new URL(baseURL!).origin, '/my-learning']);   // stayed on our site, on the dashboard
+  }
 });
