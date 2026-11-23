@@ -13,7 +13,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
     hidden.forEach((el) => el.setAttribute('inert', ''));
     return () => hidden.forEach((el) => el.removeAttribute('inert'));
   }, []);
-  return <div className="fixed inset-0 z-50 overflow-y-auto bg-[#f6f7fb]" data-testid="auth-shell">
+  return <div className="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto bg-[#f6f7fb]" data-testid="auth-shell">
     <div className="pointer-events-none absolute inset-0 opacity-50" aria-hidden style={{ backgroundImage: 'radial-gradient(circle, #dfe3ef 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
     <div className="pointer-events-none absolute -left-24 top-12 h-80 w-80 rounded-full bg-violet-100/70 blur-3xl" aria-hidden />
     <div className="pointer-events-none absolute -right-24 bottom-10 h-80 w-80 rounded-full bg-indigo-100/70 blur-3xl" aria-hidden />
