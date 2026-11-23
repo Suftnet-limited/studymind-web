@@ -13,6 +13,7 @@ import { Mail, Lock } from 'lucide-react';
 import { currentNext, withNext } from '@/lib/return-to';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 import { RecaptchaProvider } from '@/components/recaptcha-provider';
+import { getRecaptchaToken } from '@/lib/recaptcha-client';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { AuthError, AuthField, AuthSubmit } from '@/components/auth/auth-field';
 
@@ -30,7 +31,7 @@ function SignInForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const login = useMutation({
-    mutationFn: async () => studyMindIdentityService.login(email, password, executeRecaptcha ? await executeRecaptcha('login') : ''),
+    mutationFn: async () => studyMindIdentityService.login(email, password, await getRecaptchaToken(executeRecaptcha, 'login')),
     onSuccess: async () => { setPassword(''); await cache.invalidateQueries({ queryKey: ['canonical'] }); const back = currentNext(); if (back) router.replace(back); },
   });
   function submit(e: FormEvent) { e.preventDefault(); login.mutate(); }
