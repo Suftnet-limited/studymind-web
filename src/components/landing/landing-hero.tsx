@@ -22,6 +22,16 @@ export function LandingHero() {
             <PlayCircle className="size-5 text-[var(--sm-purple)]" aria-hidden /> See how it works
           </Link>
         </div>
+
+        {/* App store badges */}
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <a href="https://apps.apple.com/app/ciquis/id6741540140" target="_blank" rel="noopener noreferrer" aria-label="Download on the App Store">
+            <Image src="/landing/app-store-badge.png" alt="Download on the App Store" width={140} height={47} className="h-[47px] w-auto" />
+          </a>
+          <a href="https://play.google.com/store/apps/details?id=com.suftnet.studymind" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play">
+            <Image src="/landing/google-play-badge.png" alt="Get it on Google Play" width={158} height={47} className="h-[47px] w-auto" />
+          </a>
+        </div>
       </div>
 
       <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
