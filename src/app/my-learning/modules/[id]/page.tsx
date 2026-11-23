@@ -208,7 +208,7 @@ export default function CanonicalModulePage() {
           <div className="flex items-center justify-between gap-3 border-b border-zinc-100 px-5 py-4">
             <div>
               <p className="font-bold text-zinc-900">Enrolled students</p>
-              {studentsQuery.data && <p className="text-xs text-zinc-500 mt-0.5">{studentsQuery.data.length} enrolled</p>}
+              {studentsQuery.data && <p className="text-xs text-zinc-500 mt-0.5">{studentsQuery.data.filter(s => s.student_id !== overview.data?.user.id).length} enrolled</p>}
             </div>
             {!studentsQuery.isFetched && (
               <button onClick={() => studentsQuery.refetch()}
@@ -219,10 +219,10 @@ export default function CanonicalModulePage() {
           </div>
           {studentsQuery.isFetched && (
             <div className="divide-y divide-zinc-100">
-              {studentsQuery.data?.length === 0 && (
+              {studentsQuery.data?.filter(s => s.student_id !== overview.data?.user.id).length === 0 && (
                 <p className="px-5 py-6 text-sm text-zinc-500">No students enrolled yet. Share the Course ID above.</p>
               )}
-              {studentsQuery.data?.map(s => (
+              {studentsQuery.data?.filter(s => s.student_id !== overview.data?.user.id).map(s => (
                 <div key={s.student_id} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div>
                     <p className="text-sm font-semibold text-zinc-900">{s.full_name}</p>
