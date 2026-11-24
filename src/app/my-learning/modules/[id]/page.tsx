@@ -136,7 +136,6 @@ export default function CanonicalModulePage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
               <h1 className="break-words text-3xl font-extrabold tracking-tight text-[#111034] sm:text-4xl">{moduleQuery.data.title}</h1>
-              {moduleQuery.data.course_code && <span className="rounded-full bg-violet-50 px-3 py-1 text-sm font-semibold text-violet-700">{moduleQuery.data.course_code}</span>}
             </div>
             <p className="mt-1.5 text-zinc-600">{moduleQuery.data.description || (moduleQuery.data.access_type === 'class' ? 'Class module' : 'Personal module')}</p>
           </div>

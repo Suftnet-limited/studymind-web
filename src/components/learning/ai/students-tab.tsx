@@ -1,7 +1,7 @@
 'use client';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, GraduationCap, UserMinus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type StudentRow = { enrolment_id: string; student_id: string; full_name: string; email: string; enrolled_at: string };
@@ -109,9 +109,9 @@ export function StudentsTab({ moduleId, ownerId }: { moduleId: string; ownerId: 
                         <button onClick={() => setRemovingId(null)} className="text-xs text-zinc-400 hover:text-zinc-700">Cancel</button>
                       </span>
                     ) : (
-                      <button onClick={() => setRemovingId(s.student_id)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
-                        <UserMinus className="size-3.5" aria-hidden /> Remove
+                      <button onClick={() => setRemovingId(s.student_id)} aria-label={`Remove ${s.full_name}`}
+                        className="inline-flex items-center justify-center rounded-lg border border-zinc-200 p-1.5 text-zinc-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
+                        <Trash2 className="size-4" aria-hidden />
                       </button>
                     )}
                   </td>

@@ -15,7 +15,7 @@ const BASE_TABS = [
   { id: 'flashcards', label: 'Flashcards' }, { id: 'summary', label: 'Summary' },
   { id: 'assignments', label: 'Assignments' },
 ] as const;
-const OWNER_CLASS_TABS = [...BASE_TABS, { id: 'students', label: 'Students' }] as const;
+const OWNER_CLASS_TABS = [...BASE_TABS, { id: 'students', label: 'Enrollment' }] as const;
 type TabId = (typeof OWNER_CLASS_TABS)[number]['id'];
 
 /**
