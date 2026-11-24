@@ -15,6 +15,33 @@ import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/le
 import { cn } from '@/lib/utils';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
+
+/** Inline component that shows a smart indexing-failure message based on the file extension. */
+function IndexFailNote({ filename, alert: isAlert }: { filename?: string; alert?: boolean }) {
+  const { short, detail } = indexFailMessage(filename);
+  return <p role={isAlert ? 'alert' : undefined} className="mt-1 text-xs text-red-700">
+    <span className="font-semibold">{short}.</span> {detail}
+  </p>;
+}
+
+/** Returns a user-friendly explanation when a document fails to index, based on the file extension. */
+function indexFailMessage(filename?: string): { short: string; detail: string } {
+  const ext = (filename ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (['ppt', 'pptx', 'key'].includes(ext))
+    return {
+      short: 'Slide deck detected',
+      detail: 'PowerPoint and Keynote files cannot be indexed directly. Open the file, export it as a PDF with "Document structure tags for accessibility" enabled, then upload the exported PDF.',
+    };
+  if (ext === 'pdf')
+    return {
+      short: 'Image-based PDF detected',
+      detail: 'This PDF appears to contain images rather than selectable text (common with exported slide decks or scanned documents). Try re-exporting from PowerPoint with accessibility tags, or copy the content into a Word document (.docx) and upload that instead.',
+    };
+  return {
+    short: 'Could not index this file',
+    detail: 'Check that it is a readable, unprotected document and not a scanned image, then upload it again.',
+  };
+}
 const POLL_MS = 5000;
 // A stable, friendly tint for the module's icon tile (chosen from the title so it does not change between visits).
 const TONES = [
@@ -93,7 +120,7 @@ export default function CanonicalModulePage() {
             <div className="min-w-0">
               <p className="break-words font-semibold text-[#111034]">{d.filename || d.original_filename || 'Study material'}</p>
               {d.visibility && <p className="text-xs text-zinc-500">{d.visibility === 'personal' ? 'Personal note · only you can see it' : 'Class material · visible to the class'}</p>}
-              {documentStatus(d) === 'failed' && <p className="mt-1 text-xs text-red-700">We could not index this file. Check that it is a readable, unprotected document, then upload it again.</p>}
+              {documentStatus(d) === 'failed' && <IndexFailNote filename={d.filename || d.original_filename} />}
             </div>
           </div>
           <StatusBadge status={documentStatus(d)} />
@@ -101,7 +128,7 @@ export default function CanonicalModulePage() {
       </ul>
     </ToolPanel>}
     side={<SideCard title="Upload course material" icon={<Upload className="size-4" />}>
-      <p className="mb-4 text-sm leading-6 text-zinc-500">PDFs, slides and notes are indexed so Ciquis AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV. Maximum 50 MB.</p>
+      <p className="mb-4 text-sm leading-6 text-zinc-500">PDFs, Word docs and notes are indexed so Ciquis AI can answer from them. Accepted: PDF, DOCX, TXT, MD, CSV · Max 50 MB. <span className="text-amber-600">PowerPoint files must be exported as PDF first.</span></p>
       <form onSubmit={submit} className="space-y-4">
         <input aria-label="Document" type="file" required accept={ALLOWED_EXTENSIONS.join(',')} className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-2 file:font-semibold file:text-violet-700"
           onChange={e => pick(e.target.files?.[0] ?? null)} />
@@ -112,7 +139,7 @@ export default function CanonicalModulePage() {
         {fileError && <ErrorBox message={fileError} />}
         {upload.isError && <ErrorBox message={message(upload.error)} />}
         {upload.isSuccess && (documentStatus(upload.data) === 'failed'
-          ? <p role="alert" className="text-sm text-red-700">The file was uploaded but could not be indexed. Check that it is readable and not password-protected, then try again.</p>
+          ? <IndexFailNote filename={file?.name} alert />
           : documentStatus(upload.data) === 'indexed'
             ? <p role="status" className="text-sm text-green-700">Uploaded and indexed. It is ready to use.</p>
             : <p role="status" className="text-sm text-green-700">Uploaded. Indexing has started and this list updates automatically.</p>)}
