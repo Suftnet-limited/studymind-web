@@ -12,6 +12,7 @@ import { ShareCourseCode } from '@/components/learning/share-course-code';
 import { SideCard, ToolLayout, ToolPanel, btnPrimary } from '@/components/learning/ai/layout';
 import { StudyTools } from '@/components/learning/ai/study-tools';
 import { EmptyState, ErrorBox, LoadingBlock, StatusBadge } from '@/components/learning/states';
+import { Modal } from '@/components/ui/modal';
 import { cn } from '@/lib/utils';
 
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
@@ -200,25 +201,35 @@ export default function CanonicalModulePage() {
           {leave.isError && <span className="text-xs text-red-600">{message(leave.error)}</span>}
           {/* Delete module — only for the owner */}
           {isOwner && (
-            !deleteConfirm ? (
-              <button onClick={() => setDeleteConfirm(true)}
-                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
-                <Trash2 className="size-3.5" /> Delete module
-              </button>
-            ) : (
-              <span className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
-                <span className="text-xs font-semibold text-red-700">Delete &ldquo;{moduleQuery.data.title}&rdquo;? This cannot be undone.</span>
-                <button onClick={() => deleteModule.mutate()} disabled={deleteModule.isPending}
-                  className="text-xs font-bold text-red-600 hover:text-red-800 disabled:opacity-60">
-                  {deleteModule.isPending ? 'Deleting…' : 'Yes, delete'}
-                </button>
-                <button onClick={() => setDeleteConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-700">Cancel</button>
-              </span>
-            )
+            <button onClick={() => setDeleteConfirm(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
+              <Trash2 className="size-3.5" /> Delete module
+            </button>
           )}
-          {deleteModule.isError && <span className="text-xs text-red-600">{message(deleteModule.error)}</span>}
         </div>
       </header>
+
+      {/* Delete confirmation modal */}
+      <Modal
+        open={deleteConfirm}
+        onClose={() => { if (!deleteModule.isPending) { setDeleteConfirm(false); deleteModule.reset(); } }}
+        title="Delete module"
+        description={`Are you sure you want to delete "${moduleQuery.data?.title ?? 'this module'}"? All materials and student enrolments will be permanently removed. This cannot be undone.`}
+      >
+        {deleteModule.isError && (
+          <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{message(deleteModule.error)}</p>
+        )}
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={() => { setDeleteConfirm(false); deleteModule.reset(); }} disabled={deleteModule.isPending}
+            className="h-11 rounded-xl border border-zinc-200 px-5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition">
+            Cancel
+          </button>
+          <button type="button" onClick={() => deleteModule.mutate()} disabled={deleteModule.isPending}
+            className="h-11 rounded-xl bg-red-600 px-5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60 transition">
+            {deleteModule.isPending ? 'Deleting…' : 'Yes, delete'}
+          </button>
+        </div>
+      </Modal>
 
       {shareableCourseId && <div className="rounded-2xl border border-violet-200 bg-violet-50/50 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
