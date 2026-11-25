@@ -13,3 +13,19 @@ export async function GET(_request: Request, context: Context) {
     return NextResponse.json(await upstream.json(), { headers: { 'Cache-Control': 'private, no-store' } });
   } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
 }
+
+/** Owner deletes a module (and all its documents / enrolments). */
+export async function DELETE(_request: Request, context: Context) {
+  const { id } = await context.params;
+  if (!isUuid(id)) return NextResponse.json({ error: 'Invalid module ID' }, { status: 400 });
+  try {
+    const upstream = await authenticatedAiFetch(`/api/modules/${id}`, { method: 'DELETE' });
+    if (!upstream || upstream.status === 401) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (upstream.status === 204) return new NextResponse(null, { status: 204 });
+    const data = await upstream.json().catch(() => ({}));
+    return NextResponse.json(
+      { error: (data as { detail?: string; error?: string }).detail || (data as { error?: string }).error || 'Unable to delete module' },
+      { status: upstream.status < 500 ? upstream.status : 502 },
+    );
+  } catch { return NextResponse.json({ error: 'Learning service unavailable' }, { status: 502 }); }
+}
