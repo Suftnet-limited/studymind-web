@@ -35,6 +35,18 @@ export const studyMindModulesService = {
     responseData<CanonicalModule>(await fetch(base, jsonInit({ title, access_type })), 'Unable to create module'),
   join: async (course_id: string) =>
     responseData<{ module_id: string; enrolment_id: string }>(await fetch(`${base}/join`, jsonInit({ course_id })), 'Unable to join course'),
+  leave: async (id: string): Promise<void> => {
+    const res = await fetch(`${modulePath(id)}/leave`, { method: 'DELETE' });
+    if (res.status === 204) return;
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string }).error || 'Unable to leave module', res.status);
+  },
+  delete: async (id: string): Promise<void> => {
+    const res = await fetch(modulePath(id), { method: 'DELETE' });
+    if (res.status === 204) return;
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError((body as { error?: string }).error || 'Unable to delete module', res.status);
+  },
   documents: async (id: string) =>
     responseData<CanonicalDocument[]>(await fetch(`${modulePath(id)}/documents`, { cache: 'no-store' }), 'Unable to load materials'),
 

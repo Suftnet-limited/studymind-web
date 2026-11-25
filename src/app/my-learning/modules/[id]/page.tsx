@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { ApiError, studyMindModulesService } from '@/services/studymind-modules.service';
 import { studyMindIdentityService } from '@/services/studymind-identity.service';
 import { ALLOWED_EXTENSIONS, documentStatus, roleCapabilities, hasPendingDocuments, validateUpload } from '@/lib/studymind-validation.mjs';
-import { BookOpen, CalendarDays, FileText, Files, LogOut, Upload, ClipboardList } from 'lucide-react';
+import { BookOpen, CalendarDays, FileText, Files, LogOut, Trash2, Upload, ClipboardList } from 'lucide-react';
 import { CopyButton } from '@/components/learning/copy-button';
 import { ShareCourseCode } from '@/components/learning/share-course-code';
 import { SideCard, ToolLayout, ToolPanel, btnPrimary } from '@/components/learning/ai/layout';
@@ -59,14 +59,18 @@ export default function CanonicalModulePage() {
   const [visibility, setVisibility] = useState<'class' | 'personal'>('personal');
   const [fileError, setFileError] = useState('');
   const [leaveConfirm, setLeaveConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const leave = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/studymind/modules/${id}/leave`, { method: 'DELETE' });
-      if (res.status === 204) return;
-      const data = await res.json().catch(() => ({}));
-      throw new Error((data as { error?: string }).error || 'Unable to leave module');
+    mutationFn: () => studyMindModulesService.leave(id),
+    onSuccess: async () => {
+      await cache.invalidateQueries({ queryKey: ['canonical'] });
+      router.push('/my-learning');
     },
+  });
+
+  const deleteModule = useMutation({
+    mutationFn: () => studyMindModulesService.delete(id),
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ['canonical'] });
       router.push('/my-learning');
@@ -194,6 +198,25 @@ export default function CanonicalModulePage() {
             )
           )}
           {leave.isError && <span className="text-xs text-red-600">{message(leave.error)}</span>}
+          {/* Delete module — only for the owner */}
+          {isOwner && (
+            !deleteConfirm ? (
+              <button onClick={() => setDeleteConfirm(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition">
+                <Trash2 className="size-3.5" /> Delete module
+              </button>
+            ) : (
+              <span className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5">
+                <span className="text-xs font-semibold text-red-700">Delete &ldquo;{moduleQuery.data.title}&rdquo;? This cannot be undone.</span>
+                <button onClick={() => deleteModule.mutate()} disabled={deleteModule.isPending}
+                  className="text-xs font-bold text-red-600 hover:text-red-800 disabled:opacity-60">
+                  {deleteModule.isPending ? 'Deleting…' : 'Yes, delete'}
+                </button>
+                <button onClick={() => setDeleteConfirm(false)} className="text-xs text-zinc-500 hover:text-zinc-700">Cancel</button>
+              </span>
+            )
+          )}
+          {deleteModule.isError && <span className="text-xs text-red-600">{message(deleteModule.error)}</span>}
         </div>
       </header>
 
