@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowUpDown, Atom, BookOpen, Calculator, Check, CheckCircle2, ChevronLeft, ChevronRight, Code2, Copy, FileText, FlaskConical, GraduationCap, Landmark, Languages, Layers, Leaf, MoreHorizontal, Play, Plus, Search, SquarePlus, Users } from 'lucide-react';
+import { ArrowUpDown, Atom, BookOpen, Calculator, Check, CheckCircle2, ChevronLeft, ChevronRight, Clipboard, Code2, Eye, FileText, FlaskConical, GraduationCap, Landmark, Languages, Layers, Leaf, LogOut, Play, Plus, Search, SquarePlus, Users } from 'lucide-react';
 import { studyMindModulesService, type CanonicalModule } from '@/services/studymind-modules.service';
 import { ErrorBox } from '@/components/learning/states';
 import { iconTone } from '@/components/learning/ai/shared';
@@ -176,27 +176,68 @@ function Progress({ value }: { value: number }) {
     <div role="progressbar" aria-label="Study progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} className="h-2.5 w-full min-w-24 max-w-48 overflow-hidden rounded-full bg-zinc-100"><div className="h-full rounded-full bg-violet-600" style={{ width: `${value}%` }} /></div></div>;
 }
 
-function RowActions({ module, canCopy }: { module: CanonicalModule; canCopy: boolean }) {
-  const [open, setOpen] = useState(false); const [copied, setCopied] = useState(false);
-  const box = useRef<HTMLDivElement>(null); const trigger = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); trigger.current?.focus(); } };
-    document.addEventListener('mousedown', away); document.addEventListener('keydown', key);
-    box.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key); };
-  }, [open]);
-  const item = 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm! font-semibold! text-zinc-700 hover:bg-violet-50 focus-visible:bg-violet-50 focus-visible:outline-none';
-  return <div ref={box} className="relative inline-block">
-    <button ref={trigger} type="button" aria-label={`Actions for ${module.title}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}
-      className="flex size-10 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-violet-50 hover:text-violet-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><MoreHorizontal className="size-5" aria-hidden /></button>
-    {open && <div role="menu" aria-label={`${module.title} actions`} className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-[0_12px_36px_rgba(76,29,149,0.14)]">
-      <Link role="menuitem" href={`/my-learning/modules/${module.id}`} className={item}><BookOpen className="size-4" aria-hidden /> Open module</Link>
-      {canCopy && <button type="button" role="menuitem" className={item} onClick={async () => { try { await navigator.clipboard.writeText(module.id); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* clipboard unavailable */ } }}>
-        {copied ? <Check className="size-4 text-emerald-600" aria-hidden /> : <Copy className="size-4" aria-hidden />}{copied ? 'Course ID copied' : 'Copy Course ID'}</button>}
-    </div>}
-  </div>;
+/** Icon-only action button with a tooltip. */
+function ActionBtn({ label, href, onClick, icon, variant = 'default', pending, confirm }: {
+  label: string; href?: string; onClick?: () => void; icon: React.ReactNode;
+  variant?: 'default' | 'danger'; pending?: boolean; confirm?: boolean;
+}) {
+  const cls = cn(
+    'group relative flex size-9 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2',
+    variant === 'danger' || confirm
+      ? 'text-zinc-400 hover:bg-red-50 hover:text-red-600 focus-visible:ring-red-400'
+      : 'text-zinc-400 hover:bg-violet-50 hover:text-violet-700 focus-visible:ring-violet-500',
+    pending && 'pointer-events-none opacity-50',
+  );
+  const tip = (
+    <span role="tooltip" className="pointer-events-none absolute -top-9 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-lg bg-zinc-900 px-2.5 py-1 text-xs font-semibold text-white opacity-0 shadow transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+      {label}
+    </span>
+  );
+  if (href) return <Link href={href} aria-label={label} className={cls}>{tip}{icon}</Link>;
+  return <button type="button" aria-label={label} onClick={onClick} disabled={pending} className={cls}>{tip}{icon}</button>;
+}
+
+function RowActions({ module, canCopy, owned }: { module: CanonicalModule; canCopy: boolean; owned: boolean }) {
+  const cache = useQueryClient();
+  const [copied, setCopied] = useState(false);
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
+
+  const leave = useMutation({
+    mutationFn: () => studyMindModulesService.leave(module.id),
+    onSuccess: () => { setLeaveConfirm(false); cache.invalidateQueries({ queryKey: ['canonical'] }); },
+  });
+
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(module.course_code ?? module.id); setCopied(true); setTimeout(() => setCopied(false), 1800); }
+    catch { /* clipboard unavailable */ }
+  };
+
+  if (leaveConfirm) return (
+    <span className="flex items-center justify-end gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-xs">
+      <span className="font-semibold text-red-700 whitespace-nowrap">Leave?</span>
+      <button type="button" onClick={() => leave.mutate()} disabled={leave.isPending}
+        className="font-bold text-red-600 hover:text-red-800 disabled:opacity-60">
+        {leave.isPending ? '…' : 'Yes'}
+      </button>
+      <button type="button" onClick={() => setLeaveConfirm(false)} className="text-zinc-400 hover:text-zinc-700">No</button>
+    </span>
+  );
+
+  return (
+    <div className="flex items-center justify-end gap-0.5">
+      <ActionBtn label="View module" href={`/my-learning/modules/${module.id}`} icon={<Eye className="size-4" aria-hidden />} />
+      {canCopy && (
+        <ActionBtn
+          label={copied ? 'Copied!' : 'Copy Course ID'}
+          onClick={copy}
+          icon={copied ? <Check className="size-4 text-emerald-500" aria-hidden /> : <Clipboard className="size-4" aria-hidden />}
+        />
+      )}
+      {!owned && module.access_type === 'class' && (
+        <ActionBtn label="Leave course" variant="danger" onClick={() => setLeaveConfirm(true)} icon={<LogOut className="size-4" aria-hidden />} />
+      )}
+    </div>
+  );
 }
 
 function SortHead({ label, by, sort, onSort, className }: { label: string; by: 'name' | 'date' | 'status'; sort: Sort; onSort: (by: 'name' | 'date' | 'status') => void; className?: string }) {
@@ -274,7 +315,7 @@ export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, em
                   <td className="px-5 py-3.5"><span className="inline-flex items-center gap-2 text-zinc-700"><FileText className="size-5 text-zinc-400" aria-hidden />{m.document_count ?? 0}<span className="sr-only"> materials</span></span></td>
                   <td className="px-5 py-3.5"><Progress value={pct(m)} /></td>
                   <td className="px-5 py-3.5"><StatusPill module={m} owned={m.owned} /></td>
-                  <td className="px-5 py-3.5 text-right"><RowActions module={m} canCopy={canCopy(m)} /></td>
+                  <td className="px-5 py-3.5 text-right"><RowActions module={m} canCopy={canCopy(m)} owned={m.owned} /></td>
                 </tr>)}
               </tbody>
             </table>
@@ -283,7 +324,7 @@ export function ModuleTable({ id, title, searchLabel, modules, userOwnsClass, em
               {view.items.map(m => <li key={m.id} className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <Link href={`/my-learning/modules/${m.id}`} className="flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"><ModuleIcon module={m} /><span className="break-words font-bold text-[#111034]">{m.title}</span></Link>
-                  <RowActions module={m} canCopy={canCopy(m)} />
+                  <RowActions module={m} canCopy={canCopy(m)} owned={m.owned} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2"><TypePill module={m} /><StatusPill module={m} owned={m.owned} /></div>
                 <p className="text-sm text-zinc-600">{m.owned ? 'Created' : 'Enrolled'} {formatDate(addedAt(m))} · <FileText className="mb-0.5 inline size-4 text-zinc-400" aria-hidden /> {m.document_count ?? 0} materials</p>
