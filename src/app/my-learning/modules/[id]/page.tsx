@@ -149,7 +149,7 @@ export default function CanonicalModulePage() {
         {fileError && <ErrorBox message={fileError} />}
         {upload.isError && <ErrorBox message={message(upload.error)} />}
         {upload.isSuccess && (documentStatus(upload.data) === 'failed'
-          ? <IndexFailNote filename={file?.name} alert />
+          ? <IndexFailNote filename={upload.data?.filename ?? file?.name} alert />
           : documentStatus(upload.data) === 'indexed'
             ? <p role="status" className="text-sm text-green-700">Uploaded and indexed. It is ready to use.</p>
             : <p role="status" className="text-sm text-green-700">Uploaded. Indexing has started and this list updates automatically.</p>)}
