@@ -38,6 +38,11 @@ function indexFailMessage(filename?: string): { short: string; detail: string } 
       short: 'Image-based PDF detected',
       detail: 'This PDF appears to contain images rather than selectable text (common with exported slide decks or scanned documents). Try re-exporting from PowerPoint with accessibility tags, or copy the content into a Word document (.docx) and upload that instead.',
     };
+  if (ext === 'txt')
+    return {
+      short: 'Plain text file could not be indexed',
+      detail: 'Try saving the file as a Word document (.docx) or Markdown (.md) file and uploading again. If you copied the content from another source, paste it directly into a Word document and save it as .docx.',
+    };
   return {
     short: 'Could not index this file',
     detail: 'Check that it is a readable, unprotected document and not a scanned image, then upload it again.',
